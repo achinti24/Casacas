@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Casacas - Historial</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="sidebar">
+    <h2>Casacas</h2>
+    <nav id="nav-menu"></nav>
+    <div style="position:absolute; bottom:30px; left:20px; right:20px;">
+      <div id="info-usuario" style="color:#aaa; font-size:13px; margin-bottom:10px;"></div>
+      <button onclick="cerrarSesion()" style="width:100%; padding:10px; background:#e94560; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">Cerrar sesion</button>
+    </div>
+  </div>
+
+  <div class="contenido">
+    <div class="encabezado">
+      <h1>Historial de Movimientos</h1>
+      <button class="btn btn-rojo" onclick="abrirModalEntrada()">+ Entrada de Stock</button>
+    </div>
+
+    <div class="filtros">
+      <select id="filtro-tipo" onchange="aplicarFiltros()">
+        <option value="">Todos los movimientos</option>
+        <option value="venta">Ventas</option>
+        <option value="entrada">Entradas</option>
+      </select>
+      <button class="btn-limpiar" onclick="limpiarFiltros()">Limpiar</button>
+    </div>
+
+    <p id="contador" style="margin-bottom:12px; color:#888; font-size:14px;"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Tipo</th>
+          <th>Producto</th>
+          <th>Cantidad</th>
+          <th>Usuario</th>
+          <th>Nota</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-body">
+        <tr><td colspan="6" class="vacio">Cargando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="modal-overlay" id="modal-entrada">
+    <div class="modal">
+      <h2>Entrada de Stock</h2>
+
+      <div class="campo">
+        <label>Producto</label>
+        <select id="e-producto"></select>
+      </div>
+
+      <div class="fila-doble">
+        <div class="campo">
+          <label>Cantidad a agregar</label>
+          <input type="number" id="e-cantidad" min="1" value="1">
+        </div>
+        <div class="campo">
+          <label>Nota (opcional)</label>
+          <input type="text" id="e-nota" placeholder="Ej: Pedido llego">
+        </div>
+      </div>
+
+      <div class="modal-botones">
+        <button class="btn btn-gris" onclick="cerrarModalEntrada()">Cancelar</button>
+        <button class="btn btn-rojo" onclick="guardarEntrada()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="nav.js"></script>
+  <script>
+
+    let sesion = null
+    let movimientos = []
+    let productos = []
+
+    cargarMenu('historial.html').then(s => {
+      sesion = s
+      cargarDatos()
+    })
+
+    async function cargarDatos() {
+      movimientos = await ipcRenderer.invoke('obtener-movimientos')
+      productos   = await ipcRenderer.invoke('obtener-productos')
+
+      const select = document.getElementById('e-producto')
+      select.innerHTML = productos.map(p =>
+        `<option value="${p.id}">${p.nombre} - ${p.colegio} - ${p.talla} (Stock: ${p.cantidad})</option>`
+      ).join('')
+
+      aplicarFiltros()
+    }
+
+    function aplicarFiltros() {
+      const tipo = document.getElementById('filtro-tipo').value
+      const filtrados = movimientos.filter(m => !tipo || m.tipo === tipo)
+      document.getElementById('contador').textContent =
+        `Mostrando ${filtrados.length} de ${movimientos.length} movimientos`
+      renderTabla(filtrados)
+    }
+
+    function limpiarFiltros() {
+      document.getElementById('filtro-tipo').value = ''
+      aplicarFiltros()
+    }
+
+    function renderTabla(lista) {
+      const tbody = document.getElementById('tabla-body')
+      if (lista.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="vacio">No hay movimientos aun.</td></tr>'
+        return
+      }
+      tbody.innerHTML = lista.map(m => `
+        <tr>
+          <td>${new Date(m.fecha).toLocaleString('es-CO')}</td>
+          <td>
+            <span class="badge ${m.tipo === 'venta' ? 'badge-rojo' : 'badge-verde'}">
+              ${m.tipo === 'venta' ? 'Venta' : 'Entrada'}
+            </span>
+          </td>
+          <td>${m.producto}</td>
+          <td>${m.tipo === 'venta' ? '-' : '+'}${m.cantidad}</td>
+          <td>${m.usuario}</td>
+          <td>${m.nota || '—'}</td>
+        </tr>
+      `).join('')
+    }
+
+    function abrirModalEntrada() {
+      document.getElementById('e-cantidad').value = 1
+      document.getElementById('e-nota').value = ''
+      document.getElementById('modal-entrada').classList.add('activo')
+    }
+
+    function cerrarModalEntrada() {
+      document.getElementById('modal-entrada').classList.remove('activo')
+    }
+
+    async function guardarEntrada() {
+      const productoId = parseInt(document.getElementById('e-producto').value)
+      const cantidad   = parseInt(document.getElementById('e-cantidad').value)
+      const nota       = document.getElementById('e-nota').value.trim()
+
+      if (!productoId || cantidad < 1) { alert('Completa los campos correctamente'); return }
+
+      await ipcRenderer.invoke('agregar-movimiento', {
+        producto_id: productoId,
+        usuario_id:  sesion.id,
+        tipo:        'entrada',
+        cantidad,
+        nota: nota || 'Entrada de stock'
+      })
+
+      cerrarModalEntrada()
+      cargarDatos()
+    }
+  </script>
+
+</body>
+</html>

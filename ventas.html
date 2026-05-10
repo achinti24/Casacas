@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Casacas - Ventas</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="ventas.css">
+</head>
+<body>
+
+  <div class="sidebar">
+    <h2>Casacas</h2>
+    <nav id="nav-menu"></nav>
+    <div style="position:absolute; bottom:30px; left:20px; right:20px;">
+      <div id="info-usuario" style="color:#aaa; font-size:13px; margin-bottom:10px;"></div>
+      <button onclick="cerrarSesion()" style="width:100%; padding:10px; background:#e94560; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">Cerrar sesion</button>
+    </div>
+  </div>
+
+  <div class="contenido">
+    <div class="encabezado">
+      <h1>Ventas</h1>
+    </div>
+
+    <div class="ventas-grid">
+
+      <div class="panel">
+        <h3>Nueva Venta</h3>
+
+        <div class="campo">
+          <label>Apartado del cliente (opcional)</label>
+          <select id="v-apartado" onchange="cargarApartado()">
+            <option value="">Sin apartado / venta directa</option>
+          </select>
+        </div>
+
+        <div class="apartado-banner" id="apartado-banner">
+          <strong id="banner-nombre"></strong><br>
+          Tel: <span id="banner-tel"></span> &nbsp;|&nbsp;
+          Colegio: <span id="banner-colegio"></span><br>
+          Abono ya dado: <strong id="banner-abono" style="color:#2ecc71;"></strong>
+          &nbsp;|&nbsp;
+          Saldo pendiente: <strong id="banner-saldo" style="color:#e94560;"></strong>
+          <span id="banner-notas"></span>
+        </div>
+
+        <div class="campo">
+          <label>Buscar producto</label>
+          <input type="text" id="v-buscar" placeholder="Escribe nombre, categoria, colegio o talla..."
+            oninput="buscarProducto()"
+            style="width:100%; padding:10px 14px; border:1px solid #ddd; border-radius:8px; font-size:14px; margin-bottom:6px;">
+          <div id="v-sugerencias" class="sugerencias"></div>
+        </div>
+
+        <div id="carrito-container">
+          <h4 style="margin-bottom:10px; color:#555;">Carrito</h4>
+          <div id="carrito-vacio" style="color:#aaa; font-size:14px; text-align:center; padding:20px;">
+            Agrega productos al carrito
+          </div>
+          <table id="carrito-tabla" style="display:none;">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Precio</th>
+                <th>Cant.</th>
+                <th>Subtotal</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="carrito-body"></tbody>
+          </table>
+        </div>
+
+        <div class="desglose-pago" id="desglose-pago">
+          <div class="desglose-fila">
+            <span>Subtotal productos</span>
+            <span id="desglose-subtotal">$0</span>
+          </div>
+          <div class="desglose-fila">
+            <span>Abono aplicado</span>
+            <span id="desglose-abono" style="color:#2ecc71;">- $0</span>
+          </div>
+          <div class="desglose-fila">
+            <span>Total a cobrar</span>
+            <span id="desglose-total" style="color:#e94560;">$0</span>
+          </div>
+        </div>
+
+        <div class="total-venta" id="total-venta-simple">
+          <span>Total:</span>
+          <strong id="total-display">$0</strong>
+        </div>
+
+        <button class="btn btn-rojo" style="width:100%; margin-top:15px;" onclick="abrirModalPago()">
+          Registrar Venta
+        </button>
+      </div>
+
+      <div class="panel">
+        <h3>Ventas Recientes</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha y hora</th>
+              <th>Vendedor</th>
+              <th>Cliente</th>
+              <th>Total</th>
+              <th>Estado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tabla-ventas">
+            <tr><td colspan="6" class="vacio">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL PAGO Y VUELTOS -->
+  <div class="modal-overlay" id="modal-pago">
+    <div class="modal">
+      <h2>Confirmar Pago</h2>
+
+      <div style="background:#f5f6fa; border-radius:10px; padding:16px; margin-bottom:20px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:15px;">
+          <span>Subtotal productos:</span>
+          <strong id="pago-subtotal">$0</strong>
+        </div>
+        <div id="pago-abono-fila" style="display:none; justify-content:space-between; margin-bottom:8px; font-size:15px;">
+          <span>Abono aplicado:</span>
+          <strong id="pago-abono" style="color:#2ecc71;">- $0</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding-top:10px; border-top:2px solid #ddd; font-size:18px;">
+          <span>Total a cobrar:</span>
+          <strong id="pago-total" style="color:#e94560;">$0</strong>
+        </div>
+      </div>
+
+      <div class="campo">
+        <label>Cuanto dio el cliente ($)</label>
+        <input type="number" id="pago-dado" min="0" value="0"
+          oninput="calcularVueltos()"
+          style="font-size:20px; padding:12px; text-align:right;">
+      </div>
+
+      <div style="background:#d4f8e8; border-radius:10px; padding:16px; margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:16px; font-weight:bold; color:#1a7a4a;">Vueltos:</span>
+        <strong id="pago-vueltos" style="font-size:24px; color:#1a7a4a;">$0</strong>
+      </div>
+
+      <div id="pago-alerta" style="display:none; background:#fde8ec; border-radius:8px; padding:10px; margin-top:10px; font-size:14px; color:#c0392b; text-align:center;">
+        El cliente no ha dado suficiente dinero
+      </div>
+
+      <div class="modal-botones" style="margin-top:20px;">
+        <button class="btn btn-gris" onclick="cerrarModalPago()">Cancelar</button>
+        <button class="btn btn-rojo" id="btn-confirmar-pago" onclick="confirmarVenta()">Confirmar Venta</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DETALLE VENTA -->
+  <div class="modal-overlay" id="modal-detalle">
+    <div class="modal">
+      <h2>Detalle de Venta</h2>
+      <div id="detalle-header" style="margin-bottom:14px; font-size:14px; color:#555;"></div>
+      <table>
+        <thead>
+          <tr><th>Producto</th><th>Categoria</th><th>Talla</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr>
+        </thead>
+        <tbody id="detalle-body"></tbody>
+      </table>
+      <div class="modal-botones">
+        <button class="btn btn-gris" onclick="cerrarDetalle()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="nav.js"></script>
+  <script>
+    let sesion         = null
+    let productos      = []
+    let apartados      = []
+    let carrito        = []
+    let apartadoActual = null
+
+    cargarMenu('ventas.html').then(s => {
+      sesion = s
+      cargarDatos()
+    })
+
+    async function cargarDatos() {
+      productos = await ipcRenderer.invoke('obtener-productos')
+
+      const todos = await ipcRenderer.invoke('obtener-apartados')
+      apartados   = todos.filter(a => a.estado === 'pendiente')
+
+      const select = document.getElementById('v-apartado')
+      select.innerHTML = '<option value="">Sin apartado / venta directa</option>'
+      apartados.forEach(a => {
+        const saldo = a.total - a.abono
+        const opt   = document.createElement('option')
+        opt.value   = a.id
+        opt.textContent = `${a.nombre} — Saldo: $${parseFloat(saldo).toLocaleString('es-CO')}`
+        select.appendChild(opt)
+      })
+
+      cargarVentas()
+    }
+
+    async function cargarVentas() {
+      const ventas = await ipcRenderer.invoke('obtener-ventas')
+      const tbody  = document.getElementById('tabla-ventas')
+      if (ventas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="vacio">No hay ventas aun.</td></tr>'
+        return
+      }
+      tbody.innerHTML = ventas.map(v => `
+        <tr>
+          <td>${new Date(v.fecha).toLocaleString('es-CO')}</td>
+          <td>${v.vendedor}</td>
+          <td>${v.cliente || '—'}</td>
+          <td><strong>$${parseFloat(v.total).toLocaleString('es-CO')}</strong></td>
+          <td><span class="badge badge-verde">entregado</span></td>
+          <td>
+            <button class="btn btn-gris" style="padding:5px 10px" onclick="verDetalle(${v.id})">Ver</button>
+          </td>
+        </tr>
+      `).join('')
+    }
+
+    async function cargarApartado() {
+      const id          = document.getElementById('v-apartado').value
+      const banner      = document.getElementById('apartado-banner')
+      const desglose    = document.getElementById('desglose-pago')
+      const totalSimple = document.getElementById('total-venta-simple')
+
+      carrito = []
+      renderCarrito()
+      document.getElementById('v-buscar').value = ''
+      document.getElementById('v-sugerencias').innerHTML = ''
+
+      if (!id) {
+        apartadoActual = null
+        banner.classList.remove('activo')
+        desglose.classList.remove('activo')
+        totalSimple.style.display = 'flex'
+        return
+      }
+
+      const a = apartados.find(x => x.id === parseInt(id))
+      if (!a) return
+      apartadoActual = a
+
+      const items = await ipcRenderer.invoke('obtener-apartado-detalle', a.id)
+      const saldo  = a.total - a.abono
+
+      document.getElementById('banner-nombre').textContent  = a.nombre
+      document.getElementById('banner-tel').textContent     = a.telefono || '—'
+      document.getElementById('banner-colegio').textContent = a.colegio  || '—'
+      document.getElementById('banner-abono').textContent   = '$' + parseFloat(a.abono).toLocaleString('es-CO')
+      document.getElementById('banner-saldo').textContent   = '$' + parseFloat(saldo).toLocaleString('es-CO')
+      document.getElementById('banner-notas').innerHTML     = a.notas ? `<br>Notas: ${a.notas}` : ''
+      banner.classList.add('activo')
+
+      carrito = items.map(i => ({
+        producto_id:     i.producto_id,
+        nombre:          i.producto,
+        talla:           i.talla,
+        categoria:       i.categoria,
+        precio_unitario: i.precio_unitario,
+        cantidad:        i.cantidad,
+        stock:           (productos.find(p => p.id === i.producto_id) || {}).cantidad || 999,
+        del_apartado:    true
+      }))
+
+      renderCarrito()
+      totalSimple.style.display = 'none'
+      desglose.classList.add('activo')
+      actualizarDesglose()
+    }
+
+    function actualizarDesglose() {
+      if (!apartadoActual) return
+      const subtotal = carrito.reduce((acc, i) => acc + i.precio_unitario * i.cantidad, 0)
+      const abono    = parseFloat(apartadoActual.abono) || 0
+      const total    = Math.max(0, subtotal - abono)
+      document.getElementById('desglose-subtotal').textContent = '$' + subtotal.toLocaleString('es-CO')
+      document.getElementById('desglose-abono').textContent    = '- $' + abono.toLocaleString('es-CO')
+      document.getElementById('desglose-total').textContent    = '$' + total.toLocaleString('es-CO')
+    }
+
+    function buscarProducto() {
+      const texto       = document.getElementById('v-buscar').value.toLowerCase()
+      const sugerencias = document.getElementById('v-sugerencias')
+
+      if (!texto.trim()) { sugerencias.innerHTML = ''; return }
+
+      const resultados = productos.filter(p =>
+        p.cantidad > 0 &&
+        (p.nombre.toLowerCase().includes(texto)    ||
+         p.colegio.toLowerCase().includes(texto)   ||
+         p.categoria.toLowerCase().includes(texto) ||
+         p.talla.toLowerCase().includes(texto)     ||
+         p.genero.toLowerCase().includes(texto))
+      ).slice(0, 8)
+
+      if (resultados.length === 0) {
+        sugerencias.innerHTML = '<div style="padding:12px; color:#aaa; font-size:14px;">No se encontraron productos</div>'
+        return
+      }
+
+      sugerencias.innerHTML = resultados.map(p => `
+        <div class="sugerencia-item" onclick="agregarAlCarrito(${p.id})">
+          <strong>${p.nombre}</strong>
+          <span>${p.categoria} - ${p.colegio} - ${p.talla} - ${p.genero}</span>
+          <span>$${parseFloat(p.precio).toLocaleString('es-CO')} — Stock: ${p.cantidad}</span>
+        </div>
+      `).join('')
+    }
+
+    function agregarAlCarrito(id) {
+      const p = productos.find(x => x.id === id)
+      if (!p) return
+      document.getElementById('v-buscar').value = ''
+      document.getElementById('v-sugerencias').innerHTML = ''
+
+      const existente = carrito.find(x => x.producto_id === id)
+      if (existente) {
+        if (existente.cantidad >= p.cantidad) { alert('No hay mas stock disponible'); return }
+        existente.cantidad++
+      } else {
+        carrito.push({
+          producto_id:     p.id,
+          nombre:          p.nombre,
+          talla:           p.talla,
+          categoria:       p.categoria,
+          precio_unitario: p.precio,
+          cantidad:        1,
+          stock:           p.cantidad,
+          del_apartado:    false
+        })
+      }
+      renderCarrito()
+      if (apartadoActual) actualizarDesglose()
+    }
+
+    function cambiarCantidad(idx, val) {
+      const item  = carrito[idx]
+      const nueva = parseInt(val)
+      if (nueva < 1) { carrito.splice(idx, 1) }
+      else if (nueva > item.stock) { alert('No hay suficiente stock'); return }
+      else { item.cantidad = nueva }
+      renderCarrito()
+      if (apartadoActual) actualizarDesglose()
+    }
+
+    function quitarDelCarrito(idx) {
+      carrito.splice(idx, 1)
+      renderCarrito()
+      if (apartadoActual) actualizarDesglose()
+    }
+
+    function renderCarrito() {
+      const vacio = document.getElementById('carrito-vacio')
+      const tabla = document.getElementById('carrito-tabla')
+      const tbody = document.getElementById('carrito-body')
+
+      if (carrito.length === 0) {
+        vacio.style.display = 'block'
+        tabla.style.display = 'none'
+        document.getElementById('total-display').textContent = '$0'
+        return
+      }
+
+      vacio.style.display = 'none'
+      tabla.style.display = 'table'
+
+      tbody.innerHTML = carrito.map((item, idx) => `
+        <tr>
+          <td>
+            <strong>${item.nombre}</strong>
+            <br><small style="color:#888;">${item.categoria} - ${item.talla}${item.del_apartado ? ' &nbsp;<span style="color:#f39c12; font-weight:bold;">· apartado</span>' : ''}</small>
+          </td>
+          <td>$${parseFloat(item.precio_unitario).toLocaleString('es-CO')}</td>
+          <td>
+            <input type="number" min="1" max="${item.stock}" value="${item.cantidad}"
+              onchange="cambiarCantidad(${idx}, this.value)"
+              style="width:55px; padding:4px; border:1px solid #ddd; border-radius:6px;">
+          </td>
+          <td>$${(item.precio_unitario * item.cantidad).toLocaleString('es-CO')}</td>
+          <td>
+            <button onclick="quitarDelCarrito(${idx})"
+              style="background:none; border:none; cursor:pointer; color:#e94560; font-size:16px;">X</button>
+          </td>
+        </tr>
+      `).join('')
+
+      const total = carrito.reduce((acc, i) => acc + i.precio_unitario * i.cantidad, 0)
+      document.getElementById('total-display').textContent = '$' + total.toLocaleString('es-CO')
+    }
+
+    function abrirModalPago() {
+      if (carrito.length === 0) { alert('El carrito esta vacio'); return }
+
+      const subtotal      = carrito.reduce((acc, i) => acc + i.precio_unitario * i.cantidad, 0)
+      const abonoAplicado = apartadoActual ? parseFloat(apartadoActual.abono) || 0 : 0
+      const totalCobrar   = Math.max(0, subtotal - abonoAplicado)
+
+      document.getElementById('pago-subtotal').textContent = '$' + subtotal.toLocaleString('es-CO')
+      document.getElementById('pago-total').textContent    = '$' + totalCobrar.toLocaleString('es-CO')
+      document.getElementById('pago-dado').value           = 0
+      document.getElementById('pago-vueltos').textContent  = '$0'
+      document.getElementById('pago-alerta').style.display = 'none'
+
+      const abonoFila = document.getElementById('pago-abono-fila')
+      if (abonoAplicado > 0) {
+        abonoFila.style.display = 'flex'
+        document.getElementById('pago-abono').textContent = '- $' + abonoAplicado.toLocaleString('es-CO')
+      } else {
+        abonoFila.style.display = 'none'
+      }
+
+      document.getElementById('modal-pago').classList.add('activo')
+      setTimeout(() => document.getElementById('pago-dado').focus(), 100)
+    }
+
+    function calcularVueltos() {
+      const subtotal      = carrito.reduce((acc, i) => acc + i.precio_unitario * i.cantidad, 0)
+      const abonoAplicado = apartadoActual ? parseFloat(apartadoActual.abono) || 0 : 0
+      const totalCobrar   = Math.max(0, subtotal - abonoAplicado)
+      const dado          = parseFloat(document.getElementById('pago-dado').value) || 0
+      const vueltos       = dado - totalCobrar
+
+      document.getElementById('pago-vueltos').textContent = '$' + Math.max(0, vueltos).toLocaleString('es-CO')
+
+      if (dado > 0 && vueltos < 0) {
+        document.getElementById('pago-alerta').style.display = 'block'
+        document.getElementById('btn-confirmar-pago').disabled = true
+        document.getElementById('pago-vueltos').style.color = '#e94560'
+      } else {
+        document.getElementById('pago-alerta').style.display = 'none'
+        document.getElementById('btn-confirmar-pago').disabled = false
+        document.getElementById('pago-vueltos').style.color = '#1a7a4a'
+      }
+    }
+
+    function cerrarModalPago() {
+      document.getElementById('modal-pago').classList.remove('activo')
+    }
+
+    async function confirmarVenta() {
+      const subtotal      = carrito.reduce((acc, i) => acc + i.precio_unitario * i.cantidad, 0)
+      const abonoAplicado = apartadoActual ? parseFloat(apartadoActual.abono) || 0 : 0
+      const totalCobrar   = Math.max(0, subtotal - abonoAplicado)
+      const dado          = parseFloat(document.getElementById('pago-dado').value) || 0
+
+      if (dado < totalCobrar) { alert('El cliente no ha dado suficiente dinero'); return }
+
+      const apartadoId = apartadoActual ? apartadoActual.id : null
+
+      const resultado = await ipcRenderer.invoke('registrar-venta', {
+        usuarioId:      sesion.id,
+        apartadoId,
+        items:          carrito,
+        abonoAplicado
+      })
+
+      if (resultado.error) { alert(resultado.error); return }
+
+      if (resultado.ok) {
+        cerrarModalPago()
+        carrito        = []
+        apartadoActual = null
+        document.getElementById('v-apartado').value = ''
+        document.getElementById('apartado-banner').classList.remove('activo')
+        document.getElementById('desglose-pago').classList.remove('activo')
+        document.getElementById('total-venta-simple').style.display = 'flex'
+        renderCarrito()
+        productos = await ipcRenderer.invoke('obtener-productos')
+        await cargarDatos()
+
+        const vueltos = dado - totalCobrar
+        let mensaje = `Venta registrada correctamente\n\nTotal cobrado: $${totalCobrar.toLocaleString('es-CO')}\nDio el cliente: $${dado.toLocaleString('es-CO')}\nVueltos: $${vueltos.toLocaleString('es-CO')}`
+
+        if (resultado.alertasAgotados && resultado.alertasAgotados.length > 0) {
+          mensaje += `\n\n⚠️ PRODUCTOS AGOTADOS:\n`
+          mensaje += resultado.alertasAgotados.map(p => `- ${p.nombre} (${p.talla} - ${p.colegio})`).join('\n')
+        }
+
+        if (resultado.alertasStockBajo && resultado.alertasStockBajo.length > 0) {
+          mensaje += `\n\n⚠️ STOCK BAJO:\n`
+          mensaje += resultado.alertasStockBajo.map(p => `- ${p.nombre} (${p.talla} - ${p.colegio}): ${p.cantidad} uds`).join('\n')
+        }
+
+        alert(mensaje)
+      }
+    }
+
+    async function verDetalle(ventaId) {
+      const items  = await ipcRenderer.invoke('obtener-venta-detalle', ventaId)
+      const ventas = await ipcRenderer.invoke('obtener-ventas')
+      const v      = ventas.find(x => x.id === ventaId)
+
+      document.getElementById('detalle-header').innerHTML = v
+        ? `Vendedor: <strong>${v.vendedor}</strong> &nbsp;|&nbsp;
+           Cliente: <strong>${v.cliente || 'Sin apartado'}</strong> &nbsp;|&nbsp;
+           ${v.abono_aplicado > 0
+             ? `Abono: <strong style="color:#2ecc71;">$${parseFloat(v.abono_aplicado).toLocaleString('es-CO')}</strong> &nbsp;|&nbsp;`
+             : ''}
+           Total cobrado: <strong style="color:#e94560;">$${parseFloat(v.total).toLocaleString('es-CO')}</strong>`
+        : ''
+
+      document.getElementById('detalle-body').innerHTML = items.map(i => `
+        <tr>
+          <td>${i.producto}</td>
+          <td>${i.categoria}</td>
+          <td>${i.talla}</td>
+          <td>${i.cantidad}</td>
+          <td>$${parseFloat(i.precio_unitario).toLocaleString('es-CO')}</td>
+          <td>$${(i.precio_unitario * i.cantidad).toLocaleString('es-CO')}</td>
+        </tr>
+      `).join('')
+
+      document.getElementById('modal-detalle').classList.add('activo')
+    }
+
+    function cerrarDetalle() {
+      document.getElementById('modal-detalle').classList.remove('activo')
+    }
+  </script>
+
+</body>
+</html>

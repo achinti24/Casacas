@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Casacas - Usuarios</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="sidebar">
+    <h2>Casacas</h2>
+    <nav id="nav-menu"></nav>
+    <div style="position:absolute; bottom:30px; left:20px; right:20px;">
+      <div id="info-usuario" style="color:#aaa; font-size:13px; margin-bottom:10px;"></div>
+      <button onclick="cerrarSesion()" style="width:100%; padding:10px; background:#e94560; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">Cerrar sesion</button>
+    </div>
+  </div>
+
+  <div class="contenido">
+    <div class="encabezado">
+      <h1>Usuarios</h1>
+      <button class="btn btn-rojo" onclick="abrirModal()">+ Agregar Usuario</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Usuario</th>
+          <th>Rol</th>
+          <th>Fecha creacion</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-body">
+        <tr><td colspan="5" class="vacio">Cargando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <h2 id="modal-titulo">Agregar Usuario</h2>
+
+      <div class="campo">
+        <label>Nombre completo</label>
+        <input type="text" id="f-nombre" placeholder="Ej: Maria Lopez">
+      </div>
+
+      <div class="fila-doble">
+        <div class="campo">
+          <label>Usuario</label>
+          <input type="text" id="f-usuario" placeholder="Ej: maria123">
+        </div>
+        <div class="campo">
+          <label>Contrasena</label>
+          <input type="password" id="f-contrasena" placeholder="••••••••">
+        </div>
+      </div>
+
+      <div class="campo">
+        <label>Rol</label>
+        <select id="f-rol">
+          <option value="empleado">Empleado</option>
+          <option value="admin">Administrador</option>
+        </select>
+      </div>
+
+      <div class="modal-botones">
+        <button class="btn btn-gris" onclick="cerrarModal()">Cancelar</button>
+        <button class="btn btn-rojo" onclick="guardarUsuario()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="nav.js"></script>
+  <script>
+
+    let sesion = null
+    let usuarios = []
+    let editandoId = null
+
+    cargarMenu('usuarios.html').then(s => {
+      sesion = s
+      if (sesion && sesion.rol !== 'admin') navegar('index.html')
+      cargarUsuarios()
+    })
+
+    async function cargarUsuarios() {
+      usuarios = await ipcRenderer.invoke('obtener-usuarios')
+      renderTabla()
+    }
+
+    function renderTabla() {
+      const tbody = document.getElementById('tabla-body')
+      if (usuarios.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="vacio">No hay usuarios.</td></tr>'
+        return
+      }
+      tbody.innerHTML = usuarios.map(u => `
+        <tr>
+          <td><strong>${u.nombre}</strong></td>
+          <td>${u.usuario}</td>
+          <td>
+            <span class="badge ${u.rol === 'admin' ? 'badge-azul' : 'badge-verde'}">
+              ${u.rol === 'admin' ? 'Administrador' : 'Empleado'}
+            </span>
+          </td>
+          <td>${new Date(u.fecha_creacion).toLocaleDateString('es-CO')}</td>
+          <td>
+            ${u.usuario !== 'admin' ? `
+              <button class="btn btn-gris" style="padding:6px 12px;margin-right:5px" onclick="editarUsuario(${u.id})">Editar</button>
+              <button class="btn btn-rojo" style="padding:6px 12px" onclick="eliminarUsuario(${u.id})">Eliminar</button>
+            ` : '<span style="color:#aaa; font-size:13px;">Protegido</span>'}
+          </td>
+        </tr>
+      `).join('')
+    }
+
+    function abrirModal() {
+      editandoId = null
+      document.getElementById('modal-titulo').textContent = 'Agregar Usuario'
+      document.getElementById('f-nombre').value = ''
+      document.getElementById('f-usuario').value = ''
+      document.getElementById('f-contrasena').value = ''
+      document.getElementById('f-rol').value = 'empleado'
+      document.getElementById('modal').classList.add('activo')
+    }
+
+    function cerrarModal() {
+      document.getElementById('modal').classList.remove('activo')
+    }
+
+    function editarUsuario(id) {
+      const u = usuarios.find(x => x.id === id)
+      if (!u) return
+      editandoId = id
+      document.getElementById('modal-titulo').textContent = 'Editar Usuario'
+      document.getElementById('f-nombre').value = u.nombre
+      document.getElementById('f-usuario').value = u.usuario
+      document.getElementById('f-contrasena').value = ''
+      document.getElementById('f-rol').value = u.rol
+      document.getElementById('modal').classList.add('activo')
+    }
+
+    async function guardarUsuario() {
+      const nombre     = document.getElementById('f-nombre').value.trim()
+      const usuario    = document.getElementById('f-usuario').value.trim()
+      const contrasena = document.getElementById('f-contrasena').value.trim()
+      const rol        = document.getElementById('f-rol').value
+
+      if (!nombre || !usuario) { alert('Nombre y usuario son obligatorios'); return }
+      if (!editandoId && !contrasena) { alert('La contrasena es obligatoria'); return }
+
+      if (editandoId) {
+        const u = usuarios.find(x => x.id === editandoId)
+        const res = await ipcRenderer.invoke('editar-usuario', {
+          id: editandoId, nombre, usuario, rol,
+          contrasena: contrasena || u.contrasena
+        })
+        if (res.error) { alert(res.error); return }
+      } else {
+        const res = await ipcRenderer.invoke('agregar-usuario', { nombre, usuario, contrasena, rol })
+        if (res.error) { alert(res.error); return }
+      }
+
+      cerrarModal()
+      cargarUsuarios()
+    }
+
+    async function eliminarUsuario(id) {
+      if (id === sesion.id) { alert('No puedes eliminarte a ti mismo'); return }
+      if (!confirm('Seguro que quieres eliminar este usuario?')) return
+      await ipcRenderer.invoke('eliminar-usuario', id)
+      cargarUsuarios()
+    }
+  </script>
+
+</body>
+</html>

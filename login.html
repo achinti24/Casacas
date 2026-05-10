@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Casacas - Login</title>
+  <link rel="stylesheet" href="login.css">
+</head>
+<body>
+
+  <div class="login-box">
+    <h1>Casacas</h1>
+    <p>Sistema de Inventario</p>
+
+    <div class="campo">
+      <label>Usuario</label>
+      <input type="text" id="usuario" placeholder="Ej: admin" />
+    </div>
+
+    <div class="campo">
+      <label>Contrasena</label>
+      <input type="password" id="contrasena" placeholder="••••••••" />
+    </div>
+
+    <button class="btn-login" id="btn-login">Ingresar</button>
+    <p class="error" id="error-msg">Usuario o contrasena incorrectos</p>
+  </div>
+
+  <script src="nav.js"></script>
+  <script>
+    async function iniciarSesion() {
+      const usuario    = document.getElementById('usuario').value.trim()
+      const contrasena = document.getElementById('contrasena').value.trim()
+
+      if (!usuario || !contrasena) {
+        document.getElementById('error-msg').style.display = 'block'
+        document.getElementById('error-msg').textContent = 'Completa todos los campos'
+        return
+      }
+
+      const resultado = await ipcRenderer.invoke('login', { usuario, contrasena })
+
+      if (!resultado) {
+        document.getElementById('error-msg').style.display = 'block'
+        document.getElementById('error-msg').textContent = 'Usuario o contrasena incorrectos'
+        return
+      }
+
+      await ipcRenderer.invoke('guardar-sesion', resultado)
+      navegar('index.html')
+    }
+
+    document.getElementById('btn-login').addEventListener('click', iniciarSesion)
+    document.getElementById('contrasena').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') iniciarSesion()
+    })
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,24 @@
+.filtro-fechas {
+  display: flex;
+  gap: 15px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.filtro-fechas .campo {
+  margin-bottom: 0;
+}
+
+.filtro-fechas input[type="date"] {
+  padding: 10px 14px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  background: white;
+}
+
+.caja-abierta {
+  display: flex;
+  align-items: center;
+  padding: 12px 0;
+}

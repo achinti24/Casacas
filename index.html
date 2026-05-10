@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Casacas - Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="sidebar">
+    <h2>Casacas</h2>
+    <nav id="nav-menu"></nav>
+    <div style="position:absolute; bottom:30px; left:20px; right:20px;">
+      <div id="info-usuario" style="color:#aaa; font-size:13px; margin-bottom:10px;"></div>
+      <button onclick="cerrarSesion()" style="width:100%; padding:10px; background:#e94560; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">Cerrar sesion</button>
+    </div>
+  </div>
+
+  <div class="contenido">
+    <div class="encabezado">
+      <h1>Dashboard</h1>
+    </div>
+
+    <div class="cards">
+      <div class="card rojo">
+        <span class="icono">📦</span>
+        <span class="valor" id="total-productos">0</span>
+        <span class="etiqueta">Total productos</span>
+      </div>
+      <div class="card verde">
+        <span class="icono">✅</span>
+        <span class="valor" id="en-stock">0</span>
+        <span class="etiqueta">En stock</span>
+      </div>
+      <div class="card azul">
+        <span class="icono">⚠️</span>
+        <span class="valor" id="agotados">0</span>
+        <span class="etiqueta">Agotados</span>
+      </div>
+      <div class="card morado">
+        <span class="icono">💰</span>
+        <span class="valor" id="valor-total">$0</span>
+        <span class="etiqueta">Valor del inventario</span>
+      </div>
+    </div>
+
+    <div id="alertas-container" style="display:none; margin-bottom:20px;">
+      <div style="background:#fff8e1; border-left:4px solid #f39c12; border-radius:10px; padding:16px 20px;">
+        <strong>Stock bajo:</strong>
+        <span id="alertas-texto" style="font-size:14px; color:#555; margin-left:10px;"></span>
+      </div>
+    </div>
+
+    <div class="dashboard-grid">
+      <div class="panel">
+        <h3>Productos Agotados</h3>
+        <table>
+          <thead><tr><th>Nombre</th><th>Colegio</th><th>Talla</th><th>Genero</th></tr></thead>
+          <tbody id="tabla-agotados"><tr><td colspan="4" class="vacio">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <h3>Unidades por Colegio</h3>
+        <table>
+          <thead><tr><th>Colegio</th><th>Productos</th><th>Unidades</th></tr></thead>
+          <tbody id="tabla-colegios"><tr><td colspan="3" class="vacio">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <h3>Unidades por Categoria</h3>
+        <table>
+          <thead><tr><th>Categoria</th><th>Productos</th><th>Unidades</th></tr></thead>
+          <tbody id="tabla-categorias"><tr><td colspan="3" class="vacio">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <h3>Unidades por Genero</h3>
+        <table>
+          <thead><tr><th>Genero</th><th>Productos</th><th>Unidades</th></tr></thead>
+          <tbody id="tabla-generos"><tr><td colspan="3" class="vacio">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="nav.js"></script>
+  <script>
+
+    let sesion = null
+
+    cargarMenu('index.html').then(s => {
+      sesion = s
+      cargarDashboard()
+    })
+
+    async function cargarDashboard() {
+      const productos = await ipcRenderer.invoke('obtener-productos')
+
+      const total      = productos.length
+      const enStock    = productos.filter(p => p.cantidad > 0).length
+      const agotados   = productos.filter(p => p.cantidad <= 0).length
+      const valorTotal = productos.reduce((acc, p) => acc + (p.cantidad * p.precio), 0)
+
+      document.getElementById('total-productos').textContent = total
+      document.getElementById('en-stock').textContent = enStock
+      document.getElementById('agotados').textContent = agotados
+      document.getElementById('valor-total').textContent = '$' + valorTotal.toLocaleString('es-CO')
+
+      const stockBajo = productos.filter(p => p.cantidad > 0 && p.cantidad <= p.stock_minimo)
+      if (stockBajo.length > 0) {
+        document.getElementById('alertas-container').style.display = 'block'
+        document.getElementById('alertas-texto').textContent =
+          stockBajo.map(p => `${p.nombre} (${p.cantidad} uds)`).join(' - ')
+      }
+
+      const listaAgotados = productos.filter(p => p.cantidad <= 0)
+      document.getElementById('tabla-agotados').innerHTML = listaAgotados.length === 0
+        ? '<tr><td colspan="4" class="vacio">Todo en stock</td></tr>'
+        : listaAgotados.map(p => `
+            <tr>
+              <td><strong>${p.nombre}</strong></td>
+              <td>${p.colegio}</td>
+              <td>${p.talla}</td>
+              <td>${p.genero}</td>
+            </tr>`).join('')
+
+      document.getElementById('tabla-colegios').innerHTML =
+        agrupar(productos, 'colegio').map(g =>
+          `<tr><td>${g.key}</td><td>${g.count}</td><td>${g.unidades}</td></tr>`).join('')
+
+      document.getElementById('tabla-categorias').innerHTML =
+        agrupar(productos, 'categoria').map(g =>
+          `<tr><td>${g.key}</td><td>${g.count}</td><td>${g.unidades}</td></tr>`).join('')
+
+      document.getElementById('tabla-generos').innerHTML =
+        agrupar(productos, 'genero').map(g =>
+          `<tr><td>${g.key}</td><td>${g.count}</td><td>${g.unidades}</td></tr>`).join('')
+    }
+
+    function agrupar(productos, campo) {
+      const mapa = {}
+      productos.forEach(p => {
+        const key = p[campo] || 'Sin definir'
+        if (!mapa[key]) mapa[key] = { count: 0, unidades: 0 }
+        mapa[key].count++
+        mapa[key].unidades += p.cantidad
+      })
+      return Object.entries(mapa)
+        .map(([key, val]) => ({ key, ...val }))
+        .sort((a, b) => b.unidades - a.unidades)
+    }
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Casacas - Inventario</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="sidebar">
+    <h2>Casacas</h2>
+    <nav id="nav-menu"></nav>
+    <div style="position:absolute; bottom:30px; left:20px; right:20px;">
+      <div id="info-usuario" style="color:#aaa; font-size:13px; margin-bottom:10px;"></div>
+      <button onclick="cerrarSesion()" style="width:100%; padding:10px; background:#e94560; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">Cerrar sesion</button>
+    </div>
+  </div>
+
+  <div class="contenido">
+    <div class="encabezado">
+      <h1>Inventario de Productos</h1>
+      <button class="btn btn-rojo" id="btn-agregar" onclick="abrirModal()">+ Agregar Producto</button>
+    </div>
+
+    <input class="buscador" type="text" placeholder="Buscar por nombre, colegio, talla..." oninput="aplicarFiltros()">
+
+    <div class="filtros">
+      <select id="filtro-categoria" onchange="aplicarFiltros()">
+        <option value="">Todas las categorias</option>
+        <option>Uniformes</option>
+        <option>Camisas</option>
+        <option>Pantalones</option>
+        <option>Antifluidos</option>
+        <option>Medias</option>
+        <option>Correas</option>
+        <option>Otro</option>
+      </select>
+      <select id="filtro-colegio" onchange="aplicarFiltros()">
+        <option value="">Todos los colegios</option>
+        <option>Todos</option>
+        <option>Guanenta</option>
+        <option>Presentacion</option>
+        <option>Rafael Pombo</option>
+        <option>Luis Camacho</option>
+        <option>Otro</option>
+      </select>
+      <select id="filtro-genero" onchange="aplicarFiltros()">
+        <option value="">Todos los generos</option>
+        <option>Unisex</option>
+        <option>Hombre</option>
+        <option>Mujer</option>
+      </select>
+      <select id="filtro-stock" onchange="aplicarFiltros()">
+        <option value="">Todo el stock</option>
+        <option value="en-stock">En stock</option>
+        <option value="agotado">Agotados</option>
+        <option value="stock-bajo">Stock bajo</option>
+      </select>
+      <button class="btn-limpiar" onclick="limpiarFiltros()">Limpiar filtros</button>
+    </div>
+
+    <p id="contador" style="margin-bottom:12px; color:#888; font-size:14px;"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Categoria</th>
+          <th>Colegio</th>
+          <th>Genero</th>
+          <th>Talla</th>
+          <th>Cantidad</th>
+          <th>Precio</th>
+          <th>Stock</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-body">
+        <tr><td colspan="9" class="vacio">Cargando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <h2 id="modal-titulo">Agregar Producto</h2>
+
+      <div class="campo">
+        <label>Nombre</label>
+        <input type="text" id="f-nombre">
+      </div>
+
+      <div class="fila-doble">
+        <div class="campo">
+          <label>Categoria</label>
+          <select id="f-categoria">
+            <option>Uniformes</option>
+            <option>Camisas</option>
+            <option>blusas</option>
+            <option>Faldas</option>
+            <option>Pantalones</option>
+            <option>Antifluidos</option>
+            <option>Medias</option>
+            <option>Correas</option>
+            <option>Otro</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Colegio</label>
+          <select id="f-colegio">
+            <option>Todos</option>
+            <option>Guanenta</option>
+            <option>Presentacion</option>
+            <option>Rafael Pombo</option>
+            <option>Luis Camacho</option>
+            <option>Otro</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="fila-doble">
+        <div class="campo">
+          <label>Genero</label>
+          <select id="f-genero">
+            <option>Unisex</option>
+            <option>Hombre</option>
+            <option>Mujer</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Talla</label>
+          <select id="f-talla">
+            <option>Unica</option>
+            <option>2</option><option>4</option><option>6</option>
+            <option>8</option><option>10</option><option>12</option><option>14</option>
+            <option>XS</option><option>S</option>
+            <option selected>M</option>
+            <option>L</option><option>XL</option><option>XXL</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="fila-doble">
+        <div class="campo">
+          <label>Cantidad</label>
+          <input type="number" id="f-cantidad" min="0" value="1">
+        </div>
+        <div class="campo">
+          <label>Precio ($)</label>
+          <input type="number" id="f-precio" min="0" step="0.01" value="0">
+        </div>
+      </div>
+
+      <div class="campo">
+        <label>Stock minimo para alerta</label>
+        <input type="number" id="f-stock-minimo" min="0" value="3">
+      </div>
+
+      <div class="modal-botones">
+        <button class="btn btn-gris" onclick="cerrarModal()">Cancelar</button>
+        <button class="btn btn-rojo" onclick="guardarProducto()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="nav.js"></script>
+  <script>
+
+    let sesion = null
+    let productos = []
+    let editandoId = null
+
+    cargarMenu('inventario.html').then(s => {
+      sesion = s
+      if (sesion && sesion.rol !== 'admin') {
+        document.getElementById('btn-agregar').style.display = 'none'
+      }
+      cargarProductos()
+    })
+
+    async function cargarProductos() {
+      productos = await ipcRenderer.invoke('obtener-productos')
+      aplicarFiltros()
+    }
+
+    function aplicarFiltros() {
+      const texto     = document.querySelector('.buscador').value.toLowerCase()
+      const categoria = document.getElementById('filtro-categoria').value
+      const colegio   = document.getElementById('filtro-colegio').value
+      const genero    = document.getElementById('filtro-genero').value
+      const stock     = document.getElementById('filtro-stock').value
+
+      const filtrados = productos.filter(p => {
+        const coincideTexto = !texto ||
+          p.nombre.toLowerCase().includes(texto) ||
+          p.colegio.toLowerCase().includes(texto) ||
+          p.talla.toLowerCase().includes(texto) ||
+          p.categoria.toLowerCase().includes(texto)
+        const coincideCategoria = !categoria || p.categoria === categoria
+        const coincideColegio   = !colegio   || p.colegio === colegio
+        const coincideGenero    = !genero    || p.genero === genero
+        const coincideStock =
+          !stock ||
+          (stock === 'en-stock'   && p.cantidad > 0) ||
+          (stock === 'agotado'    && p.cantidad <= 0) ||
+          (stock === 'stock-bajo' && p.cantidad > 0 && p.cantidad <= p.stock_minimo)
+        return coincideTexto && coincideCategoria && coincideColegio && coincideGenero && coincideStock
+      })
+
+      renderTabla(filtrados)
+    }
+
+    function limpiarFiltros() {
+      document.querySelector('.buscador').value = ''
+      document.getElementById('filtro-categoria').value = ''
+      document.getElementById('filtro-colegio').value = ''
+      document.getElementById('filtro-genero').value = ''
+      document.getElementById('filtro-stock').value = ''
+      aplicarFiltros()
+    }
+
+    function stockBadge(p) {
+      if (p.cantidad <= 0)              return '<span class="badge badge-rojo">Agotado</span>'
+      if (p.cantidad <= p.stock_minimo) return '<span class="badge badge-amarillo">Stock bajo</span>'
+      return '<span class="badge badge-verde">En stock</span>'
+    }
+
+    function renderTabla(lista) {
+      const tbody = document.getElementById('tabla-body')
+      document.getElementById('contador').textContent =
+        `Mostrando ${lista.length} de ${productos.length} productos`
+
+      if (lista.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="vacio">No se encontraron productos.</td></tr>'
+        return
+      }
+
+      tbody.innerHTML = lista.map(p => `
+        <tr>
+          <td><strong>${p.nombre}</strong></td>
+          <td>${p.categoria}</td>
+          <td>${p.colegio}</td>
+          <td>${p.genero}</td>
+          <td>${p.talla}</td>
+          <td>${p.cantidad}</td>
+          <td>$${parseFloat(p.precio).toLocaleString('es-CO')}</td>
+          <td>${stockBadge(p)}</td>
+          <td>
+            ${sesion && sesion.rol === 'admin' ? `
+              <button class="btn btn-gris" style="padding:6px 12px;margin-right:5px" onclick="editarProducto(${p.id})">Editar</button>
+              <button class="btn btn-rojo" style="padding:6px 12px" onclick="eliminarProducto(${p.id})">Eliminar</button>
+            ` : '—'}
+          </td>
+        </tr>
+      `).join('')
+    }
+
+    function abrirModal() {
+      if (sesion && sesion.rol !== 'admin') return
+      editandoId = null
+      document.getElementById('modal-titulo').textContent = 'Agregar Producto'
+      document.getElementById('f-nombre').value = ''
+      document.getElementById('f-cantidad').value = 1
+      document.getElementById('f-precio').value = 0
+      document.getElementById('f-stock-minimo').value = 3
+      document.getElementById('modal').classList.add('activo')
+    }
+
+    function cerrarModal() {
+      document.getElementById('modal').classList.remove('activo')
+    }
+
+    function editarProducto(id) {
+      if (sesion && sesion.rol !== 'admin') return
+      const p = productos.find(x => x.id === id)
+      if (!p) return
+      editandoId = id
+      document.getElementById('modal-titulo').textContent = 'Editar Producto'
+      document.getElementById('f-nombre').value = p.nombre
+      document.getElementById('f-categoria').value = p.categoria
+      document.getElementById('f-colegio').value = p.colegio
+      document.getElementById('f-genero').value = p.genero
+      document.getElementById('f-talla').value = p.talla
+      document.getElementById('f-cantidad').value = p.cantidad
+      document.getElementById('f-precio').value = p.precio
+      document.getElementById('f-stock-minimo').value = p.stock_minimo
+      document.getElementById('modal').classList.add('activo')
+    }
+
+    async function guardarProducto() {
+      const producto = {
+        nombre:       document.getElementById('f-nombre').value.trim(),
+        categoria:    document.getElementById('f-categoria').value,
+        colegio:      document.getElementById('f-colegio').value,
+        genero:       document.getElementById('f-genero').value,
+        talla:        document.getElementById('f-talla').value,
+        cantidad:     parseInt(document.getElementById('f-cantidad').value),
+        precio:       parseFloat(document.getElementById('f-precio').value),
+        stock_minimo: parseInt(document.getElementById('f-stock-minimo').value)
+      }
+
+      if (!producto.nombre) { alert('El nombre es obligatorio'); return }
+
+      if (editandoId) {
+        await ipcRenderer.invoke('editar-producto', { ...producto, id: editandoId })
+      } else {
+        await ipcRenderer.invoke('agregar-producto', producto)
+      }
+
+      cerrarModal()
+      cargarProductos()
+    }
+
+    async function eliminarProducto(id) {
+      if (!confirm('Seguro que quieres eliminar este producto?')) return
+      await ipcRenderer.invoke('eliminar-producto', id)
+      cargarProductos()
+    }
+  </script>
+
+</body>
+</html>
