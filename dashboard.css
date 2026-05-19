@@ -1,0 +1,31 @@
+.graficas-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.tabs-periodo {
+  display: flex;
+  gap: 8px;
+}
+
+.tab-btn {
+  padding: 8px 16px;
+  border: 2px solid #e94560;
+  border-radius: 8px;
+  background: white;
+  color: #e94560;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  background: #fde8ec;
+}
+
+.tab-btn.active {
+  background: #e94560;
+  color: white;
+}

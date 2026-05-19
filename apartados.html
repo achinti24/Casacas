@@ -19,13 +19,28 @@
   <div class="contenido">
     <div class="encabezado">
       <h1>Apartados</h1>
-      <button class="btn btn-rojo" onclick="abrirModal()">+ Nuevo Apartado</button>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div style="display:flex; align-items:center; gap:8px; background:white; padding:8px 14px; border-radius:8px; border:1px solid #ddd; font-size:14px;">
+          <span style="color:#555;">Avisar despues de</span>
+          <input type="number" id="dias-alerta" value="7" min="1" max="60"
+            style="width:50px; padding:4px 8px; border:1px solid #ddd; border-radius:6px; font-size:14px; text-align:center;"
+            onchange="aplicarFiltros()">
+          <span style="color:#555;">dias</span>
+        </div>
+        <button class="btn btn-rojo" onclick="abrirModal()">+ Nuevo Apartado</button>
+      </div>
+    </div>
+
+    <!-- ALERTA VENCIDOS -->
+    <div id="alerta-vencidos" style="display:none; background:#fde8ec; border-left:4px solid #e94560; border-radius:10px; padding:16px 20px; margin-bottom:20px;">
+      <strong>Apartados sin recoger hace mas de <span id="alerta-dias"></span> dias:</strong>
+      <div id="alerta-lista" style="margin-top:8px; font-size:14px; color:#555;"></div>
     </div>
 
     <div class="filtros">
       <select id="filtro-estado" onchange="aplicarFiltros()">
-        <option value="">Todos</option>
         <option value="pendiente">Pendientes</option>
+        <option value="">Todos</option>
         <option value="entregado">Entregados</option>
       </select>
       <input class="buscador" type="text" placeholder="Buscar por nombre o colegio..."
@@ -39,14 +54,14 @@
     <table>
       <thead>
         <tr>
-          <th>Nombre</th>
+          <th>Cliente</th>
           <th>Telefono</th>
           <th>Colegio</th>
           <th>Total</th>
           <th>Abono</th>
           <th>Saldo</th>
+          <th>Dias</th>
           <th>Estado</th>
-          <th>Fecha</th>
           <th>Acciones</th>
         </tr>
       </thead>
@@ -136,7 +151,7 @@
   <div class="modal-overlay" id="modal-detalle">
     <div class="modal">
       <h2>Detalle del Apartado</h2>
-      <div id="detalle-info" style="margin-bottom:16px; font-size:14px; color:#555;"></div>
+      <div id="detalle-info" style="margin-bottom:16px; font-size:14px; color:#555; line-height:1.8;"></div>
       <table>
         <thead>
           <tr><th>Producto</th><th>Categoria</th><th>Talla</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr>
@@ -163,14 +178,22 @@
     })
 
     async function cargarDatos() {
-      productos  = await ipcRenderer.invoke('obtener-productos')
-      apartados  = await ipcRenderer.invoke('obtener-apartados')
+      productos = await ipcRenderer.invoke('obtener-productos')
+      apartados = await ipcRenderer.invoke('obtener-apartados')
       aplicarFiltros()
     }
 
+    function getDias(fechaCreacion) {
+      const ahora  = new Date()
+      const fecha  = new Date(fechaCreacion)
+      const diff   = ahora - fecha
+      return Math.floor(diff / (1000 * 60 * 60 * 24))
+    }
+
     function aplicarFiltros() {
-      const estado = document.getElementById('filtro-estado').value
-      const texto  = document.getElementById('buscador-apartados').value.toLowerCase()
+      const estado  = document.getElementById('filtro-estado').value
+      const texto   = document.getElementById('buscador-apartados').value.toLowerCase()
+      const diasMax = parseInt(document.getElementById('dias-alerta').value) || 7
 
       const filtrados = apartados.filter(a =>
         (!estado || a.estado === estado) &&
@@ -178,18 +201,40 @@
                     (a.colegio || '').toLowerCase().includes(texto))
       )
 
+      // Notificacion vencidos
+      const vencidos = apartados.filter(a =>
+        a.estado === 'pendiente' && getDias(a.fecha_creacion) >= diasMax
+      )
+
+      const alertaDiv = document.getElementById('alerta-vencidos')
+      if (vencidos.length > 0) {
+        alertaDiv.style.display = 'block'
+        document.getElementById('alerta-dias').textContent = diasMax
+        document.getElementById('alerta-lista').innerHTML = vencidos.map(a => `
+          <div style="margin-bottom:4px;">
+            <strong>${a.nombre}</strong>
+            ${a.telefono ? `— Tel: <strong>${a.telefono}</strong>` : ''}
+            ${a.colegio  ? `— ${a.colegio}` : ''}
+            — Saldo: <strong style="color:#e94560;">$${parseFloat(a.total - a.abono).toLocaleString('es-CO')}</strong>
+            — <strong>${getDias(a.fecha_creacion)} dias</strong> sin recoger
+          </div>
+        `).join('')
+      } else {
+        alertaDiv.style.display = 'none'
+      }
+
       document.getElementById('contador').textContent =
         `Mostrando ${filtrados.length} de ${apartados.length} apartados`
-      renderTabla(filtrados)
+      renderTabla(filtrados, diasMax)
     }
 
     function limpiarFiltros() {
-      document.getElementById('filtro-estado').value = ''
+      document.getElementById('filtro-estado').value = 'pendiente'
       document.getElementById('buscador-apartados').value = ''
       aplicarFiltros()
     }
 
-    function renderTabla(lista) {
+    function renderTabla(lista, diasMax) {
       const tbody = document.getElementById('tabla-body')
       if (lista.length === 0) {
         tbody.innerHTML = '<tr><td colspan="9" class="vacio">No se encontraron apartados.</td></tr>'
@@ -197,20 +242,31 @@
       }
       tbody.innerHTML = lista.map(a => {
         const saldo = a.total - a.abono
+        const dias  = getDias(a.fecha_creacion)
+        const vencido = a.estado === 'pendiente' && dias >= diasMax
+
         return `
-          <tr>
-            <td><strong>${a.nombre}</strong></td>
+          <tr style="${vencido ? 'background:#fff8f8;' : ''}">
+            <td>
+              <strong>${a.nombre}</strong>
+              ${a.telefono ? `<br><small style="color:#888;">${a.telefono}</small>` : ''}
+            </td>
             <td>${a.telefono || '—'}</td>
             <td>${a.colegio || '—'}</td>
             <td>$${parseFloat(a.total).toLocaleString('es-CO')}</td>
             <td>$${parseFloat(a.abono).toLocaleString('es-CO')}</td>
             <td><strong style="color:#e94560;">$${parseFloat(saldo).toLocaleString('es-CO')}</strong></td>
             <td>
+              <span style="font-weight:bold; color:${vencido ? '#e94560' : '#555'}">
+                ${dias} dias
+                ${vencido ? '<br><small style="color:#e94560;">Llamar al cliente</small>' : ''}
+              </span>
+            </td>
+            <td>
               <span class="badge ${a.estado === 'entregado' ? 'badge-verde' : 'badge-amarillo'}">
                 ${a.estado}
               </span>
             </td>
-            <td>${new Date(a.fecha_creacion).toLocaleDateString('es-CO')}</td>
             <td style="display:flex; gap:5px; flex-wrap:wrap;">
               <button class="btn btn-gris" style="padding:5px 10px" onclick="verDetalle(${a.id})">Ver</button>
               ${a.estado === 'pendiente' ? `
@@ -227,12 +283,12 @@
       editandoId = null
       carritoApartado = []
       document.getElementById('modal-titulo').textContent = 'Nuevo Apartado'
-      document.getElementById('f-nombre').value = ''
-      document.getElementById('f-telefono').value = ''
-      document.getElementById('f-colegio').value = ''
-      document.getElementById('f-abono').value = 0
-      document.getElementById('f-notas').value = ''
-      document.getElementById('ap-buscar').value = ''
+      document.getElementById('f-nombre').value    = ''
+      document.getElementById('f-telefono').value  = ''
+      document.getElementById('f-colegio').value   = ''
+      document.getElementById('f-abono').value     = 0
+      document.getElementById('f-notas').value     = ''
+      document.getElementById('ap-buscar').value   = ''
       document.getElementById('ap-sugerencias').innerHTML = ''
       renderCarritoApartado()
       document.getElementById('modal').classList.add('activo')
@@ -247,11 +303,11 @@
       if (!a) return
       editandoId = id
       document.getElementById('modal-titulo').textContent = 'Editar Apartado'
-      document.getElementById('f-nombre').value = a.nombre
+      document.getElementById('f-nombre').value   = a.nombre
       document.getElementById('f-telefono').value = a.telefono || ''
-      document.getElementById('f-colegio').value = a.colegio || ''
-      document.getElementById('f-abono').value = a.abono
-      document.getElementById('f-notas').value = a.notas || ''
+      document.getElementById('f-colegio').value  = a.colegio  || ''
+      document.getElementById('f-abono').value    = a.abono
+      document.getElementById('f-notas').value    = a.notas   || ''
       document.getElementById('modal').classList.add('activo')
     }
 
@@ -260,9 +316,9 @@
       if (!texto.trim()) { sugerencias.innerHTML = ''; return }
 
       const resultados = productos.filter(p =>
-        p.nombre.toLowerCase().includes(texto.toLowerCase()) ||
+        p.nombre.toLowerCase().includes(texto.toLowerCase())    ||
         p.categoria.toLowerCase().includes(texto.toLowerCase()) ||
-        p.talla.toLowerCase().includes(texto.toLowerCase()) ||
+        p.talla.toLowerCase().includes(texto.toLowerCase())     ||
         p.colegio.toLowerCase().includes(texto.toLowerCase())
       ).slice(0, 8)
 
@@ -291,12 +347,12 @@
         existente.cantidad++
       } else {
         carritoApartado.push({
-          producto_id: p.id,
-          nombre: p.nombre,
-          talla: p.talla,
-          categoria: p.categoria,
+          producto_id:     p.id,
+          nombre:          p.nombre,
+          talla:           p.talla,
+          categoria:       p.categoria,
           precio_unitario: p.precio,
-          cantidad: 1
+          cantidad:        1
         })
       }
       renderCarritoApartado()
@@ -356,7 +412,7 @@
 
       if (editandoId) {
         const res = await ipcRenderer.invoke('editar-apartado', {
-          id: editandoId,
+          id:       editandoId,
           nombre,
           telefono: document.getElementById('f-telefono').value.trim(),
           colegio:  document.getElementById('f-colegio').value,
@@ -371,10 +427,10 @@
 
       const apartado = {
         nombre,
-        telefono:  document.getElementById('f-telefono').value.trim(),
-        colegio:   document.getElementById('f-colegio').value,
-        notas:     document.getElementById('f-notas').value.trim(),
-        abono:     parseFloat(document.getElementById('f-abono').value),
+        telefono:   document.getElementById('f-telefono').value.trim(),
+        colegio:    document.getElementById('f-colegio').value,
+        notas:      document.getElementById('f-notas').value.trim(),
+        abono:      parseFloat(document.getElementById('f-abono').value),
         usuario_id: sesion.id
       }
 
@@ -391,16 +447,18 @@
     }
 
     async function verDetalle(id) {
-      const a = apartados.find(x => x.id === id)
+      const a     = apartados.find(x => x.id === id)
       const items = await ipcRenderer.invoke('obtener-apartado-detalle', id)
       const saldo = a.total - a.abono
+      const dias  = getDias(a.fecha_creacion)
 
       document.getElementById('detalle-info').innerHTML = `
-        <strong>${a.nombre}</strong> |
-        Tel: ${a.telefono || '—'} |
-        Colegio: ${a.colegio || '—'} |
-        Abono: <strong>$${parseFloat(a.abono).toLocaleString('es-CO')}</strong> |
-        Saldo: <strong style="color:#e94560;">$${parseFloat(saldo).toLocaleString('es-CO')}</strong>
+        <strong>${a.nombre}</strong><br>
+        Telefono: ${a.telefono || '—'} &nbsp;|&nbsp;
+        Colegio: ${a.colegio || '—'}<br>
+        Abono: <strong style="color:#2ecc71;">$${parseFloat(a.abono).toLocaleString('es-CO')}</strong> &nbsp;|&nbsp;
+        Saldo pendiente: <strong style="color:#e94560;">$${parseFloat(saldo).toLocaleString('es-CO')}</strong><br>
+        Creado hace: <strong>${dias} dias</strong>
         ${a.notas ? `<br>Notas: ${a.notas}` : ''}
       `
 

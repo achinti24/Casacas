@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Casacas - Dashboard</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
 
@@ -19,8 +20,14 @@
   <div class="contenido">
     <div class="encabezado">
       <h1>Dashboard</h1>
+      <div class="tabs-periodo">
+        <button class="tab-btn active" onclick="cambiarPeriodo('dia', this)">7 dias</button>
+        <button class="tab-btn" onclick="cambiarPeriodo('semana', this)">4 semanas</button>
+        <button class="tab-btn" onclick="cambiarPeriodo('mes', this)">6 meses</button>
+      </div>
     </div>
 
+    <!-- CARDS -->
     <div class="cards">
       <div class="card rojo">
         <span class="icono">📦</span>
@@ -44,13 +51,45 @@
       </div>
     </div>
 
+    <!-- ALERTA STOCK -->
     <div id="alertas-container" style="display:none; margin-bottom:20px;">
-      <div style="background:#fff8e1; border-left:4px solid #f39c12; border-radius:10px; padding:16px 20px;">
-        <strong>Stock bajo:</strong>
+      <div id="alertas-inner" style="border-radius:10px; padding:16px 20px;">
+        <strong id="alertas-titulo">Stock bajo:</strong>
         <span id="alertas-texto" style="font-size:14px; color:#555; margin-left:10px;"></span>
       </div>
     </div>
 
+    <!-- ALERTA APARTADOS VENCIDOS -->
+    <div id="alerta-apartados" style="display:none; background:#fff8e1; border-left:4px solid #f39c12; border-radius:10px; padding:16px 20px; margin-bottom:20px;">
+      <strong>Apartados sin recoger:</strong>
+      <span id="alerta-apartados-texto" style="font-size:14px; color:#555; margin-left:10px;"></span>
+    </div>
+
+    <!-- GRAFICAS FILA 1 -->
+    <div class="graficas-grid" style="margin-bottom:20px;">
+      <div class="panel">
+        <h3 style="margin-bottom:16px;">Ventas del periodo</h3>
+        <canvas id="grafica-ventas" height="200"></canvas>
+      </div>
+      <div class="panel">
+        <h3 style="margin-bottom:16px;">Productos mas vendidos</h3>
+        <canvas id="grafica-productos" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- GRAFICAS FILA 2 -->
+    <div class="graficas-grid" style="margin-bottom:20px;">
+      <div class="panel">
+        <h3 style="margin-bottom:16px;">Ventas por colegio</h3>
+        <canvas id="grafica-colegios" height="200"></canvas>
+      </div>
+      <div class="panel">
+        <h3 style="margin-bottom:16px;">Estado del inventario</h3>
+        <canvas id="grafica-inventario" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- TABLAS RESUMEN -->
     <div class="dashboard-grid">
       <div class="panel">
         <h3>Productos Agotados</h3>
@@ -60,33 +99,29 @@
         </table>
       </div>
       <div class="panel">
-        <h3>Unidades por Colegio</h3>
+        <h3>Apartados Pendientes</h3>
         <table>
-          <thead><tr><th>Colegio</th><th>Productos</th><th>Unidades</th></tr></thead>
-          <tbody id="tabla-colegios"><tr><td colspan="3" class="vacio">Cargando...</td></tr></tbody>
-        </table>
-      </div>
-      <div class="panel">
-        <h3>Unidades por Categoria</h3>
-        <table>
-          <thead><tr><th>Categoria</th><th>Productos</th><th>Unidades</th></tr></thead>
-          <tbody id="tabla-categorias"><tr><td colspan="3" class="vacio">Cargando...</td></tr></tbody>
-        </table>
-      </div>
-      <div class="panel">
-        <h3>Unidades por Genero</h3>
-        <table>
-          <thead><tr><th>Genero</th><th>Productos</th><th>Unidades</th></tr></thead>
-          <tbody id="tabla-generos"><tr><td colspan="3" class="vacio">Cargando...</td></tr></tbody>
+          <thead><tr><th>Cliente</th><th>Saldo</th><th>Dias</th></tr></thead>
+          <tbody id="tabla-apartados-pendientes"><tr><td colspan="3" class="vacio">Cargando...</td></tr></tbody>
         </table>
       </div>
     </div>
+
   </div>
 
   <script src="nav.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script>
-
     let sesion = null
+    let estadisticas = null
+    let periodoActual = 'dia'
+    let graficaVentas = null
+    let graficaProductos = null
+    let graficaColegios = null
+    let graficaInventario = null
+
+    const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+    const COLORES = ['#e94560','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22']
 
     cargarMenu('index.html').then(s => {
       sesion = s
@@ -95,28 +130,55 @@
 
     async function cargarDashboard() {
       const productos = await ipcRenderer.invoke('obtener-productos')
+      estadisticas    = await ipcRenderer.invoke('obtener-estadisticas')
 
+      // Cards
       const total      = productos.length
       const enStock    = productos.filter(p => p.cantidad > 0).length
       const agotados   = productos.filter(p => p.cantidad <= 0).length
       const valorTotal = productos.reduce((acc, p) => acc + (p.cantidad * p.precio), 0)
 
       document.getElementById('total-productos').textContent = total
-      document.getElementById('en-stock').textContent = enStock
-      document.getElementById('agotados').textContent = agotados
-      document.getElementById('valor-total').textContent = '$' + valorTotal.toLocaleString('es-CO')
+      document.getElementById('en-stock').textContent        = enStock
+      document.getElementById('agotados').textContent        = agotados
+      document.getElementById('valor-total').textContent     = '$' + valorTotal.toLocaleString('es-CO')
 
+      // Alerta stock
       const stockBajo = productos.filter(p => p.cantidad > 0 && p.cantidad <= p.stock_minimo)
-      if (stockBajo.length > 0) {
-        document.getElementById('alertas-container').style.display = 'block'
-        document.getElementById('alertas-texto').textContent =
-          stockBajo.map(p => `${p.nombre} (${p.cantidad} uds)`).join(' - ')
+      const agotadosList = productos.filter(p => p.cantidad <= 0)
+      const contenedor = document.getElementById('alertas-container')
+      const inner      = document.getElementById('alertas-inner')
+
+      if (agotadosList.length > 0 || stockBajo.length > 0) {
+        contenedor.style.display = 'block'
+        if (agotadosList.length > 0) {
+          inner.style.background  = '#fde8ec'
+          inner.style.borderLeft  = '4px solid #e94560'
+          document.getElementById('alertas-titulo').textContent = 'Agotados:'
+          document.getElementById('alertas-texto').textContent  =
+            agotadosList.map(p => `${p.nombre} (${p.talla})`).join(', ')
+        } else {
+          inner.style.background  = '#fff8e1'
+          inner.style.borderLeft  = '4px solid #f39c12'
+          document.getElementById('alertas-titulo').textContent = 'Stock bajo:'
+          document.getElementById('alertas-texto').textContent  =
+            stockBajo.map(p => `${p.nombre} (${p.cantidad} uds)`).join(', ')
+        }
       }
 
-      const listaAgotados = productos.filter(p => p.cantidad <= 0)
-      document.getElementById('tabla-agotados').innerHTML = listaAgotados.length === 0
+      // Alerta apartados vencidos
+      const diasAlerta  = 7
+      const vencidos    = estadisticas.apartadosVencidos.filter(a => a.dias >= diasAlerta)
+      if (vencidos.length > 0) {
+        document.getElementById('alerta-apartados').style.display = 'block'
+        document.getElementById('alerta-apartados-texto').textContent =
+          vencidos.map(a => `${a.nombre} (${a.dias} dias)`).join(', ')
+      }
+
+      // Tabla agotados
+      document.getElementById('tabla-agotados').innerHTML = agotadosList.length === 0
         ? '<tr><td colspan="4" class="vacio">Todo en stock</td></tr>'
-        : listaAgotados.map(p => `
+        : agotadosList.map(p => `
             <tr>
               <td><strong>${p.nombre}</strong></td>
               <td>${p.colegio}</td>
@@ -124,30 +186,176 @@
               <td>${p.genero}</td>
             </tr>`).join('')
 
-      document.getElementById('tabla-colegios').innerHTML =
-        agrupar(productos, 'colegio').map(g =>
-          `<tr><td>${g.key}</td><td>${g.count}</td><td>${g.unidades}</td></tr>`).join('')
+      // Tabla apartados pendientes
+      const pendientes = estadisticas.apartadosVencidos
+      document.getElementById('tabla-apartados-pendientes').innerHTML = pendientes.length === 0
+        ? '<tr><td colspan="3" class="vacio">Sin apartados pendientes</td></tr>'
+        : pendientes.map(a => {
+            const saldo = a.total - a.abono
+            const clase = a.dias >= 7 ? 'style="color:#e94560; font-weight:bold;"' : ''
+            return `
+              <tr>
+                <td><strong>${a.nombre}</strong><br><small>${a.colegio || ''} ${a.telefono ? '· ' + a.telefono : ''}</small></td>
+                <td>$${parseFloat(saldo).toLocaleString('es-CO')}</td>
+                <td ${clase}>${a.dias} dias</td>
+              </tr>`
+          }).join('')
 
-      document.getElementById('tabla-categorias').innerHTML =
-        agrupar(productos, 'categoria').map(g =>
-          `<tr><td>${g.key}</td><td>${g.count}</td><td>${g.unidades}</td></tr>`).join('')
-
-      document.getElementById('tabla-generos').innerHTML =
-        agrupar(productos, 'genero').map(g =>
-          `<tr><td>${g.key}</td><td>${g.count}</td><td>${g.unidades}</td></tr>`).join('')
+      // Graficas
+      renderGraficas()
     }
 
-    function agrupar(productos, campo) {
-      const mapa = {}
-      productos.forEach(p => {
-        const key = p[campo] || 'Sin definir'
-        if (!mapa[key]) mapa[key] = { count: 0, unidades: 0 }
-        mapa[key].count++
-        mapa[key].unidades += p.cantidad
+    function cambiarPeriodo(periodo, btn) {
+      periodoActual = periodo
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+      btn.classList.add('active')
+      renderGraficaVentas()
+    }
+
+    function renderGraficas() {
+      renderGraficaVentas()
+      renderGraficaProductos()
+      renderGraficaColegios()
+      renderGraficaInventario()
+    }
+
+    function renderGraficaVentas() {
+      if (!estadisticas) return
+      let datos, labels
+
+      if (periodoActual === 'dia') {
+        labels = estadisticas.ventasPorDia.map(v => {
+          const d = new Date(v.dia + 'T00:00:00')
+          return `${d.getDate()}/${d.getMonth()+1}`
+        })
+        datos = estadisticas.ventasPorDia.map(v => v.total || 0)
+      } else if (periodoActual === 'semana') {
+        labels = estadisticas.ventasPorSemana.map((v, i) => `Sem ${i+1}`)
+        datos  = estadisticas.ventasPorSemana.map(v => v.total || 0)
+      } else {
+        labels = estadisticas.ventasPorMes.map(v => MESES[parseInt(v.mes) - 1])
+        datos  = estadisticas.ventasPorMes.map(v => v.total || 0)
+      }
+
+      if (graficaVentas) graficaVentas.destroy()
+      const ctx = document.getElementById('grafica-ventas').getContext('2d')
+      graficaVentas = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Total vendido ($)',
+            data: datos,
+            backgroundColor: '#e9456088',
+            borderColor: '#e94560',
+            borderWidth: 2,
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: v => '$' + v.toLocaleString('es-CO')
+              }
+            }
+          }
+        }
       })
-      return Object.entries(mapa)
-        .map(([key, val]) => ({ key, ...val }))
-        .sort((a, b) => b.unidades - a.unidades)
+    }
+
+    function renderGraficaProductos() {
+      if (!estadisticas || estadisticas.topProductos.length === 0) return
+      const labels = estadisticas.topProductos.map(p => `${p.nombre} (${p.talla})`)
+      const datos  = estadisticas.topProductos.map(p => p.total_vendido)
+
+      if (graficaProductos) graficaProductos.destroy()
+      const ctx = document.getElementById('grafica-productos').getContext('2d')
+      graficaProductos = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Unidades vendidas',
+            data: datos,
+            backgroundColor: COLORES,
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true } }
+        }
+      })
+    }
+
+    function renderGraficaColegios() {
+      if (!estadisticas || estadisticas.porColegio.length === 0) {
+        if (graficaColegios) graficaColegios.destroy()
+        const ctx = document.getElementById('grafica-colegios').getContext('2d')
+        graficaColegios = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Sin datos'],
+            datasets: [{ data: [1], backgroundColor: ['#eee'] }]
+          },
+          options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        })
+        return
+      }
+
+      const labels = estadisticas.porColegio.map(c => c.colegio)
+      const datos  = estadisticas.porColegio.map(c => c.ventas)
+
+      if (graficaColegios) graficaColegios.destroy()
+      const ctx = document.getElementById('grafica-colegios').getContext('2d')
+      graficaColegios = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data: datos,
+            backgroundColor: COLORES,
+            borderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'bottom' } }
+        }
+      })
+    }
+
+    function renderGraficaInventario() {
+      const productos = []
+      const solicitud = ipcRenderer.invoke('obtener-productos').then(prods => {
+        const enStock    = prods.filter(p => p.cantidad > p.stock_minimo).length
+        const stockBajo  = prods.filter(p => p.cantidad > 0 && p.cantidad <= p.stock_minimo).length
+        const agotados   = prods.filter(p => p.cantidad <= 0).length
+
+        if (graficaInventario) graficaInventario.destroy()
+        const ctx = document.getElementById('grafica-inventario').getContext('2d')
+        graficaInventario = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['En stock', 'Stock bajo', 'Agotados'],
+            datasets: [{
+              data: [enStock, stockBajo, agotados],
+              backgroundColor: ['#2ecc71', '#f39c12', '#e94560'],
+              borderWidth: 2,
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom' } }
+          }
+        })
+      })
     }
   </script>
 

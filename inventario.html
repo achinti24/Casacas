@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Casacas - Inventario</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="inventario.css">
 </head>
 <body>
 
@@ -18,31 +19,19 @@
 
   <div class="contenido">
     <div class="encabezado">
-      <h1>Inventario de Productos</h1>
-      <button class="btn btn-rojo" id="btn-agregar" onclick="abrirModal()">+ Agregar Producto</button>
+      <h1>Inventario</h1>
+      <button class="btn btn-rojo" id="btn-agregar" onclick="abrirModalProducto()">+ Agregar Producto</button>
     </div>
 
-    <input class="buscador" type="text" placeholder="Buscar por nombre, colegio, talla..." oninput="aplicarFiltros()">
+    <input class="buscador" type="text" placeholder="Buscar por nombre, colegio, categoria..."
+      oninput="aplicarFiltros()">
 
     <div class="filtros">
       <select id="filtro-categoria" onchange="aplicarFiltros()">
         <option value="">Todas las categorias</option>
-        <option>Uniformes</option>
-        <option>Camisas</option>
-        <option>Pantalones</option>
-        <option>Antifluidos</option>
-        <option>Medias</option>
-        <option>Correas</option>
-        <option>Otro</option>
       </select>
       <select id="filtro-colegio" onchange="aplicarFiltros()">
         <option value="">Todos los colegios</option>
-        <option>Todos</option>
-        <option>Guanenta</option>
-        <option>Presentacion</option>
-        <option>Rafael Pombo</option>
-        <option>Luis Camacho</option>
-        <option>Otro</option>
       </select>
       <select id="filtro-genero" onchange="aplicarFiltros()">
         <option value="">Todos los generos</option>
@@ -61,130 +50,192 @@
 
     <p id="contador" style="margin-bottom:12px; color:#888; font-size:14px;"></p>
 
-    <table>
-      <thead>
-        <tr>
-          <th>Nombre</th>
-          <th>Categoria</th>
-          <th>Colegio</th>
-          <th>Genero</th>
-          <th>Talla</th>
-          <th>Cantidad</th>
-          <th>Precio</th>
-          <th>Stock</th>
-          <th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody id="tabla-body">
-        <tr><td colspan="9" class="vacio">Cargando...</td></tr>
-      </tbody>
-    </table>
+    <div id="lista-productos"></div>
   </div>
 
-  <div class="modal-overlay" id="modal">
-    <div class="modal">
-      <h2 id="modal-titulo">Agregar Producto</h2>
-
-      <div class="campo">
-        <label>Nombre</label>
-        <input type="text" id="f-nombre">
-      </div>
+  <!-- MODAL PRODUCTO -->
+  <div class="modal-overlay" id="modal-producto">
+    <div class="modal" style="width:560px; max-height:85vh; overflow-y:auto;">
+      <h2 id="modal-producto-titulo">Agregar Producto</h2>
 
       <div class="fila-doble">
+        <div class="campo">
+          <label>Nombre</label>
+          <input type="text" id="p-nombre" placeholder="Ej: Pantalon colegial">
+        </div>
         <div class="campo">
           <label>Categoria</label>
-          <select id="f-categoria">
-            <option>Uniformes</option>
-            <option>Camisas</option>
-            <option>blusas</option>
-            <option>Faldas</option>
-            <option>Pantalones</option>
-            <option>Antifluidos</option>
-            <option>Medias</option>
-            <option>Correas</option>
-            <option>Otro</option>
-          </select>
-        </div>
-        <div class="campo">
-          <label>Colegio</label>
-          <select id="f-colegio">
-            <option>Todos</option>
-            <option>Guanenta</option>
-            <option>Presentacion</option>
-            <option>Rafael Pombo</option>
-            <option>Luis Camacho</option>
-            <option>Otro</option>
-          </select>
+          <select id="p-categoria"></select>
         </div>
       </div>
 
       <div class="fila-doble">
         <div class="campo">
+          <label>Colegio</label>
+          <select id="p-colegio"></select>
+        </div>
+        <div class="campo">
           <label>Genero</label>
-          <select id="f-genero">
+          <select id="p-genero">
             <option>Unisex</option>
             <option>Hombre</option>
             <option>Mujer</option>
           </select>
         </div>
-        <div class="campo">
-          <label>Talla</label>
-          <select id="f-talla">
-            <option>Unica</option>
-            <option>2</option><option>4</option><option>6</option>
-            <option>8</option><option>10</option><option>12</option><option>14</option>
-            <option>XS</option><option>S</option>
-            <option selected>M</option>
-            <option>L</option><option>XL</option><option>XXL</option>
-          </select>
-        </div>
       </div>
 
-      <div class="fila-doble">
-        <div class="campo">
-          <label>Cantidad</label>
-          <input type="number" id="f-cantidad" min="0" value="1">
+      <div id="variantes-container">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin:16px 0 10px;">
+          <h4 style="color:#555;">Tallas y precios</h4>
+          <button class="btn btn-gris" style="padding:6px 14px; font-size:13px;" onclick="agregarFilaVariante()">+ Agregar talla</button>
         </div>
-        <div class="campo">
-          <label>Precio ($)</label>
-          <input type="number" id="f-precio" min="0" step="0.01" value="0">
-        </div>
-      </div>
-
-      <div class="campo">
-        <label>Stock minimo para alerta</label>
-        <input type="number" id="f-stock-minimo" min="0" value="3">
+        <table style="width:100%; margin-bottom:10px;">
+          <thead>
+            <tr>
+              <th style="background:#f5f6fa; color:#555; padding:8px 10px; font-size:12px; text-align:left;">Talla</th>
+              <th style="background:#f5f6fa; color:#555; padding:8px 10px; font-size:12px; text-align:left;">Precio ($)</th>
+              <th style="background:#f5f6fa; color:#555; padding:8px 10px; font-size:12px; text-align:left;">Cantidad</th>
+              <th style="background:#f5f6fa; color:#555; padding:8px 10px; font-size:12px; text-align:left;">Stock min.</th>
+              <th style="background:#f5f6fa; padding:8px 10px;"></th>
+            </tr>
+          </thead>
+          <tbody id="variantes-body"></tbody>
+        </table>
       </div>
 
       <div class="modal-botones">
-        <button class="btn btn-gris" onclick="cerrarModal()">Cancelar</button>
+        <button class="btn btn-gris" onclick="cerrarModalProducto()">Cancelar</button>
         <button class="btn btn-rojo" onclick="guardarProducto()">Guardar</button>
       </div>
     </div>
   </div>
 
-  <script src="nav.js"></script>
-  <script>
+  <!-- MODAL VARIANTE (agregar talla a producto existente) -->
+  <div class="modal-overlay" id="modal-variante">
+    <div class="modal" style="width:420px;">
+      <h2>Agregar Talla</h2>
+      <div class="fila-doble">
+        <div class="campo">
+          <label>Talla</label>
+          <select id="v-talla">
+            <option>Unica</option>
+            <option>2</option><option>4</option><option>6</option>
+            <option>8</option><option>10</option><option>12</option><option>14</option>
+            <option>XS</option><option>S</option><option>M</option>
+            <option>L</option><option>XL</option><option>XXL</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Precio ($)</label>
+          <input type="number" id="v-precio" min="0" value="0">
+        </div>
+      </div>
+      <div class="fila-doble">
+        <div class="campo">
+          <label>Cantidad</label>
+          <input type="number" id="v-cantidad" min="0" value="0">
+        </div>
+        <div class="campo">
+          <label>Stock minimo</label>
+          <input type="number" id="v-stock-minimo" min="0" value="3">
+        </div>
+      </div>
+      <div class="modal-botones">
+        <button class="btn btn-gris" onclick="cerrarModalVariante()">Cancelar</button>
+        <button class="btn btn-rojo" onclick="guardarVariante()">Guardar</button>
+      </div>
+    </div>
+  </div>
 
-    let sesion = null
-    let productos = []
-    let editandoId = null
+  <!-- MODAL EDITAR VARIANTE -->
+  <div class="modal-overlay" id="modal-editar-variante">
+    <div class="modal" style="width:420px;">
+      <h2>Editar Talla</h2>
+      <div class="fila-doble">
+        <div class="campo">
+          <label>Talla</label>
+          <select id="ev-talla">
+            <option>Unica</option>
+            <option>2</option><option>4</option><option>6</option>
+            <option>8</option><option>10</option><option>12</option><option>14</option>
+            <option>XS</option><option>S</option><option>M</option>
+            <option>L</option><option>XL</option><option>XXL</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Precio ($)</label>
+          <input type="number" id="ev-precio" min="0" value="0">
+        </div>
+      </div>
+      <div class="fila-doble">
+        <div class="campo">
+          <label>Cantidad</label>
+          <input type="number" id="ev-cantidad" min="0" value="0">
+        </div>
+        <div class="campo">
+          <label>Stock minimo</label>
+          <input type="number" id="ev-stock-minimo" min="0" value="3">
+        </div>
+      </div>
+      <div class="modal-botones">
+        <button class="btn btn-gris" onclick="cerrarModalEditarVariante()">Cancelar</button>
+        <button class="btn btn-rojo" onclick="confirmarEditarVariante()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CODIGO DE BARRAS -->
+  <div class="modal-overlay" id="modal-codigo">
+    <div class="modal" style="width:380px; text-align:center;">
+      <h2>Codigo de Barras</h2>
+      <p id="codigo-producto-nombre" style="color:#555; font-size:14px; margin-bottom:16px;"></p>
+      <canvas id="codigo-canvas" style="max-width:100%;"></canvas>
+      <p id="codigo-numero" style="font-size:18px; font-weight:bold; letter-spacing:3px; margin-top:12px; color:#1a1a2e;"></p>
+      <div class="modal-botones" style="justify-content:center;">
+        <button class="btn btn-gris" onclick="cerrarModalCodigo()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="nav.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <script>
+    let sesion      = null
+    let productos   = []
+    let categorias  = []
+    let colegios    = []
+    let filasVariantes = []
+    let productoEditandoId   = null
+    let varianteProdId       = null
+    let varianteEditandoId   = null
 
     cargarMenu('inventario.html').then(s => {
       sesion = s
       if (sesion && sesion.rol !== 'admin') {
         document.getElementById('btn-agregar').style.display = 'none'
       }
-      cargarProductos()
+      cargarDatos()
     })
 
-    async function cargarProductos() {
-      productos = await ipcRenderer.invoke('obtener-productos')
+    async function cargarDatos() {
+      categorias = await ipcRenderer.invoke('obtener-categorias-producto')
+      colegios   = await ipcRenderer.invoke('obtener-colegios')
+      productos  = await ipcRenderer.invoke('obtener-productos')
+
+      // Llenar filtros
+      const optsCat = categorias.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('')
+      document.getElementById('filtro-categoria').innerHTML = '<option value="">Todas las categorias</option>' + optsCat
+      document.getElementById('p-categoria').innerHTML = optsCat
+
+      const optsCol = colegios.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('')
+      document.getElementById('filtro-colegio').innerHTML = '<option value="">Todos los colegios</option>' + optsCol
+      document.getElementById('p-colegio').innerHTML = optsCol
+
       aplicarFiltros()
     }
 
     function aplicarFiltros() {
-      const texto     = document.querySelector('.buscador').value.toLowerCase()
+      const texto    = document.querySelector('.buscador').value.toLowerCase()
       const categoria = document.getElementById('filtro-categoria').value
       const colegio   = document.getElementById('filtro-colegio').value
       const genero    = document.getElementById('filtro-genero').value
@@ -193,21 +244,27 @@
       const filtrados = productos.filter(p => {
         const coincideTexto = !texto ||
           p.nombre.toLowerCase().includes(texto) ||
-          p.colegio.toLowerCase().includes(texto) ||
-          p.talla.toLowerCase().includes(texto) ||
-          p.categoria.toLowerCase().includes(texto)
+          p.categoria.toLowerCase().includes(texto) ||
+          p.colegio.toLowerCase().includes(texto)
         const coincideCategoria = !categoria || p.categoria === categoria
         const coincideColegio   = !colegio   || p.colegio === colegio
         const coincideGenero    = !genero    || p.genero === genero
-        const coincideStock =
-          !stock ||
-          (stock === 'en-stock'   && p.cantidad > 0) ||
-          (stock === 'agotado'    && p.cantidad <= 0) ||
-          (stock === 'stock-bajo' && p.cantidad > 0 && p.cantidad <= p.stock_minimo)
+
+        let coincideStock = true
+        if (stock) {
+          coincideStock = p.variantes.some(v =>
+            (stock === 'en-stock'   && v.cantidad > 0) ||
+            (stock === 'agotado'    && v.cantidad <= 0) ||
+            (stock === 'stock-bajo' && v.cantidad > 0 && v.cantidad <= v.stock_minimo)
+          )
+        }
+
         return coincideTexto && coincideCategoria && coincideColegio && coincideGenero && coincideStock
       })
 
-      renderTabla(filtrados)
+      document.getElementById('contador').textContent =
+        `Mostrando ${filtrados.length} de ${productos.length} productos`
+      renderProductos(filtrados)
     }
 
     function limpiarFiltros() {
@@ -219,102 +276,287 @@
       aplicarFiltros()
     }
 
-    function stockBadge(p) {
-      if (p.cantidad <= 0)              return '<span class="badge badge-rojo">Agotado</span>'
-      if (p.cantidad <= p.stock_minimo) return '<span class="badge badge-amarillo">Stock bajo</span>'
+    function stockBadge(v) {
+      if (v.cantidad <= 0)              return '<span class="badge badge-rojo">Agotado</span>'
+      if (v.cantidad <= v.stock_minimo) return '<span class="badge badge-amarillo">Stock bajo</span>'
       return '<span class="badge badge-verde">En stock</span>'
     }
 
-    function renderTabla(lista) {
-      const tbody = document.getElementById('tabla-body')
-      document.getElementById('contador').textContent =
-        `Mostrando ${lista.length} de ${productos.length} productos`
-
+    function renderProductos(lista) {
+      const contenedor = document.getElementById('lista-productos')
       if (lista.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="vacio">No se encontraron productos.</td></tr>'
+        contenedor.innerHTML = '<div class="vacio" style="padding:60px; text-align:center; color:#aaa;">No se encontraron productos.</div>'
         return
       }
 
-      tbody.innerHTML = lista.map(p => `
-        <tr>
-          <td><strong>${p.nombre}</strong></td>
-          <td>${p.categoria}</td>
-          <td>${p.colegio}</td>
-          <td>${p.genero}</td>
-          <td>${p.talla}</td>
-          <td>${p.cantidad}</td>
-          <td>$${parseFloat(p.precio).toLocaleString('es-CO')}</td>
-          <td>${stockBadge(p)}</td>
-          <td>
-            ${sesion && sesion.rol === 'admin' ? `
-              <button class="btn btn-gris" style="padding:6px 12px;margin-right:5px" onclick="editarProducto(${p.id})">Editar</button>
-              <button class="btn btn-rojo" style="padding:6px 12px" onclick="eliminarProducto(${p.id})">Eliminar</button>
-            ` : '—'}
-          </td>
-        </tr>
+      contenedor.innerHTML = lista.map(p => `
+        <div class="producto-card">
+          <div class="producto-header" onclick="toggleVariantes(${p.id})">
+            <div class="producto-info">
+              <strong style="font-size:16px;">${p.nombre}</strong>
+              <span style="color:#888; font-size:13px; margin-left:12px;">${p.categoria} — ${p.colegio} — ${p.genero}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="font-size:13px; color:#888;">${p.variantes.length} talla(s)</span>
+              ${sesion && sesion.rol === 'admin' ? `
+                <button class="btn btn-gris" style="padding:5px 12px; font-size:12px;"
+                  onclick="event.stopPropagation(); abrirModalEditarProducto(${p.id})">Editar</button>
+                <button class="btn btn-gris" style="padding:5px 12px; font-size:12px;"
+                  onclick="event.stopPropagation(); abrirModalVariante(${p.id})">+ Talla</button>
+                <button class="btn btn-rojo" style="padding:5px 12px; font-size:12px;"
+                  onclick="event.stopPropagation(); eliminarProducto(${p.id})">Eliminar</button>
+              ` : ''}
+              <span class="chevron" id="chevron-${p.id}">▼</span>
+            </div>
+          </div>
+          <div class="variantes-tabla" id="variantes-${p.id}" style="display:none;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Talla</th>
+                  <th>Precio</th>
+                  <th>Cantidad</th>
+                  <th>Stock min.</th>
+                  <th>Estado</th>
+                  <th>Codigo</th>
+                  ${sesion && sesion.rol === 'admin' ? '<th>Acciones</th>' : ''}
+                </tr>
+              </thead>
+              <tbody>
+                ${p.variantes.map(v => `
+                  <tr>
+                    <td><strong>${v.talla}</strong></td>
+                    <td>$${parseFloat(v.precio).toLocaleString('es-CO')}</td>
+                    <td>${v.cantidad}</td>
+                    <td>${v.stock_minimo}</td>
+                    <td>${stockBadge(v)}</td>
+                    <td>
+                      <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
+                        onclick="verCodigo(${v.id}, '${p.nombre} - ${v.talla}', '${v.codigo_barras}')">
+                        Ver codigo
+                      </button>
+                    </td>
+                    ${sesion && sesion.rol === 'admin' ? `
+                      <td>
+                        <button class="btn btn-gris" style="padding:4px 10px; font-size:12px; margin-right:4px;"
+                          onclick="abrirModalEditarVariante(${v.id}, '${v.talla}', ${v.precio}, ${v.cantidad}, ${v.stock_minimo})">
+                          Editar
+                        </button>
+                        <button class="btn btn-rojo" style="padding:4px 10px; font-size:12px;"
+                          onclick="eliminarVariante(${v.id}, ${p.id})">
+                          Eliminar
+                        </button>
+                      </td>
+                    ` : ''}
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
       `).join('')
     }
 
-    function abrirModal() {
-      if (sesion && sesion.rol !== 'admin') return
-      editandoId = null
-      document.getElementById('modal-titulo').textContent = 'Agregar Producto'
-      document.getElementById('f-nombre').value = ''
-      document.getElementById('f-cantidad').value = 1
-      document.getElementById('f-precio').value = 0
-      document.getElementById('f-stock-minimo').value = 3
-      document.getElementById('modal').classList.add('activo')
+    function toggleVariantes(productoId) {
+      const tabla   = document.getElementById(`variantes-${productoId}`)
+      const chevron = document.getElementById(`chevron-${productoId}`)
+      const visible = tabla.style.display !== 'none'
+      tabla.style.display   = visible ? 'none' : 'block'
+      chevron.textContent   = visible ? '▼' : '▲'
     }
 
-    function cerrarModal() {
-      document.getElementById('modal').classList.remove('activo')
+    // ── MODAL PRODUCTO ────────────────────────────────
+    function abrirModalProducto() {
+      productoEditandoId = null
+      filasVariantes     = []
+      document.getElementById('modal-producto-titulo').textContent = 'Agregar Producto'
+      document.getElementById('p-nombre').value  = ''
+      document.getElementById('p-genero').value  = 'Unisex'
+      if (categorias.length) document.getElementById('p-categoria').value = categorias[0].nombre
+      if (colegios.length)   document.getElementById('p-colegio').value   = colegios[0].nombre
+      renderFilasVariantes()
+      document.getElementById('modal-producto').classList.add('activo')
     }
 
-    function editarProducto(id) {
-      if (sesion && sesion.rol !== 'admin') return
+    function abrirModalEditarProducto(id) {
       const p = productos.find(x => x.id === id)
       if (!p) return
-      editandoId = id
-      document.getElementById('modal-titulo').textContent = 'Editar Producto'
-      document.getElementById('f-nombre').value = p.nombre
-      document.getElementById('f-categoria').value = p.categoria
-      document.getElementById('f-colegio').value = p.colegio
-      document.getElementById('f-genero').value = p.genero
-      document.getElementById('f-talla').value = p.talla
-      document.getElementById('f-cantidad').value = p.cantidad
-      document.getElementById('f-precio').value = p.precio
-      document.getElementById('f-stock-minimo').value = p.stock_minimo
-      document.getElementById('modal').classList.add('activo')
+      productoEditandoId = id
+      document.getElementById('modal-producto-titulo').textContent = 'Editar Producto'
+      document.getElementById('p-nombre').value    = p.nombre
+      document.getElementById('p-categoria').value = p.categoria
+      document.getElementById('p-colegio').value   = p.colegio
+      document.getElementById('p-genero').value    = p.genero
+      filasVariantes = []
+      document.getElementById('variantes-container').style.display = productoEditandoId ? 'none' : 'block'
+      document.getElementById('modal-producto').classList.add('activo')
+    }
+
+    function cerrarModalProducto() {
+      document.getElementById('modal-producto').classList.remove('activo')
+      document.getElementById('variantes-container').style.display = 'block'
+    }
+
+    function agregarFilaVariante() {
+      filasVariantes.push({ talla: 'M', precio: 0, cantidad: 0, stock_minimo: 3 })
+      renderFilasVariantes()
+    }
+
+    function renderFilasVariantes() {
+      const tbody = document.getElementById('variantes-body')
+      const tallas = ['Unica','2','4','6','8','10','12','14','XS','S','M','L','XL','XXL']
+
+      tbody.innerHTML = filasVariantes.map((v, i) => `
+        <tr>
+          <td>
+            <select onchange="filasVariantes[${i}].talla = this.value"
+              style="padding:6px; border:1px solid #ddd; border-radius:6px; font-size:13px; width:80px;">
+              ${tallas.map(t => `<option ${t === v.talla ? 'selected' : ''}>${t}</option>`).join('')}
+            </select>
+          </td>
+          <td>
+            <input type="number" min="0" value="${v.precio}"
+              onchange="filasVariantes[${i}].precio = parseFloat(this.value)"
+              style="width:90px; padding:6px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
+          </td>
+          <td>
+            <input type="number" min="0" value="${v.cantidad}"
+              onchange="filasVariantes[${i}].cantidad = parseInt(this.value)"
+              style="width:70px; padding:6px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
+          </td>
+          <td>
+            <input type="number" min="0" value="${v.stock_minimo}"
+              onchange="filasVariantes[${i}].stock_minimo = parseInt(this.value)"
+              style="width:70px; padding:6px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
+          </td>
+          <td>
+            <button onclick="filasVariantes.splice(${i},1); renderFilasVariantes()"
+              style="background:none; border:none; cursor:pointer; color:#e94560; font-size:16px;">X</button>
+          </td>
+        </tr>
+      `).join('')
+
+      if (filasVariantes.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#aaa; padding:16px; font-size:13px;">
+          Agrega al menos una talla con el boton de arriba
+        </td></tr>`
+      }
     }
 
     async function guardarProducto() {
-      const producto = {
-        nombre:       document.getElementById('f-nombre').value.trim(),
-        categoria:    document.getElementById('f-categoria').value,
-        colegio:      document.getElementById('f-colegio').value,
-        genero:       document.getElementById('f-genero').value,
-        talla:        document.getElementById('f-talla').value,
-        cantidad:     parseInt(document.getElementById('f-cantidad').value),
-        precio:       parseFloat(document.getElementById('f-precio').value),
-        stock_minimo: parseInt(document.getElementById('f-stock-minimo').value)
-      }
+      const nombre    = document.getElementById('p-nombre').value.trim()
+      const categoria = document.getElementById('p-categoria').value
+      const colegio   = document.getElementById('p-colegio').value
+      const genero    = document.getElementById('p-genero').value
 
-      if (!producto.nombre) { alert('El nombre es obligatorio'); return }
+      if (!nombre) { alert('El nombre es obligatorio'); return }
 
-      if (editandoId) {
-        await ipcRenderer.invoke('editar-producto', { ...producto, id: editandoId })
+      if (productoEditandoId) {
+        await ipcRenderer.invoke('editar-producto', {
+          producto: { id: productoEditandoId, nombre, categoria, colegio, genero }
+        })
       } else {
-        await ipcRenderer.invoke('agregar-producto', producto)
+        if (filasVariantes.length === 0) { alert('Agrega al menos una talla'); return }
+        await ipcRenderer.invoke('agregar-producto', {
+          producto:  { nombre, categoria, colegio, genero },
+          variantes: filasVariantes
+        })
       }
 
-      cerrarModal()
-      cargarProductos()
+      cerrarModalProducto()
+      cargarDatos()
     }
 
     async function eliminarProducto(id) {
-      if (!confirm('Seguro que quieres eliminar este producto?')) return
+      if (!confirm('Seguro que quieres eliminar este producto y todas sus tallas?')) return
       await ipcRenderer.invoke('eliminar-producto', id)
-      cargarProductos()
+      cargarDatos()
+    }
+
+    // ── MODAL VARIANTE ────────────────────────────────
+    function abrirModalVariante(productoId) {
+      varianteProdId = productoId
+      document.getElementById('v-talla').value        = 'M'
+      document.getElementById('v-precio').value       = 0
+      document.getElementById('v-cantidad').value     = 0
+      document.getElementById('v-stock-minimo').value = 3
+      document.getElementById('modal-variante').classList.add('activo')
+    }
+
+    function cerrarModalVariante() {
+      document.getElementById('modal-variante').classList.remove('activo')
+    }
+
+    async function guardarVariante() {
+      const variante = {
+        talla:        document.getElementById('v-talla').value,
+        precio:       parseFloat(document.getElementById('v-precio').value),
+        cantidad:     parseInt(document.getElementById('v-cantidad').value),
+        stock_minimo: parseInt(document.getElementById('v-stock-minimo').value)
+      }
+      const res = await ipcRenderer.invoke('agregar-variante', { productoId: varianteProdId, variante })
+      if (res.ok) {
+        cerrarModalVariante()
+        cargarDatos()
+      }
+    }
+
+    // ── MODAL EDITAR VARIANTE ─────────────────────────
+    function abrirModalEditarVariante(id, talla, precio, cantidad, stockMinimo) {
+      varianteEditandoId = id
+      document.getElementById('ev-talla').value        = talla
+      document.getElementById('ev-precio').value       = precio
+      document.getElementById('ev-cantidad').value     = cantidad
+      document.getElementById('ev-stock-minimo').value = stockMinimo
+      document.getElementById('modal-editar-variante').classList.add('activo')
+    }
+
+    function cerrarModalEditarVariante() {
+      document.getElementById('modal-editar-variante').classList.remove('activo')
+    }
+
+    async function confirmarEditarVariante(){
+      const variante = {
+        id:           varianteEditandoId,
+        talla:        document.getElementById('ev-talla').value,
+        precio:       parseFloat(document.getElementById('ev-precio').value),
+        cantidad:     parseInt(document.getElementById('ev-cantidad').value),
+        stock_minimo: parseInt(document.getElementById('ev-stock-minimo').value)
+      }
+      await ipcRenderer.invoke('editar-variante', variante)
+      cerrarModalEditarVariante()
+      cargarDatos()
+    }
+
+    async function eliminarVariante(varianteId, productoId) {
+      const p = productos.find(x => x.id === productoId)
+      if (p && p.variantes.length <= 1) {
+        alert('No puedes eliminar la unica talla. Elimina el producto completo.')
+        return
+      }
+      if (!confirm('Seguro que quieres eliminar esta talla?')) return
+      await ipcRenderer.invoke('eliminar-variante', varianteId)
+      cargarDatos()
+    }
+
+    // ── CODIGO DE BARRAS ──────────────────────────────
+    function verCodigo(varianteId, nombre, codigo) {
+      document.getElementById('codigo-producto-nombre').textContent = nombre
+      document.getElementById('codigo-numero').textContent = codigo
+      const canvas = document.getElementById('codigo-canvas')
+      JsBarcode(canvas, codigo, {
+        format:      'EAN13',
+        lineColor:   '#1a1a2e',
+        width:       2.5,
+        height:      80,
+        displayValue: true,
+        fontSize:    16,
+        margin:      10
+      })
+      document.getElementById('modal-codigo').classList.add('activo')
+    }
+    function cerrarModalCodigo() {
+      document.getElementById('modal-codigo').classList.remove('activo')
     }
   </script>
 

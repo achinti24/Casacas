@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Casacas - Egresos</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="sidebar">
+    <h2>Casacas</h2>
+    <nav id="nav-menu"></nav>
+    <div style="position:absolute; bottom:30px; left:20px; right:20px;">
+      <div id="info-usuario" style="color:#aaa; font-size:13px; margin-bottom:10px;"></div>
+      <button onclick="cerrarSesion()" style="width:100%; padding:10px; background:#e94560; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">Cerrar sesion</button>
+    </div>
+  </div>
+
+  <div class="contenido">
+    <div class="encabezado">
+      <h1>Egresos</h1>
+      <button class="btn btn-rojo" onclick="abrirModal()">+ Registrar Egreso</button>
+    </div>
+
+    <!-- RESUMEN -->
+    <div class="cards" style="margin-bottom:20px;">
+      <div class="card rojo">
+        <span class="etiqueta">Egresos hoy</span>
+        <span class="valor" id="egreso-hoy">$0</span>
+      </div>
+      <div class="card azul">
+        <span class="etiqueta">Egresos este mes</span>
+        <span class="valor" id="egreso-mes">$0</span>
+      </div>
+      <div class="card morado">
+        <span class="etiqueta">Total egresos</span>
+        <span class="valor" id="egreso-total">$0</span>
+      </div>
+    </div>
+
+    <div class="filtros">
+      <select id="filtro-categoria" onchange="aplicarFiltros()">
+        <option value="">Todas las categorias</option>
+      </select>
+      <input class="buscador" type="text" id="buscador"
+        placeholder="Buscar por descripcion..."
+        oninput="aplicarFiltros()"
+        style="margin-bottom:0; width:280px;">
+      <button class="btn-limpiar" onclick="limpiarFiltros()">Limpiar</button>
+    </div>
+
+    <p id="contador" style="margin:12px 0; color:#888; font-size:14px;"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha y hora</th>
+          <th>Categoria</th>
+          <th>Descripcion</th>
+          <th>Monto</th>
+          <th>Usuario</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-body">
+        <tr><td colspan="6" class="vacio">Cargando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- MODAL -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <h2 id="modal-titulo">Registrar Egreso</h2>
+
+      <div class="campo">
+        <label>Categoria</label>
+        <select id="f-categoria"></select>
+      </div>
+
+      <div class="campo">
+        <label>Descripcion</label>
+        <input type="text" id="f-descripcion" placeholder="Ej: Pago de arriendo mes de mayo">
+      </div>
+
+      <div class="campo">
+        <label>Monto ($)</label>
+        <input type="number" id="f-monto" min="0" value="0">
+      </div>
+
+      <div class="modal-botones">
+        <button class="btn btn-gris" onclick="cerrarModal()">Cancelar</button>
+        <button class="btn btn-rojo" onclick="guardarEgreso()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="nav.js"></script>
+  <script>
+    let sesion   = null
+    let egresos  = []
+    let categorias = []
+    let editandoId = null
+
+    cargarMenu('egresos.html').then(s => {
+      sesion = s
+      cargarDatos()
+    })
+
+    async function cargarDatos() {
+      categorias = await ipcRenderer.invoke('obtener-categorias-egreso')
+      egresos    = await ipcRenderer.invoke('obtener-egresos')
+
+      // Llenar selects
+      const optsCat = categorias.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('')
+      document.getElementById('filtro-categoria').innerHTML = '<option value="">Todas las categorias</option>' + optsCat
+      document.getElementById('f-categoria').innerHTML = optsCat
+
+      calcularResumen()
+      aplicarFiltros()
+    }
+
+    function calcularResumen() {
+      const hoy    = new Date().toISOString().slice(0, 10)
+      const mesAct = new Date().toISOString().slice(0, 7)
+
+      const hoyTotal = egresos
+        .filter(e => e.fecha.slice(0, 10) === hoy)
+        .reduce((acc, e) => acc + e.monto, 0)
+
+      const mesTotal = egresos
+        .filter(e => e.fecha.slice(0, 7) === mesAct)
+        .reduce((acc, e) => acc + e.monto, 0)
+
+      const total = egresos.reduce((acc, e) => acc + e.monto, 0)
+
+      document.getElementById('egreso-hoy').textContent   = '$' + hoyTotal.toLocaleString('es-CO')
+      document.getElementById('egreso-mes').textContent   = '$' + mesTotal.toLocaleString('es-CO')
+      document.getElementById('egreso-total').textContent = '$' + total.toLocaleString('es-CO')
+    }
+
+    function aplicarFiltros() {
+      const cat    = document.getElementById('filtro-categoria').value
+      const texto  = document.getElementById('buscador').value.toLowerCase()
+
+      const filtrados = egresos.filter(e =>
+        (!cat   || e.categoria === cat) &&
+        (!texto || (e.descripcion || '').toLowerCase().includes(texto))
+      )
+
+      document.getElementById('contador').textContent =
+        `Mostrando ${filtrados.length} de ${egresos.length} egresos`
+      renderTabla(filtrados)
+    }
+
+    function limpiarFiltros() {
+      document.getElementById('filtro-categoria').value = ''
+      document.getElementById('buscador').value = ''
+      aplicarFiltros()
+    }
+
+    function renderTabla(lista) {
+      const tbody = document.getElementById('tabla-body')
+      if (lista.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="vacio">No se encontraron egresos.</td></tr>'
+        return
+      }
+      tbody.innerHTML = lista.map(e => `
+        <tr>
+          <td>${new Date(e.fecha).toLocaleString('es-CO')}</td>
+          <td><span class="badge badge-rojo">${e.categoria}</span></td>
+          <td>${e.descripcion || '—'}</td>
+          <td><strong style="color:#e94560;">$${parseFloat(e.monto).toLocaleString('es-CO')}</strong></td>
+          <td>${e.usuario || '—'}</td>
+          <td>
+            <button class="btn btn-gris" style="padding:6px 12px;margin-right:5px" onclick="editarEgreso(${e.id})">Editar</button>
+            ${sesion && sesion.rol === 'admin' ? `
+              <button class="btn btn-rojo" style="padding:6px 12px" onclick="eliminarEgreso(${e.id})">Eliminar</button>
+            ` : ''}
+          </td>
+        </tr>
+      `).join('')
+    }
+
+    function abrirModal() {
+      editandoId = null
+      document.getElementById('modal-titulo').textContent = 'Registrar Egreso'
+      document.getElementById('f-descripcion').value = ''
+      document.getElementById('f-monto').value = 0
+      if (categorias.length > 0) document.getElementById('f-categoria').value = categorias[0].nombre
+      document.getElementById('modal').classList.add('activo')
+    }
+
+    function cerrarModal() {
+      document.getElementById('modal').classList.remove('activo')
+    }
+
+    function editarEgreso(id) {
+      const e = egresos.find(x => x.id === id)
+      if (!e) return
+      editandoId = id
+      document.getElementById('modal-titulo').textContent = 'Editar Egreso'
+      document.getElementById('f-categoria').value   = e.categoria
+      document.getElementById('f-descripcion').value = e.descripcion || ''
+      document.getElementById('f-monto').value       = e.monto
+      document.getElementById('modal').classList.add('activo')
+    }
+
+    async function guardarEgreso() {
+      const egreso = {
+        categoria:   document.getElementById('f-categoria').value,
+        descripcion: document.getElementById('f-descripcion').value.trim(),
+        monto:       parseFloat(document.getElementById('f-monto').value),
+        usuario_id:  sesion.id
+      }
+
+      if (!egreso.categoria) { alert('Selecciona una categoria'); return }
+      if (!egreso.monto || egreso.monto <= 0) { alert('El monto debe ser mayor a 0'); return }
+
+      if (editandoId) {
+        await ipcRenderer.invoke('editar-egreso', { ...egreso, id: editandoId })
+      } else {
+        await ipcRenderer.invoke('agregar-egreso', egreso)
+      }
+
+      cerrarModal()
+      cargarDatos()
+    }
+
+    async function eliminarEgreso(id) {
+      if (!confirm('Seguro que quieres eliminar este egreso?')) return
+      await ipcRenderer.invoke('eliminar-egreso', id)
+      cargarDatos()
+    }
+  </script>
+
+</body>
+</html>

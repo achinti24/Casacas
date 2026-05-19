@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Casacas - Configuracion</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="sidebar">
+    <h2>Casacas</h2>
+    <nav id="nav-menu"></nav>
+    <div style="position:absolute; bottom:30px; left:20px; right:20px;">
+      <div id="info-usuario" style="color:#aaa; font-size:13px; margin-bottom:10px;"></div>
+      <button onclick="cerrarSesion()" style="width:100%; padding:10px; background:#e94560; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">Cerrar sesion</button>
+    </div>
+  </div>
+
+  <div class="contenido">
+    <div class="encabezado">
+      <h1>Configuracion</h1>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px;">
+
+      <!-- CATEGORIAS PRODUCTO -->
+      <div class="panel">
+        <h3 style="margin-bottom:16px;">Categorias de Productos</h3>
+
+        <div style="display:flex; gap:8px; margin-bottom:16px;">
+          <input type="text" id="nueva-cat-producto" placeholder="Nueva categoria..."
+            style="flex:1; padding:10px; border:1px solid #ddd; border-radius:8px; font-size:14px;">
+          <button class="btn btn-rojo" onclick="agregarCategoria('producto')">+</button>
+        </div>
+
+        <div id="lista-cat-producto"></div>
+      </div>
+
+      <!-- COLEGIOS -->
+      <div class="panel">
+        <h3 style="margin-bottom:16px;">Colegios</h3>
+
+        <div style="display:flex; gap:8px; margin-bottom:16px;">
+          <input type="text" id="nuevo-colegio" placeholder="Nuevo colegio..."
+            style="flex:1; padding:10px; border:1px solid #ddd; border-radius:8px; font-size:14px;">
+          <button class="btn btn-rojo" onclick="agregarColegio()">+</button>
+        </div>
+
+        <div id="lista-colegios"></div>
+      </div>
+
+      <!-- CATEGORIAS EGRESO -->
+      <div class="panel">
+        <h3 style="margin-bottom:16px;">Categorias de Egresos</h3>
+
+        <div style="display:flex; gap:8px; margin-bottom:16px;">
+          <input type="text" id="nueva-cat-egreso" placeholder="Nueva categoria..."
+            style="flex:1; padding:10px; border:1px solid #ddd; border-radius:8px; font-size:14px;">
+          <button class="btn btn-rojo" onclick="agregarCategoria('egreso')">+</button>
+        </div>
+
+        <div id="lista-cat-egreso"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL EDITAR -->
+  <div class="modal-overlay" id="modal-editar">
+    <div class="modal" style="width:380px;">
+      <h2 id="modal-editar-titulo">Editar</h2>
+      <div class="campo">
+        <label>Nombre</label>
+        <input type="text" id="editar-nombre" placeholder="Nombre...">
+      </div>
+      <div class="modal-botones">
+        <button class="btn btn-gris" onclick="cerrarModalEditar()">Cancelar</button>
+        <button class="btn btn-rojo" onclick="confirmarEditar()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="nav.js"></script>
+  <script>
+    let sesion            = null
+    let catProductos      = []
+    let colegios          = []
+    let catEgresos        = []
+    let editandoTipo      = null
+    let editandoId        = null
+
+    cargarMenu('configuracion.html').then(s => {
+      sesion = s
+      if (sesion && sesion.rol !== 'admin') navegar('index.html')
+      cargarDatos()
+    })
+
+    async function cargarDatos() {
+      catProductos = await ipcRenderer.invoke('obtener-categorias-producto')
+      colegios     = await ipcRenderer.invoke('obtener-colegios')
+      catEgresos   = await ipcRenderer.invoke('obtener-categorias-egreso')
+      renderListas()
+    }
+
+    function renderListas() {
+      renderLista('lista-cat-producto', catProductos, 'producto')
+      renderLista('lista-colegios',     colegios,     'colegio')
+      renderLista('lista-cat-egreso',   catEgresos,   'egreso')
+    }
+
+    function renderLista(contenedorId, lista, tipo) {
+      const contenedor = document.getElementById(contenedorId)
+      if (lista.length === 0) {
+        contenedor.innerHTML = '<p style="color:#aaa; font-size:14px; text-align:center; padding:10px;">Sin elementos</p>'
+        return
+      }
+      contenedor.innerHTML = lista.map(item => `
+        <div style="display:flex; align-items:center; justify-content:space-between;
+             padding:10px 12px; background:#f5f6fa; border-radius:8px; margin-bottom:8px;">
+          <span style="font-size:14px; color:#333;">${item.nombre}</span>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
+              onclick="abrirEditar('${tipo}', ${item.id}, '${item.nombre.replace(/'/g, "\\'")}')">
+              Editar
+            </button>
+            <button class="btn btn-rojo" style="padding:4px 10px; font-size:12px;"
+              onclick="eliminar('${tipo}', ${item.id})">
+              Eliminar
+            </button>
+          </div>
+        </div>
+      `).join('')
+    }
+
+    async function agregarCategoria(tipo) {
+      const inputId = tipo === 'producto' ? 'nueva-cat-producto' : 'nueva-cat-egreso'
+      const nombre  = document.getElementById(inputId).value.trim()
+      if (!nombre) { alert('Escribe un nombre'); return }
+
+      let res
+      if (tipo === 'producto') {
+        res = await ipcRenderer.invoke('agregar-categoria-producto', nombre)
+      } else {
+        res = await ipcRenderer.invoke('agregar-categoria-egreso', nombre)
+      }
+
+      if (res.error) { alert(res.error); return }
+      document.getElementById(inputId).value = ''
+      cargarDatos()
+    }
+
+    async function agregarColegio() {
+      const nombre = document.getElementById('nuevo-colegio').value.trim()
+      if (!nombre) { alert('Escribe un nombre'); return }
+
+      const res = await ipcRenderer.invoke('agregar-colegio', nombre)
+      if (res.error) { alert(res.error); return }
+      document.getElementById('nuevo-colegio').value = ''
+      cargarDatos()
+    }
+
+    function abrirEditar(tipo, id, nombre) {
+      editandoTipo = tipo
+      editandoId   = id
+      const titulos = {
+        producto: 'Editar Categoria de Producto',
+        colegio:  'Editar Colegio',
+        egreso:   'Editar Categoria de Egreso'
+      }
+      document.getElementById('modal-editar-titulo').textContent = titulos[tipo]
+      document.getElementById('editar-nombre').value = nombre
+      document.getElementById('modal-editar').classList.add('activo')
+    }
+
+    function cerrarModalEditar() {
+      document.getElementById('modal-editar').classList.remove('activo')
+      editandoTipo = null
+      editandoId   = null
+    }
+
+    async function confirmarEditar() {
+      const nombre = document.getElementById('editar-nombre').value.trim()
+      if (!nombre) { alert('El nombre no puede estar vacio'); return }
+
+      let res
+      if (editandoTipo === 'producto') {
+        res = await ipcRenderer.invoke('editar-categoria-producto', { id: editandoId, nombre })
+      } else if (editandoTipo === 'colegio') {
+        res = await ipcRenderer.invoke('editar-colegio', { id: editandoId, nombre })
+      } else {
+        res = await ipcRenderer.invoke('editar-categoria-egreso', { id: editandoId, nombre })
+      }
+
+      if (res.error) { alert(res.error); return }
+      cerrarModalEditar()
+      cargarDatos()
+    }
+
+    async function eliminar(tipo, id) {
+      if (!confirm('Seguro que quieres eliminar este elemento?')) return
+
+      let res
+      if (tipo === 'producto') {
+        res = await ipcRenderer.invoke('eliminar-categoria-producto', id)
+      } else if (tipo === 'colegio') {
+        res = await ipcRenderer.invoke('eliminar-colegio', id)
+      } else {
+        res = await ipcRenderer.invoke('eliminar-categoria-egreso', id)
+      }
+
+      if (res && res.error) { alert(res.error); return }
+      cargarDatos()
+    }
+  </script>
+
+</body>
+</html>

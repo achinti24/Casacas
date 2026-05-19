@@ -1,0 +1,54 @@
+.producto-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.producto-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.producto-header:hover { background: #fafafa; }
+
+.producto-info {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.variantes-tabla {
+  border-top: 1px solid #f0f0f0;
+  padding: 0 16px 16px;
+}
+
+.variantes-tabla table {
+  box-shadow: none;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+
+.variantes-tabla th {
+  background: #f5f6fa;
+  color: #555;
+  font-size: 12px;
+  padding: 10px 12px;
+}
+
+.variantes-tabla td {
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.chevron {
+  font-size: 12px;
+  color: #aaa;
+  margin-left: 8px;
+}

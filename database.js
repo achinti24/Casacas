@@ -15,17 +15,43 @@ db.exec(`
     fecha_creacion TEXT DEFAULT (datetime('now', 'localtime'))
   );
 
+  CREATE TABLE IF NOT EXISTS categorias_producto (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT UNIQUE NOT NULL,
+    orden INTEGER DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS colegios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT UNIQUE NOT NULL,
+    orden INTEGER DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS categorias_egreso (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT UNIQUE NOT NULL,
+    orden INTEGER DEFAULT 0
+  );
+
   CREATE TABLE IF NOT EXISTS productos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre TEXT NOT NULL,
     categoria TEXT,
     colegio TEXT,
     genero TEXT,
-    talla TEXT,
-    cantidad INTEGER DEFAULT 0,
-    precio REAL DEFAULT 0,
-    stock_minimo INTEGER DEFAULT 3,
     fecha_creacion TEXT DEFAULT (datetime('now', 'localtime'))
+  );
+
+  CREATE TABLE IF NOT EXISTS producto_variantes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    producto_id INTEGER NOT NULL,
+    talla TEXT NOT NULL,
+    precio REAL DEFAULT 0,
+    cantidad INTEGER DEFAULT 0,
+    stock_minimo INTEGER DEFAULT 3,
+    codigo_barras TEXT UNIQUE,
+    fecha_creacion TEXT DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (producto_id) REFERENCES productos(id)
   );
 
   CREATE TABLE IF NOT EXISTS apartados (
@@ -46,11 +72,11 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS apartado_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     apartado_id INTEGER,
-    producto_id INTEGER,
+    variante_id INTEGER,
     cantidad INTEGER,
     precio_unitario REAL,
     FOREIGN KEY (apartado_id) REFERENCES apartados(id),
-    FOREIGN KEY (producto_id) REFERENCES productos(id)
+    FOREIGN KEY (variante_id) REFERENCES producto_variantes(id)
   );
 
   CREATE TABLE IF NOT EXISTS ventas (
@@ -59,7 +85,7 @@ db.exec(`
     apartado_id INTEGER,
     total REAL DEFAULT 0,
     abono_aplicado REAL DEFAULT 0,
-    estado TEXT DEFAULT 'pendiente',
+    estado TEXT DEFAULT 'entregado',
     fecha TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
     FOREIGN KEY (apartado_id) REFERENCES apartados(id)
@@ -68,23 +94,40 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS venta_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     venta_id INTEGER,
-    producto_id INTEGER,
+    variante_id INTEGER,
     cantidad INTEGER,
     precio_unitario REAL,
     FOREIGN KEY (venta_id) REFERENCES ventas(id),
-    FOREIGN KEY (producto_id) REFERENCES productos(id)
+    FOREIGN KEY (variante_id) REFERENCES producto_variantes(id)
   );
 
   CREATE TABLE IF NOT EXISTS movimientos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    producto_id INTEGER,
+    variante_id INTEGER,
     usuario_id INTEGER,
     tipo TEXT,
     cantidad INTEGER,
     nota TEXT,
     fecha TEXT DEFAULT (datetime('now', 'localtime')),
-    FOREIGN KEY (producto_id) REFERENCES productos(id),
+    FOREIGN KEY (variante_id) REFERENCES producto_variantes(id),
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS egresos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    categoria TEXT NOT NULL,
+    descripcion TEXT,
+    monto REAL NOT NULL,
+    usuario_id INTEGER,
+    fecha TEXT DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS metas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT NOT NULL,
+    monto REAL NOT NULL,
+    fecha_actualizacion TEXT DEFAULT (datetime('now', 'localtime'))
   );
 
   CREATE TABLE IF NOT EXISTS caja (
@@ -100,6 +143,7 @@ db.exec(`
   );
 `)
 
+// Admin por defecto
 const adminExiste = db.prepare("SELECT id FROM usuarios WHERE usuario = 'admin'").get()
 if (!adminExiste) {
   db.prepare(`
@@ -107,5 +151,36 @@ if (!adminExiste) {
     VALUES ('Administrador', 'admin', '1234', 'admin')
   `).run()
 }
+
+// Categorias producto por defecto
+const catProd = ['Uniformes','Camisas','Pantalones','Antifluidos','Medias','Correas','Otro']
+catProd.forEach((nombre, i) => {
+  const existe = db.prepare('SELECT id FROM categorias_producto WHERE nombre = ?').get(nombre)
+  if (!existe) db.prepare('INSERT INTO categorias_producto (nombre, orden) VALUES (?, ?)').run(nombre, i)
+})
+
+// Colegios por defecto
+const colegiosDefault = ['Todos','Guanenta','Presentacion','Rafael Pombo','Luis Camacho','Otro']
+colegiosDefault.forEach((nombre, i) => {
+  const existe = db.prepare('SELECT id FROM colegios WHERE nombre = ?').get(nombre)
+  if (!existe) db.prepare('INSERT INTO colegios (nombre, orden) VALUES (?, ?)').run(nombre, i)
+})
+
+// Categorias egreso por defecto
+const catEgreso = [
+  'Arriendo del local','Servicios (agua, luz, internet)',
+  'Compra de mercancia','Transporte','Publicidad',
+  'Salarios','Papeleria y empaques','Mantenimiento','Otro'
+]
+catEgreso.forEach((nombre, i) => {
+  const existe = db.prepare('SELECT id FROM categorias_egreso WHERE nombre = ?').get(nombre)
+  if (!existe) db.prepare('INSERT INTO categorias_egreso (nombre, orden) VALUES (?, ?)').run(nombre, i)
+})
+
+// Metas por defecto
+;['dia','semana','mes'].forEach(tipo => {
+  const existe = db.prepare('SELECT id FROM metas WHERE tipo = ?').get(tipo)
+  if (!existe) db.prepare('INSERT INTO metas (tipo, monto) VALUES (?, 0)').run(tipo)
+})
 
 module.exports = db
