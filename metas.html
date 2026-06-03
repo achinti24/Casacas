@@ -5,15 +5,20 @@
   <title>Casacas - Metas</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="dashboard.css">
+  <script src="toast.js"></script>
 </head>
 <body>
 
   <div class="sidebar">
-    <h2>Casacas</h2>
+    <div class="sidebar-logo">
+      <h2>Casacas</h2>
+      <small>y Uniformes</small>
+    </div>
     <nav id="nav-menu"></nav>
-    <div style="position:absolute; bottom:30px; left:20px; right:20px;">
-      <div id="info-usuario" style="color:#aaa; font-size:13px; margin-bottom:10px;"></div>
-      <button onclick="cerrarSesion()" style="width:100%; padding:10px; background:#e94560; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">Cerrar sesion</button>
+    <div class="sidebar-footer">
+      <div class="sidebar-usuario" id="info-usuario"></div>
+      <button class="btn-modo" onclick="toggleModo()">Modo oscuro</button>
+      <button class="btn-cerrar-sesion" onclick="cerrarSesion()">Cerrar sesion</button>
     </div>
   </div>
 

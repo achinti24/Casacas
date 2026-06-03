@@ -1,252 +1,111 @@
-
-Reportes · HTML
-Copiar
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <title>Casacas - Reportes</title>
   <link rel="stylesheet" href="styles.css">
-  <style>
-    .filtros-reporte {
-      background: white;
-      border-radius: 12px;
-      padding: 20px 24px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-      margin-bottom: 24px;
-      display: flex;
-      align-items: flex-end;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-    .filtros-reporte .campo {
-      margin-bottom: 0;
-    }
-    .filtros-reporte label {
-      font-size: 12px;
-      color: #888;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-    }
-    .filtros-reporte input[type="date"] {
-      padding: 10px 14px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      font-size: 14px;
-      background: white;
-      cursor: pointer;
-    }
-    .atajos {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .atajo {
-      padding: 8px 14px;
-      border: 1px solid #ddd;
-      border-radius: 20px;
-      font-size: 13px;
-      cursor: pointer;
-      background: white;
-      color: #555;
-      transition: all 0.15s;
-    }
-    .atajo:hover, .atajo.activo {
-      background: #1a1a2e;
-      color: white;
-      border-color: #1a1a2e;
-    }
-    .reporte-cards {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-    .reporte-card {
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-    }
-    .reporte-card .rc-label {
-      font-size: 12px;
-      color: #888;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      margin-bottom: 6px;
-    }
-    .reporte-card .rc-valor {
-      font-size: 26px;
-      font-weight: bold;
-      color: #1a1a2e;
-    }
-    .reporte-card .rc-valor.verde { color: #1a7a4a; }
-    .reporte-card .rc-valor.rojo  { color: #e94560; }
-    .reporte-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
-    .reporte-panel {
-      background: white;
-      border-radius: 12px;
-      padding: 24px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-    }
-    .reporte-panel h3 {
-      font-size: 15px;
-      color: #1a1a2e;
-      margin-bottom: 16px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid #f0f0f0;
-    }
-    .rank-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 0;
-      border-bottom: 1px solid #f8f8f8;
-    }
-    .rank-item:last-child { border-bottom: none; }
-    .rank-num {
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      background: #1a1a2e;
-      color: white;
-      font-size: 12px;
-      font-weight: bold;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-    .rank-num.top { background: #e94560; }
-    .rank-info { flex: 1; min-width: 0; }
-    .rank-info strong { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .rank-info span   { font-size: 12px; color: #888; }
-    .rank-stats { text-align: right; flex-shrink: 0; }
-    .rank-stats .uds  { font-size: 16px; font-weight: bold; color: #1a1a2e; }
-    .rank-stats .pesos { font-size: 11px; color: #888; }
-    .dia-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 0;
-      border-bottom: 1px solid #f8f8f8;
-      font-size: 13px;
-    }
-    .dia-row:last-child { border-bottom: none; }
-    .barra-wrap {
-      flex: 1;
-      margin: 0 12px;
-      height: 6px;
-      background: #f0f0f0;
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .barra {
-      height: 100%;
-      background: #e94560;
-      border-radius: 3px;
-      transition: width 0.4s;
-    }
-    .sin-datos {
-      text-align: center;
-      padding: 40px;
-      color: #aaa;
-      font-size: 15px;
-    }
-    .ventas-tabla-wrap {
-      background: white;
-      border-radius: 12px;
-      padding: 24px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-      margin-top: 20px;
-    }
-    .ventas-tabla-wrap h3 {
-      font-size: 15px;
-      color: #1a1a2e;
-      margin-bottom: 16px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid #f0f0f0;
-    }
-  </style>
+  <script src="toast.js"></script>
+  <link rel="stylesheet" href="reportes.css">
 </head>
 <body>
- 
+
   <div class="sidebar">
-    <h2>Casacas</h2>
+    <div class="sidebar-logo">
+      <h2>Casacas</h2>
+      <small>y Uniformes</small>
+    </div>
     <nav id="nav-menu"></nav>
-    <div style="position:absolute; bottom:30px; left:20px; right:20px;">
-      <div id="info-usuario" style="color:#aaa; font-size:13px; margin-bottom:10px;"></div>
-      <button onclick="cerrarSesion()" style="width:100%; padding:10px; background:#e94560; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">Cerrar sesion</button>
+    <div class="sidebar-footer">
+      <div class="sidebar-usuario" id="info-usuario"></div>
+      <button class="btn-modo" onclick="toggleModo()">Modo oscuro</button>
+      <button class="btn-cerrar-sesion" onclick="cerrarSesion()">Cerrar sesion</button>
     </div>
   </div>
- 
+
   <div class="contenido">
     <div class="encabezado">
       <h1>Reportes</h1>
     </div>
- 
-    <!-- Filtros -->
-    <div class="filtros-reporte">
-      <div class="campo">
-        <label>Desde</label>
-        <input type="date" id="f-desde">
-      </div>
-      <div class="campo">
-        <label>Hasta</label>
-        <input type="date" id="f-hasta">
-      </div>
-      <button class="btn btn-rojo" onclick="generarReporte()">Ver reporte</button>
-      <div class="atajos">
-        <button class="atajo" onclick="setAtajo('hoy')">Hoy</button>
-        <button class="atajo" onclick="setAtajo('semana')">Esta semana</button>
-        <button class="atajo" onclick="setAtajo('mes')">Este mes</button>
-        <button class="atajo" onclick="setAtajo('mes_anterior')">Mes anterior</button>
-      </div>
-    </div>
- 
-    <!-- Cards resumen -->
-    <div class="reporte-cards" id="reporte-cards" style="display:none;">
-      <div class="reporte-card" style="border-left:4px solid #e94560;">
-        <div class="rc-label">Total recaudado</div>
-        <div class="rc-valor verde" id="rc-total">$0</div>
-      </div>
-      <div class="reporte-card" style="border-left:4px solid #3498db;">
-        <div class="rc-label">Ventas realizadas</div>
-        <div class="rc-valor" id="rc-ventas">0</div>
-      </div>
-      <div class="reporte-card" style="border-left:4px solid #2ecc71;">
-        <div class="rc-label">Unidades vendidas</div>
-        <div class="rc-valor" id="rc-unidades">0</div>
-      </div>
-      <div class="reporte-card" style="border-left:4px solid #9b59b6;">
-        <div class="rc-label">Entradas de stock</div>
-        <div class="rc-valor" id="rc-entradas">0</div>
+
+    <!-- FILTROS FECHA -->
+    <div class="panel" style="margin-bottom:20px;">
+      <h3 style="margin-bottom:16px;">Filtrar por periodo</h3>
+      <div class="filtro-fechas">
+        <div class="campo">
+          <label>Periodo rapido</label>
+          <select id="periodo-rapido" onchange="aplicarPeriodo()" style="padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);">
+            <option value="">Seleccionar...</option>
+            <option value="hoy">Hoy</option>
+            <option value="semana">Esta semana</option>
+            <option value="mes">Este mes</option>
+            <option value="mes_anterior">Mes anterior</option>
+            <option value="todo">Todo el tiempo</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Desde</label>
+          <input type="date" id="f-desde" style="padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);">
+        </div>
+        <div class="campo">
+          <label>Hasta</label>
+          <input type="date" id="f-hasta" style="padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);">
+        </div>
+        <button class="btn btn-rojo" onclick="cargarReporte()">Ver reporte</button>
       </div>
     </div>
- 
-    <!-- Grid de paneles -->
-    <div class="reporte-grid" id="reporte-grid" style="display:none;">
- 
-      <div class="reporte-panel">
-        <h3>Productos mas vendidos</h3>
-        <div id="panel-mas-vendidos"><div class="sin-datos">Genera un reporte para ver datos</div></div>
+
+    <!-- CARDS RESUMEN -->
+    <div class="cards" style="margin-bottom:20px;">
+      <div class="card verde">
+        <span class="etiqueta">Total recaudado</span>
+        <span class="valor" id="r-total">$0</span>
       </div>
- 
-      <div class="reporte-panel">
-        <h3>Ventas por dia</h3>
-        <div id="panel-por-dia"><div class="sin-datos">Genera un reporte para ver datos</div></div>
+      <div class="card azul">
+        <span class="etiqueta">Ventas realizadas</span>
+        <span class="valor" id="r-ventas">0</span>
       </div>
- 
+      <div class="card rojo">
+        <span class="etiqueta">Unidades vendidas</span>
+        <span class="valor" id="r-unidades">0</span>
+      </div>
+      <div class="card morado">
+        <span class="etiqueta">Entradas de stock</span>
+        <span class="valor" id="r-entradas">0 uds</span>
+      </div>
     </div>
- 
-    <!-- Tabla de ventas del periodo -->
-    <div class="ventas-tabla-wrap" id="ventas-tabla-wrap" style="display:none;">
-      <h3>Detalle de ventas del periodo (<span id="ventas-count">0</span>)</h3>
+
+    <!-- GRILLA -->
+    <div class="dashboard-grid" style="margin-bottom:20px;">
+
+      <div class="panel">
+        <h3 style="margin-bottom:16px;">Productos mas vendidos</h3>
+        <table>
+          <thead>
+            <tr><th>#</th><th>Producto</th><th>Talla</th><th>Uds</th><th>Total $</th></tr>
+          </thead>
+          <tbody id="tabla-mas-vendidos">
+            <tr><td colspan="5" class="vacio">Sin ventas en este periodo</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin-bottom:16px;">Ventas por dia</h3>
+        <table>
+          <thead>
+            <tr><th>Dia</th><th>Ventas</th><th>Total</th></tr>
+          </thead>
+          <tbody id="tabla-por-dia">
+            <tr><td colspan="3" class="vacio">Sin ventas en este periodo</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- DETALLE VENTAS -->
+    <div class="panel">
+      <h3 style="margin-bottom:16px;">Detalle de ventas del periodo (<span id="r-count">0</span>)</h3>
       <table>
         <thead>
           <tr>
@@ -258,19 +117,21 @@ Copiar
             <th></th>
           </tr>
         </thead>
-        <tbody id="tabla-ventas-reporte"></tbody>
+        <tbody id="tabla-ventas-reporte">
+          <tr><td colspan="6" class="vacio">Selecciona un periodo</td></tr>
+        </tbody>
       </table>
     </div>
- 
+
   </div>
- 
+
   <!-- MODAL DETALLE VENTA -->
   <div class="modal-overlay" id="modal-detalle">
     <div class="modal">
       <h2>Detalle de Venta</h2>
       <table>
         <thead>
-          <tr><th>Producto</th><th>Talla</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr>
+          <tr><th>Producto</th><th>Categoria</th><th>Talla</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr>
         </thead>
         <tbody id="detalle-body"></tbody>
       </table>
@@ -279,148 +140,104 @@ Copiar
       </div>
     </div>
   </div>
- 
+
   <script src="nav.js"></script>
   <script>
- 
     let sesion = null
- 
+
     cargarMenu('reportes.html').then(s => {
       sesion = s
       if (sesion && sesion.rol !== 'admin') navegar('index.html')
       // Cargar hoy por defecto
-      setAtajo('hoy')
+      document.getElementById('periodo-rapido').value = 'mes'
+      aplicarPeriodo()
     })
- 
-    function hoy() {
-      return new Date().toISOString().slice(0, 10)
-    }
- 
-    function restarDias(n) {
-      const d = new Date()
-      d.setDate(d.getDate() - n)
-      return d.toISOString().slice(0, 10)
-    }
- 
-    function primerDiaMes(offset = 0) {
-      const d = new Date()
-      d.setMonth(d.getMonth() + offset, 1)
-      return d.toISOString().slice(0, 10)
-    }
- 
-    function ultimoDiaMes(offset = 0) {
-      const d = new Date()
-      d.setMonth(d.getMonth() + offset + 1, 0)
-      return d.toISOString().slice(0, 10)
-    }
- 
-    function setAtajo(tipo) {
-      document.querySelectorAll('.atajo').forEach(b => b.classList.remove('activo'))
-      event.target.classList.add('activo')
- 
-      const desde = document.getElementById('f-desde')
-      const hasta = document.getElementById('f-hasta')
- 
-      if (tipo === 'hoy') {
-        desde.value = hoy()
-        hasta.value = hoy()
-      } else if (tipo === 'semana') {
-        desde.value = restarDias(6)
-        hasta.value = hoy()
-      } else if (tipo === 'mes') {
-        desde.value = primerDiaMes(0)
-        hasta.value = ultimoDiaMes(0)
-      } else if (tipo === 'mes_anterior') {
-        desde.value = primerDiaMes(-1)
-        hasta.value = ultimoDiaMes(-1)
+
+    function aplicarPeriodo() {
+      const periodo = document.getElementById('periodo-rapido').value
+      const hoy     = new Date()
+      const pad     = n => String(n).padStart(2, '0')
+      const fmt     = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+
+      if (periodo === 'hoy') {
+        document.getElementById('f-desde').value = fmt(hoy)
+        document.getElementById('f-hasta').value = fmt(hoy)
+      } else if (periodo === 'semana') {
+        const lunes = new Date(hoy)
+        lunes.setDate(hoy.getDate() - hoy.getDay() + 1)
+        document.getElementById('f-desde').value = fmt(lunes)
+        document.getElementById('f-hasta').value = fmt(hoy)
+      } else if (periodo === 'mes') {
+        document.getElementById('f-desde').value = `${hoy.getFullYear()}-${pad(hoy.getMonth()+1)}-01`
+        document.getElementById('f-hasta').value = fmt(hoy)
+      } else if (periodo === 'mes_anterior') {
+        const primerDia = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)
+        const ultimoDia = new Date(hoy.getFullYear(), hoy.getMonth(), 0)
+        document.getElementById('f-desde').value = fmt(primerDia)
+        document.getElementById('f-hasta').value = fmt(ultimoDia)
+      } else if (periodo === 'todo') {
+        document.getElementById('f-desde').value = '2000-01-01'
+        document.getElementById('f-hasta').value = fmt(hoy)
       }
- 
-      generarReporte()
+
+      if (periodo) cargarReporte()
     }
- 
-    async function generarReporte() {
-      const desde = document.getElementById('f-desde').value
-      const hasta = document.getElementById('f-hasta').value
-      if (!desde || !hasta) { alert('Selecciona un rango de fechas'); return }
- 
-      const data = await ipcRenderer.invoke('obtener-reporte', {
-        fechaInicio: desde,
-        fechaFin:    hasta
-      })
- 
-      // Cards
-      const totalUnidades = data.masVendidos.reduce((acc, p) => acc + p.total_vendido, 0)
-      document.getElementById('rc-total').textContent    = '$' + parseFloat(data.totalVendido).toLocaleString('es-CO')
-      document.getElementById('rc-ventas').textContent   = data.cantidadVentas
-      document.getElementById('rc-unidades').textContent = totalUnidades
-      document.getElementById('rc-entradas').textContent = data.entradas + ' uds'
- 
-      document.getElementById('reporte-cards').style.display = 'grid'
-      document.getElementById('reporte-grid').style.display  = 'grid'
-      document.getElementById('ventas-tabla-wrap').style.display = 'block'
- 
-      // Mas vendidos
-      const mvPanel = document.getElementById('panel-mas-vendidos')
-      if (data.masVendidos.length === 0) {
-        mvPanel.innerHTML = '<div class="sin-datos">Sin ventas en este periodo</div>'
-      } else {
-        mvPanel.innerHTML = data.masVendidos.map((p, i) => `
-          <div class="rank-item">
-            <div class="rank-num ${i === 0 ? 'top' : ''}">${i + 1}</div>
-            <div class="rank-info">
-              <strong>${p.nombre}</strong>
-              <span>${p.colegio} — Talla ${p.talla}</span>
-            </div>
-            <div class="rank-stats">
-              <div class="uds">${p.total_vendido} uds</div>
-              <div class="pesos">$${parseFloat(p.total_pesos).toLocaleString('es-CO')}</div>
-            </div>
-          </div>
-        `).join('')
-      }
- 
-      // Por dia
-      const diaPanel = document.getElementById('panel-por-dia')
-      if (data.porDia.length === 0) {
-        diaPanel.innerHTML = '<div class="sin-datos">Sin ventas en este periodo</div>'
-      } else {
-        const maxTotal = Math.max(...data.porDia.map(d => d.total))
-        diaPanel.innerHTML = data.porDia.map(d => `
-          <div class="dia-row">
-            <span style="min-width:90px; color:#555;">${new Date(d.dia + 'T12:00:00').toLocaleDateString('es-CO', {weekday:'short', day:'numeric', month:'short'})}</span>
-            <div class="barra-wrap">
-              <div class="barra" style="width:${maxTotal > 0 ? (d.total / maxTotal * 100).toFixed(1) : 0}%"></div>
-            </div>
-            <span style="min-width:90px; text-align:right; font-weight:bold; font-size:13px;">$${parseFloat(d.total).toLocaleString('es-CO')}</span>
-            <span style="min-width:40px; text-align:right; color:#888; font-size:12px;">${d.cantidad_ventas}v</span>
-          </div>
-        `).join('')
-      }
- 
-      // Tabla de ventas
-      document.getElementById('ventas-count').textContent = data.ventas.length
-      const tbody = document.getElementById('tabla-ventas-reporte')
-      if (data.ventas.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="vacio">Sin ventas en este periodo</td></tr>'
-      } else {
-        tbody.innerHTML = data.ventas.map(v => `
-          <tr>
-            <td>${new Date(v.fecha).toLocaleString('es-CO')}</td>
-            <td>${v.vendedor}</td>
-            <td>${v.cliente || '—'}</td>
-            <td>${v.abono_aplicado > 0 ? '<span style="color:#2ecc71;">$' + parseFloat(v.abono_aplicado).toLocaleString('es-CO') + '</span>' : '—'}</td>
-            <td><strong>$${parseFloat(v.total).toLocaleString('es-CO')}</strong></td>
-            <td><button class="btn btn-gris" style="padding:5px 10px" onclick="verDetalle(${v.id})">Ver</button></td>
-          </tr>
-        `).join('')
-      }
+
+    async function cargarReporte() {
+      const fechaInicio = document.getElementById('f-desde').value
+      const fechaFin    = document.getElementById('f-hasta').value
+      if (!fechaInicio || !fechaFin) { alert('Selecciona un rango de fechas'); return }
+
+      const reporte = await ipcRenderer.invoke('obtener-reporte', { fechaInicio, fechaFin })
+
+      document.getElementById('r-total').textContent    = '$' + parseFloat(reporte.totalVendido).toLocaleString('es-CO')
+      document.getElementById('r-ventas').textContent   = reporte.cantidadVentas
+      document.getElementById('r-unidades').textContent = reporte.salidas
+      document.getElementById('r-entradas').textContent = reporte.entradas + ' uds'
+      document.getElementById('r-count').textContent    = reporte.cantidadVentas
+
+      document.getElementById('tabla-mas-vendidos').innerHTML = reporte.masVendidos.length === 0
+        ? '<tr><td colspan="5" class="vacio">Sin ventas en este periodo</td></tr>'
+        : reporte.masVendidos.map((p, i) => `
+            <tr>
+              <td><strong>${i+1}</strong></td>
+              <td>${p.nombre}</td>
+              <td>${p.talla}</td>
+              <td>${p.total_vendido} uds</td>
+              <td>$${parseFloat(p.total_pesos).toLocaleString('es-CO')}</td>
+            </tr>
+          `).join('')
+
+      document.getElementById('tabla-por-dia').innerHTML = reporte.porDia.length === 0
+        ? '<tr><td colspan="3" class="vacio">Sin ventas en este periodo</td></tr>'
+        : reporte.porDia.map(d => `
+            <tr>
+              <td>${d.dia}</td>
+              <td>${d.cantidad_ventas}</td>
+              <td><strong>$${parseFloat(d.total).toLocaleString('es-CO')}</strong></td>
+            </tr>
+          `).join('')
+
+      document.getElementById('tabla-ventas-reporte').innerHTML = reporte.ventas.length === 0
+        ? '<tr><td colspan="6" class="vacio">Sin ventas en este periodo</td></tr>'
+        : reporte.ventas.map(v => `
+            <tr>
+              <td>${new Date(v.fecha).toLocaleString('es-CO')}</td>
+              <td>${v.vendedor}</td>
+              <td>${v.cliente || '—'}</td>
+              <td>${v.abono_aplicado > 0 ? '$' + parseFloat(v.abono_aplicado).toLocaleString('es-CO') : '—'}</td>
+              <td><strong>$${parseFloat(v.total).toLocaleString('es-CO')}</strong></td>
+              <td><button class="btn btn-gris" style="padding:5px 10px" onclick="verDetalle(${v.id})">Ver</button></td>
+            </tr>
+          `).join('')
     }
- 
+
     async function verDetalle(ventaId) {
       const items = await ipcRenderer.invoke('obtener-venta-detalle', ventaId)
       document.getElementById('detalle-body').innerHTML = items.map(i => `
         <tr>
           <td>${i.producto}</td>
+          <td>${i.categoria}</td>
           <td>${i.talla}</td>
           <td>${i.cantidad}</td>
           <td>$${parseFloat(i.precio_unitario).toLocaleString('es-CO')}</td>
@@ -429,12 +246,11 @@ Copiar
       `).join('')
       document.getElementById('modal-detalle').classList.add('activo')
     }
- 
+
     function cerrarDetalle() {
       document.getElementById('modal-detalle').classList.remove('activo')
     }
- 
   </script>
- 
+
 </body>
 </html>

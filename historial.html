@@ -4,15 +4,20 @@
   <meta charset="UTF-8">
   <title>Casacas - Historial</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="toast.js"></script>
 </head>
 <body>
 
-  <div class="sidebar">
-    <h2>Casacas</h2>
+ <div class="sidebar">
+    <div class="sidebar-logo">
+      <h2>Casacas</h2>
+      <small>y Uniformes</small>
+    </div>
     <nav id="nav-menu"></nav>
-    <div style="position:absolute; bottom:30px; left:20px; right:20px;">
-      <div id="info-usuario" style="color:#aaa; font-size:13px; margin-bottom:10px;"></div>
-      <button onclick="cerrarSesion()" style="width:100%; padding:10px; background:#e94560; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">Cerrar sesion</button>
+    <div class="sidebar-footer">
+      <div class="sidebar-usuario" id="info-usuario"></div>
+      <button class="btn-modo" onclick="toggleModo()">Modo oscuro</button>
+      <button class="btn-cerrar-sesion" onclick="cerrarSesion()">Cerrar sesion</button>
     </div>
   </div>
 
@@ -94,9 +99,16 @@
       productos   = await ipcRenderer.invoke('obtener-productos')
 
       const select = document.getElementById('e-producto')
-      select.innerHTML = productos.map(p =>
-        `<option value="${p.id}">${p.nombre} - ${p.colegio} - ${p.talla} (Stock: ${p.cantidad})</option>`
-      ).join('')
+      select.innerHTML = ''
+      productos.forEach(p => {
+        if (!p.variantes) return
+        p.variantes.forEach(v => {
+          const opt = document.createElement('option')
+          opt.value = v.id
+          opt.textContent = `${p.nombre} — T${v.talla} — ${p.colegio} (Stock: ${v.cantidad})`
+          select.appendChild(opt)
+        })
+      })
 
       aplicarFiltros()
     }
@@ -128,7 +140,7 @@
               ${m.tipo === 'venta' ? 'Venta' : 'Entrada'}
             </span>
           </td>
-          <td>${m.producto}</td>
+          <td>${m.producto} ${m.talla ? '— T' + m.talla : ''}</td>
           <td>${m.tipo === 'venta' ? '-' : '+'}${m.cantidad}</td>
           <td>${m.usuario}</td>
           <td>${m.nota || '—'}</td>
@@ -154,7 +166,7 @@
       if (!productoId || cantidad < 1) { alert('Completa los campos correctamente'); return }
 
       await ipcRenderer.invoke('agregar-movimiento', {
-        producto_id: productoId,
+        variante_id: productoId,
         usuario_id:  sesion.id,
         tipo:        'entrada',
         cantidad,

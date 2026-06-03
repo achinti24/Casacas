@@ -5,15 +5,20 @@
   <title>Casacas - Dashboard</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="dashboard.css">
+  <script src="toast.js"></script>
 </head>
 <body>
 
   <div class="sidebar">
-    <h2>Casacas</h2>
+    <div class="sidebar-logo">
+      <h2>Casacas</h2>
+      <small>y Uniformes</small>
+    </div>
     <nav id="nav-menu"></nav>
-    <div style="position:absolute; bottom:30px; left:20px; right:20px;">
-      <div id="info-usuario" style="color:#aaa; font-size:13px; margin-bottom:10px;"></div>
-      <button onclick="cerrarSesion()" style="width:100%; padding:10px; background:#e94560; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">Cerrar sesion</button>
+    <div class="sidebar-footer">
+      <div class="sidebar-usuario" id="info-usuario"></div>
+      <button class="btn-modo" onclick="toggleModo()">Modo oscuro</button>
+      <button class="btn-cerrar-sesion" onclick="cerrarSesion()">Cerrar sesion</button>
     </div>
   </div>
 
@@ -130,41 +135,87 @@
 
     async function cargarDashboard() {
       const productos = await ipcRenderer.invoke('obtener-productos')
-      estadisticas    = await ipcRenderer.invoke('obtener-estadisticas')
 
-      // Cards
       const total      = productos.length
-      const enStock    = productos.filter(p => p.cantidad > 0).length
-      const agotados   = productos.filter(p => p.cantidad <= 0).length
-      const valorTotal = productos.reduce((acc, p) => acc + (p.cantidad * p.precio), 0)
+      const enStock    = productos.filter(p => p.variantes && p.variantes.some(v => v.cantidad > 0)).length
+      const agotados   = productos.filter(p => p.variantes && p.variantes.every(v => v.cantidad <= 0)).length
+      const valorTotal = productos.reduce((acc, p) => {
+        if (!p.variantes) return acc
+        return acc + p.variantes.reduce((sum, v) => sum + (v.cantidad * v.precio), 0)
+      }, 0)
 
       document.getElementById('total-productos').textContent = total
       document.getElementById('en-stock').textContent        = enStock
       document.getElementById('agotados').textContent        = agotados
       document.getElementById('valor-total').textContent     = '$' + valorTotal.toLocaleString('es-CO')
 
-      // Alerta stock
-      const stockBajo = productos.filter(p => p.cantidad > 0 && p.cantidad <= p.stock_minimo)
-      const agotadosList = productos.filter(p => p.cantidad <= 0)
+      const stockBajo    = []
+      const agotadosList = []
+
+      productos.forEach(p => {
+        if (!p.variantes) return
+        p.variantes.forEach(v => {
+          if (v.cantidad <= 0) agotadosList.push({ ...p, talla: v.talla })
+          else if (v.cantidad <= v.stock_minimo) stockBajo.push({ ...p, talla: v.talla, cantidad: v.cantidad })
+        })
+      })
+
       const contenedor = document.getElementById('alertas-container')
       const inner      = document.getElementById('alertas-inner')
 
       if (agotadosList.length > 0 || stockBajo.length > 0) {
         contenedor.style.display = 'block'
         if (agotadosList.length > 0) {
-          inner.style.background  = '#fde8ec'
-          inner.style.borderLeft  = '4px solid #e94560'
+          inner.style.background = '#fde8ec'
+          inner.style.borderLeft = '4px solid #e94560'
           document.getElementById('alertas-titulo').textContent = 'Agotados:'
           document.getElementById('alertas-texto').textContent  =
-            agotadosList.map(p => `${p.nombre} (${p.talla})`).join(', ')
+            agotadosList.map(p => `${p.nombre} T${p.talla}`).join(', ')
         } else {
-          inner.style.background  = '#fff8e1'
-          inner.style.borderLeft  = '4px solid #f39c12'
+          inner.style.background = '#fff8e1'
+          inner.style.borderLeft = '4px solid #f39c12'
           document.getElementById('alertas-titulo').textContent = 'Stock bajo:'
           document.getElementById('alertas-texto').textContent  =
-            stockBajo.map(p => `${p.nombre} (${p.cantidad} uds)`).join(', ')
+            stockBajo.map(p => `${p.nombre} T${p.talla} (${p.cantidad} uds)`).join(', ')
         }
       }
+
+      document.getElementById('tabla-agotados').innerHTML = agotadosList.length === 0
+        ? '<tr><td colspan="4" class="vacio">Todo en stock</td></tr>'
+        : agotadosList.map(p => `
+            <tr>
+              <td><strong>${p.nombre}</strong></td>
+              <td>${p.colegio}</td>
+              <td>${p.talla}</td>
+              <td>${p.genero}</td>
+            </tr>`).join('')
+
+      document.getElementById('tabla-colegios').innerHTML =
+        agrupar(productos, 'colegio').map(g =>
+          `<tr><td>${g.key}</td><td>${g.count}</td><td>${g.unidades}</td></tr>`).join('')
+
+      document.getElementById('tabla-categorias').innerHTML =
+        agrupar(productos, 'categoria').map(g =>
+          `<tr><td>${g.key}</td><td>${g.count}</td><td>${g.unidades}</td></tr>`).join('')
+
+      document.getElementById('tabla-generos').innerHTML =
+        agrupar(productos, 'genero').map(g =>
+          `<tr><td>${g.key}</td><td>${g.count}</td><td>${g.unidades}</td></tr>`).join('')
+    }
+
+    function agrupar(productos, campo) {
+      const mapa = {}
+      productos.forEach(p => {
+        const key      = p[campo] || 'Sin definir'
+        const unidades = p.variantes ? p.variantes.reduce((acc, v) => acc + v.cantidad, 0) : 0
+        if (!mapa[key]) mapa[key] = { count: 0, unidades: 0 }
+        mapa[key].count++
+        mapa[key].unidades += unidades
+      })
+      return Object.entries(mapa)
+        .map(([key, val]) => ({ key, ...val }))
+        .sort((a, b) => b.unidades - a.unidades)
+    }
 
       // Alerta apartados vencidos
       const diasAlerta  = 7
@@ -203,7 +254,6 @@
 
       // Graficas
       renderGraficas()
-    }
 
     function cambiarPeriodo(periodo, btn) {
       periodoActual = periodo
@@ -332,11 +382,16 @@
     }
 
     function renderGraficaInventario() {
-      const productos = []
       const solicitud = ipcRenderer.invoke('obtener-productos').then(prods => {
-        const enStock    = prods.filter(p => p.cantidad > p.stock_minimo).length
-        const stockBajo  = prods.filter(p => p.cantidad > 0 && p.cantidad <= p.stock_minimo).length
-        const agotados   = prods.filter(p => p.cantidad <= 0).length
+        let enStock = 0, stockBajo = 0, agotados = 0
+        prods.forEach(p => {
+          if (!p.variantes) return
+          p.variantes.forEach(v => {
+            if (v.cantidad <= 0) agotados++
+            else if (v.cantidad <= v.stock_minimo) stockBajo++
+            else enStock++
+          })
+        })
 
         if (graficaInventario) graficaInventario.destroy()
         const ctx = document.getElementById('grafica-inventario').getContext('2d')

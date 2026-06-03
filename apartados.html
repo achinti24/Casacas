@@ -4,15 +4,20 @@
   <meta charset="UTF-8">
   <title>Casacas - Apartados</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="toast.js"></script>
 </head>
 <body>
 
   <div class="sidebar">
-    <h2>Casacas</h2>
+    <div class="sidebar-logo">
+      <h2>Casacas</h2>
+      <small>y Uniformes</small>
+    </div>
     <nav id="nav-menu"></nav>
-    <div style="position:absolute; bottom:30px; left:20px; right:20px;">
-      <div id="info-usuario" style="color:#aaa; font-size:13px; margin-bottom:10px;"></div>
-      <button onclick="cerrarSesion()" style="width:100%; padding:10px; background:#e94560; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">Cerrar sesion</button>
+    <div class="sidebar-footer">
+      <div class="sidebar-usuario" id="info-usuario"></div>
+      <button class="btn-modo" onclick="toggleModo()">Modo oscuro</button>
+      <button class="btn-cerrar-sesion" onclick="cerrarSesion()">Cerrar sesion</button>
     </div>
   </div>
 
@@ -20,18 +25,17 @@
     <div class="encabezado">
       <h1>Apartados</h1>
       <div style="display:flex; gap:10px; align-items:center;">
-        <div style="display:flex; align-items:center; gap:8px; background:white; padding:8px 14px; border-radius:8px; border:1px solid #ddd; font-size:14px;">
-          <span style="color:#555;">Avisar despues de</span>
+        <div style="display:flex; align-items:center; gap:8px; background:var(--card-bg); padding:8px 14px; border-radius:8px; border:1px solid var(--border); font-size:14px; color:var(--text);">
+          <span>Avisar despues de</span>
           <input type="number" id="dias-alerta" value="7" min="1" max="60"
-            style="width:50px; padding:4px 8px; border:1px solid #ddd; border-radius:6px; font-size:14px; text-align:center;"
+            style="width:50px; padding:4px 8px; border:1px solid var(--input-border); border-radius:6px; font-size:14px; text-align:center; background:var(--input-bg); color:var(--text);"
             onchange="aplicarFiltros()">
-          <span style="color:#555;">dias</span>
+          <span>dias</span>
         </div>
         <button class="btn btn-rojo" onclick="abrirModal()">+ Nuevo Apartado</button>
       </div>
     </div>
 
-    <!-- ALERTA VENCIDOS -->
     <div id="alerta-vencidos" style="display:none; background:#fde8ec; border-left:4px solid #e94560; border-radius:10px; padding:16px 20px; margin-bottom:20px;">
       <strong>Apartados sin recoger hace mas de <span id="alerta-dias"></span> dias:</strong>
       <div id="alerta-lista" style="margin-top:8px; font-size:14px; color:#555;"></div>
@@ -49,7 +53,7 @@
       <button class="btn-limpiar" onclick="limpiarFiltros()">Limpiar</button>
     </div>
 
-    <p id="contador" style="margin:12px 0; color:#888; font-size:14px;"></p>
+    <p id="contador" style="margin:12px 0; color:var(--text-muted); font-size:14px;"></p>
 
     <table>
       <thead>
@@ -73,7 +77,7 @@
 
   <!-- MODAL NUEVO APARTADO -->
   <div class="modal-overlay" id="modal">
-    <div class="modal" style="width:560px;">
+    <div class="modal" style="width:560px; max-height:90vh; overflow-y:auto;">
       <h2 id="modal-titulo">Nuevo Apartado</h2>
 
       <div class="fila-doble">
@@ -92,11 +96,6 @@
           <label>Colegio</label>
           <select id="f-colegio">
             <option value="">Sin colegio</option>
-            <option>Guanenta</option>
-            <option>Presentacion</option>
-            <option>Rafael Pombo</option>
-            <option>Luis Camacho</option>
-            <option>Otro</option>
           </select>
         </div>
         <div class="campo">
@@ -110,15 +109,15 @@
         <input type="text" id="f-notas" placeholder="Ej: Viene el viernes a recoger">
       </div>
 
-      <div class="campo">
+      <div class="campo" id="campo-productos-apartado">
         <label>Productos apartados</label>
         <input type="text" id="ap-buscar" placeholder="Buscar producto por nombre, categoria o talla..."
           oninput="buscarProductoApartado(this.value)"
-          style="width:100%; padding:10px 14px; border:1px solid #ddd; border-radius:8px; font-size:14px; margin-bottom:6px;">
+          style="width:100%; padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; margin-bottom:6px; background:var(--input-bg); color:var(--text);">
         <div id="ap-sugerencias" class="sugerencias"></div>
       </div>
 
-      <div id="ap-carrito-vacio" style="color:#aaa; font-size:14px; text-align:center; padding:15px;">
+      <div id="ap-carrito-vacio" style="color:var(--text-muted); font-size:14px; text-align:center; padding:15px;">
         Agrega productos al apartado
       </div>
 
@@ -135,8 +134,8 @@
         <tbody id="ap-carrito-body"></tbody>
       </table>
 
-      <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-top:2px solid #f0f0f0; margin-top:8px;">
-        <span style="font-size:15px;">Total apartado:</span>
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-top:2px solid var(--border); margin-top:8px;">
+        <span style="font-size:15px; color:var(--text);">Total apartado:</span>
         <strong id="ap-total" style="font-size:20px; color:#e94560;">$0</strong>
       </div>
 
@@ -151,7 +150,7 @@
   <div class="modal-overlay" id="modal-detalle">
     <div class="modal">
       <h2>Detalle del Apartado</h2>
-      <div id="detalle-info" style="margin-bottom:16px; font-size:14px; color:#555; line-height:1.8;"></div>
+      <div id="detalle-info" style="margin-bottom:16px; font-size:14px; color:var(--text-muted); line-height:1.8;"></div>
       <table>
         <thead>
           <tr><th>Producto</th><th>Categoria</th><th>Talla</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr>
@@ -169,6 +168,7 @@
     let sesion = null
     let apartados = []
     let productos = []
+    let colegios = []
     let carritoApartado = []
     let editandoId = null
 
@@ -178,16 +178,21 @@
     })
 
     async function cargarDatos() {
-      productos = await ipcRenderer.invoke('obtener-productos')
-      apartados = await ipcRenderer.invoke('obtener-apartados')
+      productos  = await ipcRenderer.invoke('obtener-productos')
+      apartados  = await ipcRenderer.invoke('obtener-apartados')
+      colegios   = await ipcRenderer.invoke('obtener-colegios')
+
+      const sel = document.getElementById('f-colegio')
+      sel.innerHTML = '<option value="">Sin colegio</option>' +
+        colegios.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('')
+
       aplicarFiltros()
     }
 
     function getDias(fechaCreacion) {
-      const ahora  = new Date()
-      const fecha  = new Date(fechaCreacion)
-      const diff   = ahora - fecha
-      return Math.floor(diff / (1000 * 60 * 60 * 24))
+      const ahora = new Date()
+      const fecha = new Date(fechaCreacion)
+      return Math.floor((ahora - fecha) / (1000 * 60 * 60 * 24))
     }
 
     function aplicarFiltros() {
@@ -201,7 +206,6 @@
                     (a.colegio || '').toLowerCase().includes(texto))
       )
 
-      // Notificacion vencidos
       const vencidos = apartados.filter(a =>
         a.estado === 'pendiente' && getDias(a.fecha_creacion) >= diasMax
       )
@@ -241,15 +245,14 @@
         return
       }
       tbody.innerHTML = lista.map(a => {
-        const saldo = a.total - a.abono
-        const dias  = getDias(a.fecha_creacion)
+        const saldo   = a.total - a.abono
+        const dias    = getDias(a.fecha_creacion)
         const vencido = a.estado === 'pendiente' && dias >= diasMax
-
         return `
-          <tr style="${vencido ? 'background:#fff8f8;' : ''}">
+          <tr style="${vencido ? 'background:rgba(233,69,96,0.05);' : ''}">
             <td>
               <strong>${a.nombre}</strong>
-              ${a.telefono ? `<br><small style="color:#888;">${a.telefono}</small>` : ''}
+              ${a.telefono ? `<br><small style="color:var(--text-muted);">${a.telefono}</small>` : ''}
             </td>
             <td>${a.telefono || '—'}</td>
             <td>${a.colegio || '—'}</td>
@@ -257,7 +260,7 @@
             <td>$${parseFloat(a.abono).toLocaleString('es-CO')}</td>
             <td><strong style="color:#e94560;">$${parseFloat(saldo).toLocaleString('es-CO')}</strong></td>
             <td>
-              <span style="font-weight:bold; color:${vencido ? '#e94560' : '#555'}">
+              <span style="font-weight:bold; color:${vencido ? '#e94560' : 'var(--text)'}">
                 ${dias} dias
                 ${vencido ? '<br><small style="color:#e94560;">Llamar al cliente</small>' : ''}
               </span>
@@ -290,6 +293,7 @@
       document.getElementById('f-notas').value     = ''
       document.getElementById('ap-buscar').value   = ''
       document.getElementById('ap-sugerencias').innerHTML = ''
+      document.getElementById('campo-productos-apartado').style.display = 'block'
       renderCarritoApartado()
       document.getElementById('modal').classList.add('activo')
     }
@@ -308,6 +312,7 @@
       document.getElementById('f-colegio').value  = a.colegio  || ''
       document.getElementById('f-abono').value    = a.abono
       document.getElementById('f-notas').value    = a.notas   || ''
+      document.getElementById('campo-productos-apartado').style.display = 'none'
       document.getElementById('modal').classList.add('activo')
     }
 
@@ -315,43 +320,58 @@
       const sugerencias = document.getElementById('ap-sugerencias')
       if (!texto.trim()) { sugerencias.innerHTML = ''; return }
 
-      const resultados = productos.filter(p =>
-        p.nombre.toLowerCase().includes(texto.toLowerCase())    ||
-        p.categoria.toLowerCase().includes(texto.toLowerCase()) ||
-        p.talla.toLowerCase().includes(texto.toLowerCase())     ||
-        p.colegio.toLowerCase().includes(texto.toLowerCase())
-      ).slice(0, 8)
+      const resultados = []
+      productos.forEach(p => {
+        if (!p.variantes) return
+        p.variantes.forEach(v => {
+          const coincide =
+            p.nombre.toLowerCase().includes(texto.toLowerCase())    ||
+            p.categoria.toLowerCase().includes(texto.toLowerCase()) ||
+            v.talla.toLowerCase().includes(texto.toLowerCase())     ||
+            p.colegio.toLowerCase().includes(texto.toLowerCase())
+          if (coincide) resultados.push({ producto: p, variante: v })
+        })
+      })
 
-      if (resultados.length === 0) {
-        sugerencias.innerHTML = '<div style="padding:12px; color:#aaa; font-size:14px;">No se encontraron productos</div>'
+      const top = resultados.slice(0, 8)
+      if (top.length === 0) {
+        sugerencias.innerHTML = '<div style="padding:12px; color:var(--text-muted); font-size:14px;">No se encontraron productos</div>'
         return
       }
 
-      sugerencias.innerHTML = resultados.map(p => `
-        <div class="sugerencia-item" onclick="agregarAlCarritoApartado(${p.id})">
-          <strong>${p.nombre}</strong>
-          <span>${p.categoria} - ${p.colegio} - ${p.talla} - ${p.genero}</span>
-          <span>$${parseFloat(p.precio).toLocaleString('es-CO')}</span>
+      sugerencias.innerHTML = top.map(({ producto: p, variante: v }) => `
+        <div class="sugerencia-item" onclick="agregarAlCarritoApartado(${v.id})">
+          <strong>${p.nombre} — Talla ${v.talla}</strong>
+          <span>${p.categoria} · ${p.colegio} · ${p.genero}</span>
+          <span>$${parseFloat(v.precio).toLocaleString('es-CO')}</span>
         </div>
       `).join('')
     }
 
-    function agregarAlCarritoApartado(id) {
-      const p = productos.find(x => x.id === id)
-      if (!p) return
+    function agregarAlCarritoApartado(varianteId) {
+      let productoBase = null
+      let varianteSeleccionada = null
+
+      for (const p of productos) {
+        if (!p.variantes) continue
+        const v = p.variantes.find(x => x.id === varianteId)
+        if (v) { productoBase = p; varianteSeleccionada = v; break }
+      }
+
+      if (!varianteSeleccionada) return
       document.getElementById('ap-buscar').value = ''
       document.getElementById('ap-sugerencias').innerHTML = ''
 
-      const existente = carritoApartado.find(x => x.producto_id === id)
+      const existente = carritoApartado.find(x => x.variante_id === varianteId)
       if (existente) {
         existente.cantidad++
       } else {
         carritoApartado.push({
-          producto_id:     p.id,
-          nombre:          p.nombre,
-          talla:           p.talla,
-          categoria:       p.categoria,
-          precio_unitario: p.precio,
+          variante_id:     varianteSeleccionada.id,
+          nombre:          productoBase.nombre,
+          talla:           varianteSeleccionada.talla,
+          categoria:       productoBase.categoria,
+          precio_unitario: varianteSeleccionada.precio,
           cantidad:        1
         })
       }
@@ -392,7 +412,7 @@
           <td>
             <input type="number" min="1" value="${item.cantidad}"
               onchange="cambiarCantidadApartado(${idx}, this.value)"
-              style="width:55px; padding:4px; border:1px solid #ddd; border-radius:6px;">
+              style="width:55px; padding:4px; border:1px solid var(--input-border); border-radius:6px; background:var(--input-bg); color:var(--text);">
           </td>
           <td>$${(item.precio_unitario * item.cantidad).toLocaleString('es-CO')}</td>
           <td>
@@ -457,7 +477,7 @@
         Telefono: ${a.telefono || '—'} &nbsp;|&nbsp;
         Colegio: ${a.colegio || '—'}<br>
         Abono: <strong style="color:#2ecc71;">$${parseFloat(a.abono).toLocaleString('es-CO')}</strong> &nbsp;|&nbsp;
-        Saldo pendiente: <strong style="color:#e94560;">$${parseFloat(saldo).toLocaleString('es-CO')}</strong><br>
+        Saldo: <strong style="color:#e94560;">$${parseFloat(saldo).toLocaleString('es-CO')}</strong><br>
         Creado hace: <strong>${dias} dias</strong>
         ${a.notas ? `<br>Notas: ${a.notas}` : ''}
       `

@@ -4,16 +4,21 @@
   <meta charset="UTF-8">
   <title>Casacas - Ventas</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="toast.js"></script>
   <link rel="stylesheet" href="ventas.css">
 </head>
 <body>
 
   <div class="sidebar">
-    <h2>Casacas</h2>
+    <div class="sidebar-logo">
+      <h2>Casacas</h2>
+      <small>y Uniformes</small>
+    </div>
     <nav id="nav-menu"></nav>
-    <div style="position:absolute; bottom:30px; left:20px; right:20px;">
-      <div id="info-usuario" style="color:#aaa; font-size:13px; margin-bottom:10px;"></div>
-      <button onclick="cerrarSesion()" style="width:100%; padding:10px; background:#e94560; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">Cerrar sesion</button>
+    <div class="sidebar-footer">
+      <div class="sidebar-usuario" id="info-usuario"></div>
+      <button class="btn-modo" onclick="toggleModo()">Modo oscuro</button>
+      <button class="btn-cerrar-sesion" onclick="cerrarSesion()">Cerrar sesion</button>
     </div>
   </div>
 
@@ -46,15 +51,16 @@
 
         <div class="campo">
           <label>Buscar producto</label>
-          <input type="text" id="v-buscar" placeholder="Escribe nombre, categoria, colegio o talla..."
+          <input type="text" id="v-buscar"
+            placeholder="Escribe nombre, categoria, colegio o talla..."
             oninput="buscarProducto()"
-            style="width:100%; padding:10px 14px; border:1px solid #ddd; border-radius:8px; font-size:14px; margin-bottom:6px;">
+            style="width:100%; padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; margin-bottom:6px; background:var(--input-bg); color:var(--text);">
           <div id="v-sugerencias" class="sugerencias"></div>
         </div>
 
         <div id="carrito-container">
-          <h4 style="margin-bottom:10px; color:#555;">Carrito</h4>
-          <div id="carrito-vacio" style="color:#aaa; font-size:14px; text-align:center; padding:20px;">
+          <h4 style="margin-bottom:10px; color:var(--text-muted);">Carrito</h4>
+          <div id="carrito-vacio" style="color:var(--text-muted); font-size:14px; text-align:center; padding:20px;">
             Agrega productos al carrito
           </div>
           <table id="carrito-tabla" style="display:none;">
@@ -118,21 +124,21 @@
     </div>
   </div>
 
-  <!-- MODAL PAGO Y VUELTOS -->
+  <!-- MODAL PAGO -->
   <div class="modal-overlay" id="modal-pago">
     <div class="modal">
       <h2>Confirmar Pago</h2>
 
-      <div style="background:#f5f6fa; border-radius:10px; padding:16px; margin-bottom:20px;">
+      <div style="background:var(--bg); border-radius:10px; padding:16px; margin-bottom:20px; border:1px solid var(--border);">
         <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:15px;">
-          <span>Subtotal productos:</span>
+          <span>Subtotal:</span>
           <strong id="pago-subtotal">$0</strong>
         </div>
         <div id="pago-abono-fila" style="display:none; justify-content:space-between; margin-bottom:8px; font-size:15px;">
           <span>Abono aplicado:</span>
           <strong id="pago-abono" style="color:#2ecc71;">- $0</strong>
         </div>
-        <div style="display:flex; justify-content:space-between; padding-top:10px; border-top:2px solid #ddd; font-size:18px;">
+        <div style="display:flex; justify-content:space-between; padding-top:10px; border-top:2px solid var(--border); font-size:18px;">
           <span>Total a cobrar:</span>
           <strong id="pago-total" style="color:#e94560;">$0</strong>
         </div>
@@ -154,7 +160,7 @@
         El cliente no ha dado suficiente dinero
       </div>
 
-      <div class="modal-botones" style="margin-top:20px;">
+      <div class="modal-botones">
         <button class="btn btn-gris" onclick="cerrarModalPago()">Cancelar</button>
         <button class="btn btn-rojo" id="btn-confirmar-pago" onclick="confirmarVenta()">Confirmar Venta</button>
       </div>
@@ -165,7 +171,7 @@
   <div class="modal-overlay" id="modal-detalle">
     <div class="modal">
       <h2>Detalle de Venta</h2>
-      <div id="detalle-header" style="margin-bottom:14px; font-size:14px; color:#555;"></div>
+      <div id="detalle-header" style="margin-bottom:14px; font-size:14px; color:var(--text-muted);"></div>
       <table>
         <thead>
           <tr><th>Producto</th><th>Categoria</th><th>Talla</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr>
@@ -224,9 +230,7 @@
           <td>${v.cliente || '—'}</td>
           <td><strong>$${parseFloat(v.total).toLocaleString('es-CO')}</strong></td>
           <td><span class="badge badge-verde">entregado</span></td>
-          <td>
-            <button class="btn btn-gris" style="padding:5px 10px" onclick="verDetalle(${v.id})">Ver</button>
-          </td>
+          <td><button class="btn btn-gris" style="padding:5px 10px" onclick="verDetalle(${v.id})">Ver</button></td>
         </tr>
       `).join('')
     }
@@ -265,16 +269,20 @@
       document.getElementById('banner-notas').innerHTML     = a.notas ? `<br>Notas: ${a.notas}` : ''
       banner.classList.add('activo')
 
-      carrito = items.map(i => ({
-        producto_id:     i.producto_id,
-        nombre:          i.producto,
-        talla:           i.talla,
-        categoria:       i.categoria,
-        precio_unitario: i.precio_unitario,
-        cantidad:        i.cantidad,
-        stock:           (productos.find(p => p.id === i.producto_id) || {}).cantidad || 999,
-        del_apartado:    true
-      }))
+      carrito = items.map(i => {
+        const prod     = productos.find(p => p.variantes && p.variantes.find(v => v.id === i.variante_id))
+        const variante = prod ? prod.variantes.find(v => v.id === i.variante_id) : null
+        return {
+          variante_id:     i.variante_id,
+          nombre:          i.producto,
+          talla:           i.talla,
+          categoria:       i.categoria,
+          precio_unitario: i.precio_unitario,
+          cantidad:        i.cantidad,
+          stock:           variante ? variante.cantidad : 999,
+          del_apartado:    true
+        }
+      })
 
       renderCarrito()
       totalSimple.style.display = 'none'
@@ -298,48 +306,68 @@
 
       if (!texto.trim()) { sugerencias.innerHTML = ''; return }
 
-      const resultados = productos.filter(p =>
-        p.cantidad > 0 &&
-        (p.nombre.toLowerCase().includes(texto)    ||
-         p.colegio.toLowerCase().includes(texto)   ||
-         p.categoria.toLowerCase().includes(texto) ||
-         p.talla.toLowerCase().includes(texto)     ||
-         p.genero.toLowerCase().includes(texto))
-      ).slice(0, 8)
+      const resultados = []
+      productos.forEach(p => {
+        if (!p.variantes) return
+        p.variantes.forEach(v => {
+          if (v.cantidad <= 0) return
+          const coincide =
+            p.nombre.toLowerCase().includes(texto)    ||
+            p.colegio.toLowerCase().includes(texto)   ||
+            p.categoria.toLowerCase().includes(texto) ||
+            v.talla.toLowerCase().includes(texto)     ||
+            p.genero.toLowerCase().includes(texto)
+          if (coincide) resultados.push({ producto: p, variante: v })
+        })
+      })
 
-      if (resultados.length === 0) {
-        sugerencias.innerHTML = '<div style="padding:12px; color:#aaa; font-size:14px;">No se encontraron productos</div>'
+      const top = resultados.slice(0, 8)
+
+      if (top.length === 0) {
+        sugerencias.innerHTML = '<div style="padding:12px; color:var(--text-muted); font-size:14px;">No se encontraron productos</div>'
         return
       }
 
-      sugerencias.innerHTML = resultados.map(p => `
-        <div class="sugerencia-item" onclick="agregarAlCarrito(${p.id})">
-          <strong>${p.nombre}</strong>
-          <span>${p.categoria} - ${p.colegio} - ${p.talla} - ${p.genero}</span>
-          <span>$${parseFloat(p.precio).toLocaleString('es-CO')} — Stock: ${p.cantidad}</span>
+      sugerencias.innerHTML = top.map(({ producto: p, variante: v }) => `
+        <div class="sugerencia-item" onclick="agregarAlCarrito(${v.id})">
+          <strong>${p.nombre} — Talla ${v.talla}</strong>
+          <span>${p.categoria} · ${p.colegio} · ${p.genero}</span>
+          <span>$${parseFloat(v.precio).toLocaleString('es-CO')} — Stock: ${v.cantidad}</span>
         </div>
       `).join('')
     }
 
-    function agregarAlCarrito(id) {
-      const p = productos.find(x => x.id === id)
-      if (!p) return
+    function agregarAlCarrito(varianteId) {
+      let productoEncontrado = null
+      let varianteEncontrada = null
+
+      for (const p of productos) {
+        if (!p.variantes) continue
+        const v = p.variantes.find(x => x.id === varianteId)
+        if (v) { productoEncontrado = p; varianteEncontrada = v; break }
+      }
+
+      if (!varianteEncontrada) return
+
       document.getElementById('v-buscar').value = ''
       document.getElementById('v-sugerencias').innerHTML = ''
 
-      const existente = carrito.find(x => x.producto_id === id)
+      const existente = carrito.find(x => x.variante_id === varianteId)
       if (existente) {
-        if (existente.cantidad >= p.cantidad) { alert('No hay mas stock disponible'); return }
+        if (existente.cantidad >= varianteEncontrada.cantidad) {
+          alert('No hay mas stock disponible')
+          return
+        }
         existente.cantidad++
       } else {
         carrito.push({
-          producto_id:     p.id,
-          nombre:          p.nombre,
-          talla:           p.talla,
-          categoria:       p.categoria,
-          precio_unitario: p.precio,
+          variante_id:     varianteEncontrada.id,
+          nombre:          productoEncontrado.nombre,
+          talla:           varianteEncontrada.talla,
+          categoria:       productoEncontrado.categoria,
+          precio_unitario: varianteEncontrada.precio,
           cantidad:        1,
-          stock:           p.cantidad,
+          stock:           varianteEncontrada.cantidad,
           del_apartado:    false
         })
       }
@@ -382,13 +410,13 @@
         <tr>
           <td>
             <strong>${item.nombre}</strong>
-            <br><small style="color:#888;">${item.categoria} - ${item.talla}${item.del_apartado ? ' &nbsp;<span style="color:#f39c12; font-weight:bold;">· apartado</span>' : ''}</small>
+            <br><small style="color:var(--text-muted);">${item.categoria} - ${item.talla}${item.del_apartado ? ' <span style="color:#f39c12; font-weight:bold;">· apartado</span>' : ''}</small>
           </td>
           <td>$${parseFloat(item.precio_unitario).toLocaleString('es-CO')}</td>
           <td>
             <input type="number" min="1" max="${item.stock}" value="${item.cantidad}"
               onchange="cambiarCantidad(${idx}, this.value)"
-              style="width:55px; padding:4px; border:1px solid #ddd; border-radius:6px;">
+              style="width:55px; padding:4px; border:1px solid var(--input-border); border-radius:6px; background:var(--input-bg); color:var(--text);">
           </td>
           <td>$${(item.precio_unitario * item.cantidad).toLocaleString('es-CO')}</td>
           <td>
@@ -483,16 +511,13 @@
         await cargarDatos()
 
         const vueltos = dado - totalCobrar
-        let mensaje = `Venta registrada correctamente\n\nTotal cobrado: $${totalCobrar.toLocaleString('es-CO')}\nDio el cliente: $${dado.toLocaleString('es-CO')}\nVueltos: $${vueltos.toLocaleString('es-CO')}`
+        let mensaje = `Venta registrada\n\nTotal: $${totalCobrar.toLocaleString('es-CO')}\nDio: $${dado.toLocaleString('es-CO')}\nVueltos: $${vueltos.toLocaleString('es-CO')}`
 
         if (resultado.alertasAgotados && resultado.alertasAgotados.length > 0) {
-          mensaje += `\n\n⚠️ PRODUCTOS AGOTADOS:\n`
-          mensaje += resultado.alertasAgotados.map(p => `- ${p.nombre} (${p.talla} - ${p.colegio})`).join('\n')
+          mensaje += `\n\nAgotados: ${resultado.alertasAgotados.map(p => `${p.nombre} T${p.talla}`).join(', ')}`
         }
-
         if (resultado.alertasStockBajo && resultado.alertasStockBajo.length > 0) {
-          mensaje += `\n\n⚠️ STOCK BAJO:\n`
-          mensaje += resultado.alertasStockBajo.map(p => `- ${p.nombre} (${p.talla} - ${p.colegio}): ${p.cantidad} uds`).join('\n')
+          mensaje += `\n\nStock bajo: ${resultado.alertasStockBajo.map(p => `${p.nombre} T${p.talla} (${p.cantidad} uds)`).join(', ')}`
         }
 
         alert(mensaje)

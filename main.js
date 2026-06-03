@@ -2,8 +2,6 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
 const fs   = require('fs')
 const XLSX = require('xlsx')
-const db = require('./database.js')
-const { devNull } = require('os')
 
 let win
 let sesionActual = null
@@ -124,9 +122,40 @@ app.whenReady().then(() => {
     webPreferences: { nodeIntegration: true, contextIsolation: false }
   })
 
-  win.loadFile('login.html')
-  const db = require('./database.js')
+  win.loadFile('splash.html')
 
+  setTimeout(() => {
+    win.loadFile('login.html')
+  }, 2800)
+
+  const db = require('./database.js')
+  function hacerBackup() {
+    try {
+      const origen   = path.join(app.getPath('userData'), 'casacas.db')
+      const carpeta  = path.join(app.getPath('documents'), 'Casacas', 'backups')
+      if (!fs.existsSync(carpeta)) fs.mkdirSync(carpeta, { recursive: true })
+
+      const fecha   = new Date().toISOString().slice(0, 10)
+      const destino = path.join(carpeta, `casacas_backup_${fecha}.db`)
+
+      if (!fs.existsSync(destino)) {
+        fs.copyFileSync(origen, destino)
+        console.log('Backup creado:', destino)
+      }
+
+      const archivos = fs.readdirSync(carpeta)
+      archivos.forEach(archivo => {
+        const rutaArchivo = path.join(carpeta, archivo)
+        const stats       = fs.statSync(rutaArchivo)
+        const diasDiff    = (Date.now() - stats.mtimeMs) / (1000 * 60 * 60 * 24)
+        if (diasDiff > 30) fs.unlinkSync(rutaArchivo)
+      })
+    } catch (err) {
+      console.error('Error en backup:', err)
+    }
+  }
+
+  hacerBackup()
   // ── SESION ────────────────────────────────────────
   ipcMain.handle('guardar-sesion', (e, d) => { sesionActual = d; return true })
   ipcMain.handle('obtener-sesion', () => sesionActual)
@@ -459,10 +488,9 @@ app.whenReady().then(() => {
   // ── METAS ─────────────────────────────────────────
   ipcMain.handle('obtener-metas', () => db.prepare('SELECT * FROM metas').all())
   ipcMain.handle('guardar-meta', (e, { tipo, monto }) => {
-    db.prepare('UPDATE metas SET monto = ?, fecha_actualizacion = datetime("now","localtime") WHERE tipo = ?').run(monto, tipo)
+    db.prepare("UPDATE metas SET monto = ?, fecha_actualizacion = datetime('now','localtime') WHERE tipo = ?").run(monto, tipo)
     return { ok: true }
   })
-
   // ── ESTADISTICAS ──────────────────────────────────
   ipcMain.handle('obtener-estadisticas', () => {
     const ventasPorDia = db.prepare(`
