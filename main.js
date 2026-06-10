@@ -491,6 +491,7 @@ app.whenReady().then(() => {
     db.prepare("UPDATE metas SET monto = ?, fecha_actualizacion = datetime('now','localtime') WHERE tipo = ?").run(monto, tipo)
     return { ok: true }
   })
+
   // ── ESTADISTICAS ──────────────────────────────────
   ipcMain.handle('obtener-estadisticas', () => {
     const ventasPorDia = db.prepare(`
