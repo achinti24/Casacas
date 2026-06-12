@@ -25,7 +25,10 @@
   <div class="contenido">
     <div class="encabezado">
       <h1>Inventario</h1>
-      <button class="btn btn-rojo" id="btn-agregar" onclick="abrirModalProducto()">+ Agregar Producto</button>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-gris" id="btn-entrada" onclick="abrirModalEntrada()">+ Entrada de Stock</button>
+        <button class="btn btn-rojo" id="btn-agregar" onclick="abrirModalProducto()">+ Agregar Producto</button>
+      </div>
     </div>
 
     <input class="buscador" type="text" placeholder="Buscar por nombre, colegio, categoria..."
@@ -202,6 +205,31 @@
     </div>
   </div>
 
+  <!-- MODAL ENTRADA DE STOCK -->
+  <div class="modal-overlay" id="modal-entrada">
+    <div class="modal" style="width:480px;">
+      <h2>Entrada de Stock</h2>
+      <div class="campo">
+        <label>Producto</label>
+        <select id="e-producto" style="width:100%; padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);"></select>
+      </div>
+      <div class="fila-doble">
+        <div class="campo">
+          <label>Cantidad a agregar</label>
+          <input type="number" id="e-cantidad" min="1" value="1">
+        </div>
+        <div class="campo">
+          <label>Nota (opcional)</label>
+          <input type="text" id="e-nota" placeholder="Ej: Pedido llego">
+        </div>
+      </div>
+      <div class="modal-botones">
+        <button class="btn btn-gris" onclick="cerrarModalEntrada()">Cancelar</button>
+        <button class="btn btn-rojo" onclick="guardarEntrada()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="nav.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
   <script>
@@ -218,6 +246,7 @@
       sesion = s
       if (sesion && sesion.rol !== 'admin') {
         document.getElementById('btn-agregar').style.display = 'none'
+        document.getElementById('btn-entrada').style.display = 'none'
       }
       cargarDatos()
     })
@@ -227,7 +256,6 @@
       colegios   = await ipcRenderer.invoke('obtener-colegios')
       productos  = await ipcRenderer.invoke('obtener-productos')
 
-      // Llenar filtros
       const optsCat = categorias.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('')
       document.getElementById('filtro-categoria').innerHTML = '<option value="">Todas las categorias</option>' + optsCat
       document.getElementById('p-categoria').innerHTML = optsCat
@@ -240,7 +268,7 @@
     }
 
     function aplicarFiltros() {
-      const texto    = document.querySelector('.buscador').value.toLowerCase()
+      const texto     = document.querySelector('.buscador').value.toLowerCase()
       const categoria = document.getElementById('filtro-categoria').value
       const colegio   = document.getElementById('filtro-colegio').value
       const genero    = document.getElementById('filtro-genero').value
@@ -298,8 +326,8 @@
         <div class="producto-card">
           <div class="producto-header" onclick="toggleVariantes(${p.id})">
             <div class="producto-info">
-              <strong style="font-size:16px;">${p.nombre}</strong>
-              <span style="color:#888; font-size:13px; margin-left:12px;">${p.categoria} — ${p.colegio} — ${p.genero}</span>
+              <strong style="font-size:16px; color:var(--text);">${p.nombre}</strong>
+              <span style="color:var(--text-muted); font-size:13px; margin-left:12px;">${p.categoria} — ${p.colegio} — ${p.genero}</span>
             </div>
             <div style="display:flex; align-items:center; gap:10px;">
               <span style="font-size:13px; color:#888;">${p.variantes.length} talla(s)</span>
@@ -366,8 +394,8 @@
       const tabla   = document.getElementById(`variantes-${productoId}`)
       const chevron = document.getElementById(`chevron-${productoId}`)
       const visible = tabla.style.display !== 'none'
-      tabla.style.display   = visible ? 'none' : 'block'
-      chevron.textContent   = visible ? '▼' : '▲'
+      tabla.style.display = visible ? 'none' : 'block'
+      chevron.textContent = visible ? '▼' : '▲'
     }
 
     // ── MODAL PRODUCTO ────────────────────────────────
@@ -550,19 +578,61 @@
       document.getElementById('codigo-numero').textContent = codigo
       const canvas = document.getElementById('codigo-canvas')
       JsBarcode(canvas, codigo, {
-        format:      'EAN13',
-        lineColor:   '#1a1a2e',
-        width:       2.5,
-        height:      80,
+        format:       'EAN13',
+        lineColor:    '#1a1a2e',
+        width:        2.5,
+        height:       80,
         displayValue: true,
-        fontSize:    16,
-        margin:      10
+        fontSize:     16,
+        margin:       10
       })
       document.getElementById('modal-codigo').classList.add('activo')
     }
 
     function cerrarModalCodigo() {
       document.getElementById('modal-codigo').classList.remove('activo')
+    }
+
+    // ── ENTRADA DE STOCK ──────────────────────────────
+    function abrirModalEntrada() {
+      const select = document.getElementById('e-producto')
+      select.innerHTML = ''
+      productos.forEach(p => {
+        if (!p.variantes) return
+        p.variantes.forEach(v => {
+          const opt = document.createElement('option')
+          opt.value = v.id
+          opt.textContent = `${p.nombre} — T${v.talla} — ${p.colegio} (Stock: ${v.cantidad})`
+          select.appendChild(opt)
+        })
+      })
+      document.getElementById('e-cantidad').value = 1
+      document.getElementById('e-nota').value     = ''
+      document.getElementById('modal-entrada').classList.add('activo')
+    }
+
+    function cerrarModalEntrada() {
+      document.getElementById('modal-entrada').classList.remove('activo')
+    }
+
+    async function guardarEntrada() {
+      const varianteId = parseInt(document.getElementById('e-producto').value)
+      const cantidad   = parseInt(document.getElementById('e-cantidad').value)
+      const nota       = document.getElementById('e-nota').value.trim()
+
+      if (!varianteId || cantidad < 1) { alert('Completa los campos correctamente'); return }
+
+      await ipcRenderer.invoke('agregar-movimiento', {
+        variante_id: varianteId,
+        usuario_id:  sesion.id,
+        tipo:        'entrada',
+        cantidad,
+        nota: nota || 'Entrada de stock'
+      })
+
+      cerrarModalEntrada()
+      cargarDatos()
+      alert(`Entrada registrada: +${cantidad} unidades`)
     }
   </script>
 

@@ -26,13 +26,14 @@ function generarEAN13(productoId, varianteId) {
 
 // ── EXCEL ─────────────────────────────────────────
 function getRutaExcel() {
-  const carpeta = path.join(app.getPath('documents'), 'Casacas', 'reportes')
+  const carpeta = path.join(__dirname, 'reportes')
   if (!fs.existsSync(carpeta)) fs.mkdirSync(carpeta, { recursive: true })
   return carpeta
 }
 
 function actualizarExcelVentas(db) {
   try {
+    console.log('Intentando escribir Excel en:', getRutaExcel())
     const ventas = db.prepare(`
       SELECT v.id, v.fecha, u.nombre as vendedor, a.nombre as cliente,
              v.abono_aplicado, v.total, v.estado

@@ -1,5 +1,6 @@
 .producto-card {
-  background: white;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.07);
   margin-bottom: 12px;
@@ -15,7 +16,7 @@
   transition: background 0.15s;
 }
 
-.producto-header:hover { background: #fafafa; }
+.producto-header:hover { background: var(--bg); }
 
 .producto-info {
   display: flex;
@@ -25,7 +26,7 @@
 }
 
 .variantes-tabla {
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
   padding: 0 16px 16px;
 }
 
@@ -36,8 +37,8 @@
 }
 
 .variantes-tabla th {
-  background: #f5f6fa;
-  color: #555;
+  background: var(--bg);
+  color: var(--text-muted);
   font-size: 12px;
   padding: 10px 12px;
 }
@@ -45,10 +46,11 @@
 .variantes-tabla td {
   padding: 10px 12px;
   font-size: 13px;
+  color: var(--text);
 }
 
 .chevron {
   font-size: 12px;
-  color: #aaa;
+  color: var(--text-muted);
   margin-left: 8px;
 }

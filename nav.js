@@ -35,7 +35,6 @@ async function cargarMenu(paginaActiva) {
     { href: 'codigos.html',    label: 'Codigos' },
     { href: 'ventas.html',     label: 'Ventas' },
     { href: 'apartados.html',  label: 'Apartados' },
-    { href: 'egresos.html',    label: 'Egresos' },
   ]
 
   const menu = sesion.rol === 'admin' ? menuAdmin : menuEmpleado

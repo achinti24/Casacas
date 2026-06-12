@@ -27,7 +27,6 @@
       <button class="btn btn-rojo" onclick="abrirModal()">+ Registrar Egreso</button>
     </div>
 
-    <!-- RESUMEN -->
     <div class="cards" style="margin-bottom:20px;">
       <div class="card rojo">
         <span class="etiqueta">Egresos hoy</span>
@@ -73,7 +72,6 @@
     </table>
   </div>
 
-  <!-- MODAL -->
   <div class="modal-overlay" id="modal">
     <div class="modal">
       <h2 id="modal-titulo">Registrar Egreso</h2>
@@ -102,13 +100,17 @@
 
   <script src="nav.js"></script>
   <script>
-    let sesion   = null
-    let egresos  = []
+    let sesion     = null
+    let egresos    = []
     let categorias = []
     let editandoId = null
 
     cargarMenu('egresos.html').then(s => {
       sesion = s
+      if (sesion && sesion.rol !== 'admin') {
+        navegar('index.html')
+        return
+      }
       cargarDatos()
     })
 
@@ -116,7 +118,6 @@
       categorias = await ipcRenderer.invoke('obtener-categorias-egreso')
       egresos    = await ipcRenderer.invoke('obtener-egresos')
 
-      // Llenar selects
       const optsCat = categorias.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('')
       document.getElementById('filtro-categoria').innerHTML = '<option value="">Todas las categorias</option>' + optsCat
       document.getElementById('f-categoria').innerHTML = optsCat
@@ -129,15 +130,9 @@
       const hoy    = new Date().toISOString().slice(0, 10)
       const mesAct = new Date().toISOString().slice(0, 7)
 
-      const hoyTotal = egresos
-        .filter(e => e.fecha.slice(0, 10) === hoy)
-        .reduce((acc, e) => acc + e.monto, 0)
-
-      const mesTotal = egresos
-        .filter(e => e.fecha.slice(0, 7) === mesAct)
-        .reduce((acc, e) => acc + e.monto, 0)
-
-      const total = egresos.reduce((acc, e) => acc + e.monto, 0)
+      const hoyTotal = egresos.filter(e => e.fecha.slice(0, 10) === hoy).reduce((acc, e) => acc + e.monto, 0)
+      const mesTotal = egresos.filter(e => e.fecha.slice(0, 7) === mesAct).reduce((acc, e) => acc + e.monto, 0)
+      const total    = egresos.reduce((acc, e) => acc + e.monto, 0)
 
       document.getElementById('egreso-hoy').textContent   = '$' + hoyTotal.toLocaleString('es-CO')
       document.getElementById('egreso-mes').textContent   = '$' + mesTotal.toLocaleString('es-CO')
@@ -145,8 +140,8 @@
     }
 
     function aplicarFiltros() {
-      const cat    = document.getElementById('filtro-categoria').value
-      const texto  = document.getElementById('buscador').value.toLowerCase()
+      const cat   = document.getElementById('filtro-categoria').value
+      const texto = document.getElementById('buscador').value.toLowerCase()
 
       const filtrados = egresos.filter(e =>
         (!cat   || e.categoria === cat) &&
@@ -179,9 +174,7 @@
           <td>${e.usuario || '—'}</td>
           <td>
             <button class="btn btn-gris" style="padding:6px 12px;margin-right:5px" onclick="editarEgreso(${e.id})">Editar</button>
-            ${sesion && sesion.rol === 'admin' ? `
-              <button class="btn btn-rojo" style="padding:6px 12px" onclick="eliminarEgreso(${e.id})">Eliminar</button>
-            ` : ''}
+            <button class="btn btn-rojo" style="padding:6px 12px" onclick="eliminarEgreso(${e.id})">Eliminar</button>
           </td>
         </tr>
       `).join('')
