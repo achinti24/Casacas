@@ -12,17 +12,13 @@ async function cargarMenu(paginaActiva) {
     return null
   }
 
-  const infoEl = document.getElementById('info-usuario')
-  if (infoEl) {
-    infoEl.innerHTML = `
-      <strong>${sesion.nombre}</strong>
-      <span>${sesion.rol === 'admin' ? 'Administrador' : 'Empleado'}</span>
-    `
-  }
+  document.getElementById('info-usuario').innerHTML =
+    `<strong style="color:white">${sesion.nombre}</strong><br>${sesion.rol === 'admin' ? 'Administrador' : 'Empleado'}`
 
   const menuAdmin = [
     { href: 'index.html',         label: 'Inicio' },
     { href: 'inventario.html',    label: 'Inventario' },
+    { href: 'codigos.html',       label: 'Codigos' },
     { href: 'ventas.html',        label: 'Ventas' },
     { href: 'apartados.html',     label: 'Apartados' },
     { href: 'egresos.html',       label: 'Egresos' },
@@ -36,22 +32,21 @@ async function cargarMenu(paginaActiva) {
   const menuEmpleado = [
     { href: 'index.html',      label: 'Inicio' },
     { href: 'inventario.html', label: 'Inventario' },
+    { href: 'codigos.html',    label: 'Codigos' },
     { href: 'ventas.html',     label: 'Ventas' },
     { href: 'apartados.html',  label: 'Apartados' },
     { href: 'egresos.html',    label: 'Egresos' },
   ]
 
   const menu = sesion.rol === 'admin' ? menuAdmin : menuEmpleado
-  const navEl = document.getElementById('nav-menu')
-  if (navEl) {
-    navEl.innerHTML = menu.map(item => `
-      <a onclick="navegar('${item.href}')"
-         class="${item.href === paginaActiva ? 'active' : ''}"
-         style="cursor:pointer;">${item.label}</a>
-    `).join('')
-  }
+  document.getElementById('nav-menu').innerHTML = menu.map(item => `
+    <a onclick="navegar('${item.href}')"
+       class="${item.href === paginaActiva ? 'active' : ''}"
+       style="cursor:pointer;">
+      ${item.label}
+    </a>
+  `).join('')
 
-  aplicarModoGuardado()
   return sesion
 }
 
@@ -62,19 +57,17 @@ function navegar(pagina) {
 function toggleModo() {
   const oscuro = document.body.classList.toggle('dark')
   localStorage.setItem('modo', oscuro ? 'dark' : 'light')
-  actualizarBtnModo()
-}
-
-function actualizarBtnModo() {
-  const btn = document.querySelector('.btn-modo')
-  if (!btn) return
-  const oscuro = document.body.classList.contains('dark')
-  btn.textContent = oscuro ? 'Modo claro' : 'Modo oscuro'
+  const btns = document.querySelectorAll('.btn-modo')
+  btns.forEach(btn => btn.textContent = oscuro ? 'Modo claro' : 'Modo oscuro')
 }
 
 function aplicarModoGuardado() {
   const modo = localStorage.getItem('modo')
-  if (modo === 'dark') document.body.classList.add('dark')
-  else document.body.classList.remove('dark')
-  actualizarBtnModo()
+  if (modo === 'dark') {
+    document.body.classList.add('dark')
+    const btns = document.querySelectorAll('.btn-modo')
+    btns.forEach(btn => btn.textContent = 'Modo claro')
+  }
 }
+
+document.addEventListener('DOMContentLoaded', aplicarModoGuardado)

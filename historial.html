@@ -8,7 +8,7 @@
 </head>
 <body>
 
- <div class="sidebar">
+  <div class="sidebar">
     <div class="sidebar-logo">
       <h2>Casacas</h2>
       <small>y Uniformes</small>
@@ -24,7 +24,17 @@
   <div class="contenido">
     <div class="encabezado">
       <h1>Historial de Movimientos</h1>
-      <button class="btn btn-rojo" onclick="abrirModalEntrada()">+ Entrada de Stock</button>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <!-- Indicador lector -->
+        <div id="lector-status" style="
+          display:flex; align-items:center; gap:8px;
+          background:var(--card-bg); border:1px solid var(--border);
+          padding:8px 14px; border-radius:8px; font-size:13px; color:var(--text-muted);">
+          <span id="lector-dot" style="width:8px;height:8px;border-radius:50%;background:#2ecc71;display:inline-block;"></span>
+          <span id="lector-texto">Lector listo</span>
+        </div>
+        <button class="btn btn-rojo" onclick="abrirModalEntrada()">+ Entrada de Stock</button>
+      </div>
     </div>
 
     <div class="filtros">
@@ -55,12 +65,13 @@
     </table>
   </div>
 
+  <!-- MODAL ENTRADA DE STOCK -->
   <div class="modal-overlay" id="modal-entrada">
     <div class="modal">
       <h2>Entrada de Stock</h2>
 
       <div class="campo">
-        <label>Producto</label>
+        <label>Producto <small style="color:var(--text-muted); font-weight:normal;">(o escanea con el lector)</small></label>
         <select id="e-producto"></select>
       </div>
 
@@ -84,10 +95,72 @@
 
   <script src="nav.js"></script>
   <script>
-
-    let sesion = null
+    let sesion      = null
     let movimientos = []
-    let productos = []
+    let productos   = []
+
+    // ── LECTOR DE CODIGO DE BARRAS ────────────────────
+    let bufferLector = ''
+    let timerLector  = null
+    const VELOCIDAD_LECTOR = 50
+
+    document.addEventListener('keydown', (e) => {
+      const tag = document.activeElement.tagName
+      // Si el modal de entrada está abierto, el lector selecciona el producto automáticamente
+      const modalAbierto = document.getElementById('modal-entrada').classList.contains('activo')
+
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      // En SELECT también ignoramos escritura normal, pero capturamos el lector
+      if (tag === 'SELECT' && !modalAbierto) return
+
+      if (e.key === 'Enter') {
+        if (bufferLector.length >= 8) {
+          procesarCodigoLector(bufferLector, modalAbierto)
+        }
+        bufferLector = ''
+        clearTimeout(timerLector)
+        return
+      }
+
+      if (e.key.length === 1) {
+        bufferLector += e.key
+        clearTimeout(timerLector)
+        timerLector = setTimeout(() => { bufferLector = '' }, VELOCIDAD_LECTOR * 10)
+      }
+    })
+
+    async function procesarCodigoLector(codigo, abrirModal) {
+      mostrarLectorStatus(`Buscando: ${codigo}`, '#f39c12')
+      const variante = await ipcRenderer.invoke('buscar-por-codigo', codigo)
+
+      if (!variante) {
+        mostrarLectorStatus('Codigo no encontrado', '#e94560')
+        setTimeout(() => mostrarLectorStatus('Lector listo', '#2ecc71'), 2000)
+        return
+      }
+
+      // Seleccionar el producto en el select del modal
+      const select = document.getElementById('e-producto')
+      select.value = variante.id
+
+      if (!abrirModal) {
+        // Si el modal no está abierto, abrirlo con ese producto preseleccionado
+        abrirModalEntrada()
+        select.value = variante.id
+      }
+
+      mostrarLectorStatus(`Seleccionado: ${variante.nombre} T${variante.talla}`, '#2ecc71')
+      setTimeout(() => mostrarLectorStatus('Lector listo', '#2ecc71'), 2000)
+
+      // Enfocar cantidad para que el usuario la escriba directo
+      setTimeout(() => document.getElementById('e-cantidad').focus(), 200)
+    }
+
+    function mostrarLectorStatus(texto, color) {
+      document.getElementById('lector-texto').textContent = texto
+      document.getElementById('lector-dot').style.background = color
+    }
+    // ─────────────────────────────────────────────────
 
     cargarMenu('historial.html').then(s => {
       sesion = s
@@ -114,7 +187,7 @@
     }
 
     function aplicarFiltros() {
-      const tipo = document.getElementById('filtro-tipo').value
+      const tipo      = document.getElementById('filtro-tipo').value
       const filtrados = movimientos.filter(m => !tipo || m.tipo === tipo)
       document.getElementById('contador').textContent =
         `Mostrando ${filtrados.length} de ${movimientos.length} movimientos`
@@ -150,7 +223,7 @@
 
     function abrirModalEntrada() {
       document.getElementById('e-cantidad').value = 1
-      document.getElementById('e-nota').value = ''
+      document.getElementById('e-nota').value     = ''
       document.getElementById('modal-entrada').classList.add('activo')
     }
 

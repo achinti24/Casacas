@@ -25,6 +25,14 @@
   <div class="contenido">
     <div class="encabezado">
       <h1>Ventas</h1>
+      <!-- Indicador lector -->
+      <div id="lector-status" style="
+        display:flex; align-items:center; gap:8px;
+        background:var(--card-bg); border:1px solid var(--border);
+        padding:8px 14px; border-radius:8px; font-size:13px; color:var(--text-muted);">
+        <span id="lector-dot" style="width:8px;height:8px;border-radius:50%;background:#2ecc71;display:inline-block;"></span>
+        <span id="lector-texto">Lector listo</span>
+      </div>
     </div>
 
     <div class="ventas-grid">
@@ -50,7 +58,7 @@
         </div>
 
         <div class="campo">
-          <label>Buscar producto</label>
+          <label>Buscar producto <small style="color:var(--text-muted); font-weight:normal;">(o escanea con el lector)</small></label>
           <input type="text" id="v-buscar"
             placeholder="Escribe nombre, categoria, colegio o talla..."
             oninput="buscarProducto()"
@@ -192,6 +200,53 @@
     let carrito        = []
     let apartadoActual = null
 
+    // ── LECTOR DE CODIGO DE BARRAS ────────────────────
+    let bufferLector  = ''
+    let timerLector   = null
+    const VELOCIDAD_LECTOR = 50 // ms entre caracteres del lector
+
+    document.addEventListener('keydown', (e) => {
+      // Ignorar si el foco está en un input normal (el usuario está escribiendo)
+      const tag = document.activeElement.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      // Ignorar si hay un modal abierto
+      if (document.querySelector('.modal-overlay.activo')) return
+
+      if (e.key === 'Enter') {
+        if (bufferLector.length >= 8) {
+          procesarCodigoLector(bufferLector)
+        }
+        bufferLector = ''
+        clearTimeout(timerLector)
+        return
+      }
+
+      if (e.key.length === 1) {
+        bufferLector += e.key
+        clearTimeout(timerLector)
+        timerLector = setTimeout(() => { bufferLector = '' }, VELOCIDAD_LECTOR * 10)
+      }
+    })
+
+    async function procesarCodigoLector(codigo) {
+      mostrarLectorStatus(`Buscando: ${codigo}`, '#f39c12')
+      const variante = await ipcRenderer.invoke('buscar-por-codigo', codigo)
+      if (!variante) {
+        mostrarLectorStatus('Codigo no encontrado', '#e94560')
+        setTimeout(() => mostrarLectorStatus('Lector listo', '#2ecc71'), 2000)
+        return
+      }
+      agregarAlCarrito(variante.id)
+      mostrarLectorStatus(`+ ${variante.nombre} T${variante.talla}`, '#2ecc71')
+      setTimeout(() => mostrarLectorStatus('Lector listo', '#2ecc71'), 2000)
+    }
+
+    function mostrarLectorStatus(texto, color) {
+      document.getElementById('lector-texto').textContent = texto
+      document.getElementById('lector-dot').style.background = color
+    }
+    // ─────────────────────────────────────────────────
+
     cargarMenu('ventas.html').then(s => {
       sesion = s
       cargarDatos()
@@ -301,22 +356,52 @@
     }
 
     function buscarProducto() {
-      const texto       = document.getElementById('v-buscar').value.toLowerCase()
+      const texto = document.getElementById('v-buscar').value
       const sugerencias = document.getElementById('v-sugerencias')
 
       if (!texto.trim()) { sugerencias.innerHTML = ''; return }
 
+      // Si es exactamente un EAN-13, buscar por código y agregar directo al carrito
+      if (/^\d{13}$/.test(texto)) {
+        let varianteEncontrada = null
+        let productoEncontrado = null
+
+        for (const p of productos) {
+          if (!p.variantes) continue
+          const v = p.variantes.find(x => x.codigo_barras === texto)
+          if (v) { varianteEncontrada = v; productoEncontrado = p; break }
+        }
+
+        if (varianteEncontrada) {
+          agregarAlCarrito(varianteEncontrada.id)
+          document.getElementById('v-buscar').value = ''
+          sugerencias.innerHTML = ''
+          mostrarLectorStatus(`+ ${productoEncontrado.nombre} T${varianteEncontrada.talla}`, '#2ecc71')
+          setTimeout(() => mostrarLectorStatus('Lector listo', '#2ecc71'), 2000)
+          return
+        } else {
+          sugerencias.innerHTML = '<div style="padding:12px; color:#e94560; font-size:14px;">Codigo no encontrado</div>'
+          mostrarLectorStatus('Codigo no encontrado', '#e94560')
+          setTimeout(() => mostrarLectorStatus('Lector listo', '#2ecc71'), 2000)
+          return
+        }
+      }
+
+      // Búsqueda normal por texto
+      const textoBajo = texto.toLowerCase()
       const resultados = []
+
       productos.forEach(p => {
         if (!p.variantes) return
         p.variantes.forEach(v => {
           if (v.cantidad <= 0) return
           const coincide =
-            p.nombre.toLowerCase().includes(texto)    ||
-            p.colegio.toLowerCase().includes(texto)   ||
-            p.categoria.toLowerCase().includes(texto) ||
-            v.talla.toLowerCase().includes(texto)     ||
-            p.genero.toLowerCase().includes(texto)
+            p.nombre.toLowerCase().includes(textoBajo)    ||
+            p.colegio.toLowerCase().includes(textoBajo)   ||
+            p.categoria.toLowerCase().includes(textoBajo) ||
+            v.talla.toLowerCase().includes(textoBajo)     ||
+            p.genero.toLowerCase().includes(textoBajo)    ||
+            (v.codigo_barras && v.codigo_barras.includes(textoBajo))
           if (coincide) resultados.push({ producto: p, variante: v })
         })
       })
@@ -499,6 +584,22 @@
       if (resultado.error) { alert(resultado.error); return }
 
       if (resultado.ok) {
+        // Imprimir recibo
+        const vueltos = dado - totalCobrar
+        const impresion = await ipcRenderer.invoke('imprimir-recibo', {
+          items: carrito,
+          subtotal,
+          abonoAplicado,
+          totalCobrar,
+          dado,
+          vueltos,
+          vendedor: sesion.nombre,
+          cliente:  apartadoActual ? apartadoActual.nombre : null
+        })
+        if (impresion.error) {
+          console.warn('No se pudo imprimir:', impresion.error)
+        }
+
         cerrarModalPago()
         carrito        = []
         apartadoActual = null
@@ -510,7 +611,6 @@
         productos = await ipcRenderer.invoke('obtener-productos')
         await cargarDatos()
 
-        const vueltos = dado - totalCobrar
         let mensaje = `Venta registrada\n\nTotal: $${totalCobrar.toLocaleString('es-CO')}\nDio: $${dado.toLocaleString('es-CO')}\nVueltos: $${vueltos.toLocaleString('es-CO')}`
 
         if (resultado.alertasAgotados && resultado.alertasAgotados.length > 0) {

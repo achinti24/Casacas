@@ -80,6 +80,38 @@
     <div class="modal" style="width:560px; max-height:90vh; overflow-y:auto;">
       <h2 id="modal-titulo">Nuevo Apartado</h2>
 
+      <!-- 1. PRODUCTOS PRIMERO -->
+      <div class="campo" id="campo-productos-apartado">
+        <label>Productos apartados</label>
+        <input type="text" id="ap-buscar" placeholder="Buscar producto por nombre, categoria o talla..."
+          oninput="buscarProductoApartado(this.value)"
+          style="width:100%; padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; margin-bottom:6px; background:var(--input-bg); color:var(--text);">
+        <div id="ap-sugerencias" class="sugerencias"></div>
+      </div>
+
+      <div id="ap-carrito-vacio" style="color:var(--text-muted); font-size:14px; text-align:center; padding:15px;">
+        Agrega productos al apartado
+      </div>
+
+      <table id="ap-carrito-tabla" style="display:none; margin-bottom:10px;">
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Precio</th>
+            <th>Cant.</th>
+            <th>Subtotal</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="ap-carrito-body"></tbody>
+      </table>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-top:2px solid var(--border); margin-top:8px; margin-bottom:16px;">
+        <span style="font-size:15px; color:var(--text);">Total apartado:</span>
+        <strong id="ap-total" style="font-size:20px; color:#e94560;">$0</strong>
+      </div>
+
+      <!-- 2. DATOS DEL CLIENTE DESPUÉS -->
       <div class="fila-doble">
         <div class="campo">
           <label>Nombre del cliente</label>
@@ -107,36 +139,6 @@
       <div class="campo">
         <label>Notas</label>
         <input type="text" id="f-notas" placeholder="Ej: Viene el viernes a recoger">
-      </div>
-
-      <div class="campo" id="campo-productos-apartado">
-        <label>Productos apartados</label>
-        <input type="text" id="ap-buscar" placeholder="Buscar producto por nombre, categoria o talla..."
-          oninput="buscarProductoApartado(this.value)"
-          style="width:100%; padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; margin-bottom:6px; background:var(--input-bg); color:var(--text);">
-        <div id="ap-sugerencias" class="sugerencias"></div>
-      </div>
-
-      <div id="ap-carrito-vacio" style="color:var(--text-muted); font-size:14px; text-align:center; padding:15px;">
-        Agrega productos al apartado
-      </div>
-
-      <table id="ap-carrito-tabla" style="display:none; margin-bottom:10px;">
-        <thead>
-          <tr>
-            <th>Producto</th>
-            <th>Precio</th>
-            <th>Cant.</th>
-            <th>Subtotal</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="ap-carrito-body"></tbody>
-      </table>
-
-      <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-top:2px solid var(--border); margin-top:8px;">
-        <span style="font-size:15px; color:var(--text);">Total apartado:</span>
-        <strong id="ap-total" style="font-size:20px; color:#e94560;">$0</strong>
       </div>
 
       <div class="modal-botones">
@@ -320,6 +322,29 @@
       const sugerencias = document.getElementById('ap-sugerencias')
       if (!texto.trim()) { sugerencias.innerHTML = ''; return }
 
+      // Si es exactamente un EAN-13, agregar directo al carrito
+      if (/^\d{13}$/.test(texto)) {
+        let productoBase = null
+        let varianteEncontrada = null
+
+        for (const p of productos) {
+          if (!p.variantes) continue
+          const v = p.variantes.find(x => x.codigo_barras === texto)
+          if (v) { productoBase = p; varianteEncontrada = v; break }
+        }
+
+        if (varianteEncontrada) {
+          document.getElementById('ap-buscar').value = ''
+          sugerencias.innerHTML = ''
+          agregarAlCarritoApartado(varianteEncontrada.id)
+          return
+        } else {
+          sugerencias.innerHTML = '<div style="padding:12px; color:#e94560; font-size:14px;">Codigo no encontrado</div>'
+          return
+        }
+      }
+
+      // Búsqueda normal por texto
       const resultados = []
       productos.forEach(p => {
         if (!p.variantes) return
@@ -328,7 +353,8 @@
             p.nombre.toLowerCase().includes(texto.toLowerCase())    ||
             p.categoria.toLowerCase().includes(texto.toLowerCase()) ||
             v.talla.toLowerCase().includes(texto.toLowerCase())     ||
-            p.colegio.toLowerCase().includes(texto.toLowerCase())
+            p.colegio.toLowerCase().includes(texto.toLowerCase())   ||
+            (v.codigo_barras && v.codigo_barras.includes(texto))
           if (coincide) resultados.push({ producto: p, variante: v })
         })
       })
@@ -371,6 +397,7 @@
           nombre:          productoBase.nombre,
           talla:           varianteSeleccionada.talla,
           categoria:       productoBase.categoria,
+          colegio:         productoBase.colegio,
           precio_unitario: varianteSeleccionada.precio,
           cantidad:        1
         })
@@ -399,6 +426,7 @@
         vacio.style.display = 'block'
         tabla.style.display = 'none'
         document.getElementById('ap-total').textContent = '$0'
+        document.getElementById('f-colegio').value = ''
         return
       }
 
@@ -424,6 +452,20 @@
 
       const total = carritoApartado.reduce((acc, i) => acc + i.precio_unitario * i.cantidad, 0)
       document.getElementById('ap-total').textContent = '$' + total.toLocaleString('es-CO')
+
+      // ── COLEGIO AUTOMÁTICO ──────────────────────────────
+      const colegiosEnCarrito = [...new Set(
+        carritoApartado
+          .map(i => i.colegio)
+          .filter(c => c && c.trim() !== '' && c !== 'Sin colegio')
+      )]
+
+      const selectColegio = document.getElementById('f-colegio')
+      if (colegiosEnCarrito.length === 1) {
+        selectColegio.value = colegiosEnCarrito[0]
+      } else {
+        selectColegio.value = ''
+      }
     }
 
     async function guardarApartado() {

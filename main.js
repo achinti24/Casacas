@@ -17,12 +17,11 @@ function calcularDigitoEAN13(doce) {
 }
 
 function generarEAN13(productoId, varianteId) {
-  const prefix = '10'
-  const pPart  = String(productoId).padStart(4, '0').slice(-4)
-  const vPart  = String(varianteId).padStart(4, '0').slice(-4)
-  const doce   = prefix + pPart + vPart
+  const pPart  = String(productoId).padStart(5, '0').slice(-5)
+  const vPart  = String(varianteId).padStart(5, '0').slice(-5)
+  const doce   = '10' + pPart + vPart   // 2 + 5 + 5 = 12 digitos
   const digito = calcularDigitoEAN13(doce)
-  return doce + digito
+  return doce + digito                  // 13 digitos
 }
 
 // ── EXCEL ─────────────────────────────────────────
@@ -129,6 +128,42 @@ app.whenReady().then(() => {
   }, 2800)
 
   const db = require('./database.js')
+
+  // ── FIX: CORREGIR VARIANTES CON CODIGO 'TEMP' ────
+  try {
+    const variantes_temp = db.prepare(
+      "SELECT id, producto_id FROM producto_variantes WHERE codigo_barras = 'TEMP'"
+    ).all()
+    if (variantes_temp.length > 0) {
+      const updateCodigo = db.prepare('UPDATE producto_variantes SET codigo_barras = ? WHERE id = ?')
+      for (const v of variantes_temp) {
+        const codigo = generarEAN13(v.producto_id, v.id)
+        updateCodigo.run(codigo, v.id)
+      }
+      console.log(`Codigos TEMP corregidos: ${variantes_temp.length}`)
+    }
+  } catch (err) {
+    console.error('Error corrigiendo codigos TEMP:', err)
+  }
+
+  // ── FIX: CORREGIR VARIANTES CON CODIGO QUE CONTIENE NaN ──
+  try {
+    const variantes_nan = db.prepare(
+      "SELECT id, producto_id FROM producto_variantes WHERE codigo_barras LIKE '%NaN%'"
+    ).all()
+    if (variantes_nan.length > 0) {
+      const updateCodigo = db.prepare('UPDATE producto_variantes SET codigo_barras = ? WHERE id = ?')
+      for (const v of variantes_nan) {
+        const codigo = generarEAN13(v.producto_id, v.id)
+        updateCodigo.run(codigo, v.id)
+      }
+      console.log(`Codigos NaN corregidos: ${variantes_nan.length}`)
+    }
+  } catch (err) {
+    console.error('Error corrigiendo codigos NaN:', err)
+  }
+  // ─────────────────────────────────────────────────
+
   function hacerBackup() {
     try {
       const origen   = path.join(app.getPath('userData'), 'casacas.db')
@@ -156,6 +191,7 @@ app.whenReady().then(() => {
   }
 
   hacerBackup()
+
   // ── SESION ────────────────────────────────────────
   ipcMain.handle('guardar-sesion', (e, d) => { sesionActual = d; return true })
   ipcMain.handle('obtener-sesion', () => sesionActual)
@@ -259,9 +295,9 @@ app.whenReady().then(() => {
     `)
 
     for (const v of variantes) {
-      const varResult = insertVar.run(productoId, v.talla, v.precio, v.cantidad, v.stock_minimo, 'TEMP')
+      const varResult  = insertVar.run(productoId, v.talla, v.precio, v.cantidad, v.stock_minimo, 'TEMP')
       const varianteId = varResult.lastInsertRowid
-      const codigo = generarEAN13(productoId, varianteId)
+      const codigo     = generarEAN13(productoId, varianteId)
       db.prepare('UPDATE producto_variantes SET codigo_barras = ? WHERE id = ?').run(codigo, varianteId)
     }
 
@@ -283,7 +319,7 @@ app.whenReady().then(() => {
       VALUES (?, ?, ?, ?, ?, 'TEMP')
     `).run(productoId, variante.talla, variante.precio, variante.cantidad, variante.stock_minimo)
     const varianteId = result.lastInsertRowid
-    const codigo = generarEAN13(productoId, varianteId)
+    const codigo     = generarEAN13(productoId, varianteId)
     db.prepare('UPDATE producto_variantes SET codigo_barras = ? WHERE id = ?').run(codigo, varianteId)
     actualizarExcelInventario(db)
     return { ok: true, varianteId, codigo }
@@ -298,12 +334,25 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('eliminar-variante', (e, id) => {
+    db.prepare('DELETE FROM apartado_items WHERE variante_id = ?').run(id)
+    db.prepare('DELETE FROM venta_items    WHERE variante_id = ?').run(id)
+    db.prepare('DELETE FROM movimientos    WHERE variante_id = ?').run(id)
     db.prepare('DELETE FROM producto_variantes WHERE id = ?').run(id)
     actualizarExcelInventario(db)
     return { ok: true }
   })
 
   ipcMain.handle('eliminar-producto', (e, id) => {
+    const variantes = db.prepare('SELECT id FROM producto_variantes WHERE producto_id = ?').all(id)
+    const ids = variantes.map(v => v.id)
+
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => '?').join(',')
+      db.prepare(`DELETE FROM apartado_items WHERE variante_id IN (${placeholders})`).run(...ids)
+      db.prepare(`DELETE FROM venta_items    WHERE variante_id IN (${placeholders})`).run(...ids)
+      db.prepare(`DELETE FROM movimientos    WHERE variante_id IN (${placeholders})`).run(...ids)
+    }
+
     db.prepare('DELETE FROM producto_variantes WHERE producto_id = ?').run(id)
     db.prepare('DELETE FROM productos WHERE id = ?').run(id)
     actualizarExcelInventario(db)
@@ -612,6 +661,74 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('obtener-ruta-excel', () => getRutaExcel())
+
+  // ── IMPRESORA TERMICA ─────────────────────────────
+  ipcMain.handle('imprimir-recibo', async (e, { items, subtotal, abonoAplicado, totalCobrar, dado, vueltos, vendedor, cliente }) => {
+    try {
+      const fs = require('fs')
+
+      const ESC    = '\x1B'
+      const INIT   = ESC + '@'
+      const BOLD   = ESC + 'E\x01'
+      const UNBOLD = ESC + 'E\x00'
+      const CENTER = ESC + 'a\x01'
+      const LEFT   = ESC + 'a\x00'
+      const RIGHT  = ESC + 'a\x02'
+      const CUT    = '\x1D' + 'V\x41\x00'
+      const LF     = '\n'
+
+      const linea   = '--------------------------------'
+      const fecha   = new Date().toLocaleString('es-CO')
+      const ventaId = Date.now().toString().slice(-6)
+
+      const limpiar = (str) => str
+        .replace(/á/g, 'a').replace(/é/g, 'e').replace(/í/g, 'i')
+        .replace(/ó/g, 'o').replace(/ú/g, 'u').replace(/ü/g, 'u')
+        .replace(/Á/g, 'A').replace(/É/g, 'E').replace(/Í/g, 'I')
+        .replace(/Ó/g, 'O').replace(/Ú/g, 'U').replace(/ñ/g, 'n')
+        .replace(/Ñ/g, 'N')
+
+      let recibo = INIT
+      recibo += CENTER + BOLD + 'Casacas Colegial' + LF + UNBOLD
+      recibo += CENTER + 'San Gil - Calle 11 No. 10-66' + LF
+      recibo += CENTER + 'Piso 2, Local 201' + LF
+      recibo += CENTER + 'Tel: 313 849 5210' + LF
+      recibo += CENTER + 'colegialcasacas@gmail.com' + LF
+      recibo += CENTER + linea + LF
+      recibo += CENTER + 'Factura No. ' + ventaId + LF
+      recibo += CENTER + fecha + LF
+      recibo += CENTER + 'Vendedor: ' + vendedor + LF
+      if (cliente) recibo += CENTER + 'Cliente: ' + cliente + LF
+      recibo += LEFT + linea + LF
+
+      items.forEach(i => {
+        const sub = (i.precio_unitario * i.cantidad).toLocaleString('es-CO')
+        recibo += LEFT + i.nombre + ' T' + i.talla + LF
+        recibo += LEFT + '  ' + i.cantidad + ' x $' + parseFloat(i.precio_unitario).toLocaleString('es-CO') + ' = $' + sub + LF
+      })
+
+      recibo += LEFT + linea + LF
+      recibo += RIGHT + 'Subtotal:  $' + subtotal.toLocaleString('es-CO') + LF
+      if (abonoAplicado > 0) {
+        recibo += RIGHT + 'Abono:    -$' + abonoAplicado.toLocaleString('es-CO') + LF
+      }
+      recibo += RIGHT + BOLD + 'TOTAL:     $' + totalCobrar.toLocaleString('es-CO') + LF + UNBOLD
+      recibo += RIGHT + 'Recibido:  $' + dado.toLocaleString('es-CO') + LF
+      recibo += RIGHT + 'Vueltos:   $' + vueltos.toLocaleString('es-CO') + LF
+      recibo += LEFT + linea + LF
+      recibo += CENTER + 'Gracias por su compra!' + LF
+      recibo += CENTER + 'Vuelve pronto :)' + LF
+      recibo += LF + LF + LF
+      recibo += CUT
+
+      fs.writeFileSync('/dev/usb/lp0', Buffer.from(limpiar(recibo), 'latin1'))
+      return { ok: true }
+    } catch (err) {
+      console.error('Error impresora:', err)
+      return { error: err.message }
+    }
+  })
+  // ─────────────────────────────────────────────────
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Casacas - Codigos de Barras</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="toast.js"></script>
+</head>
+<body>
+
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <h2>Casacas</h2>
+      <small>y Uniformes</small>
+    </div>
+    <nav id="nav-menu"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-usuario" id="info-usuario"></div>
+      <button class="btn-modo" onclick="toggleModo()">Modo oscuro</button>
+      <button class="btn-cerrar-sesion" onclick="cerrarSesion()">Cerrar sesion</button>
+    </div>
+  </div>
+
+  <div class="contenido">
+    <div class="encabezado">
+      <h1>Codigos de Barras</h1>
+      <button class="btn btn-rojo" onclick="imprimirTodos()">Imprimir todos</button>
+    </div>
+
+    <div class="filtros">
+      <input class="buscador" type="text" id="buscador"
+        placeholder="Buscar por nombre, colegio, categoria o talla..."
+        oninput="aplicarFiltros()"
+        style="margin-bottom:0; flex:1;">
+      <select id="filtro-categoria" onchange="aplicarFiltros()">
+        <option value="">Todas las categorias</option>
+      </select>
+      <select id="filtro-colegio" onchange="aplicarFiltros()">
+        <option value="">Todos los colegios</option>
+      </select>
+      <button class="btn-limpiar" onclick="limpiarFiltros()">Limpiar</button>
+    </div>
+
+    <p id="contador" style="margin:12px 0; color:var(--text-muted); font-size:14px;"></p>
+
+    <div id="grid-codigos" style="
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+    "></div>
+  </div>
+
+  <!-- MODAL VER CODIGO -->
+  <div class="modal-overlay" id="modal-codigo">
+    <div class="modal" style="width:400px; text-align:center;">
+      <h2 id="codigo-titulo"></h2>
+      <p id="codigo-subtitulo" style="color:var(--text-muted); font-size:14px; margin-bottom:20px;"></p>
+      <canvas id="codigo-canvas-modal" style="max-width:100%;"></canvas>
+      <p id="codigo-numero-modal" style="font-size:16px; font-weight:bold; letter-spacing:3px; margin-top:12px; color:var(--text);"></p>
+      <div class="modal-botones" style="justify-content:center; gap:10px;">
+        <button class="btn btn-gris" onclick="cerrarModalCodigo()">Cerrar</button>
+        <button class="btn btn-rojo" onclick="descargarCodigoModal()">Descargar imagen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AREA DE IMPRESION (oculta) -->
+  <div id="area-impresion" style="display:none;"></div>
+
+  <script src="nav.js"></script>
+  <script src="node_modules/jsbarcode/dist/JsBarcode.all.min.js"></script>
+  <script>
+    let sesion     = null
+    let variantes  = []
+    let filtradas  = []
+
+    cargarMenu('codigos.html').then(s => {
+      sesion = s
+      cargarDatos()
+    })
+
+    async function cargarDatos() {
+      const productos   = await ipcRenderer.invoke('obtener-productos')
+      const categorias  = await ipcRenderer.invoke('obtener-categorias-producto')
+      const colegios    = await ipcRenderer.invoke('obtener-colegios')
+
+      document.getElementById('filtro-categoria').innerHTML =
+        '<option value="">Todas las categorias</option>' +
+        categorias.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('')
+
+      document.getElementById('filtro-colegio').innerHTML =
+        '<option value="">Todos los colegios</option>' +
+        colegios.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('')
+
+      variantes = []
+      productos.forEach(p => {
+        if (!p.variantes) return
+        p.variantes.forEach(v => {
+          variantes.push({
+            variante_id:  v.id,
+            codigo:       v.codigo_barras,
+            talla:        v.talla,
+            precio:       v.precio,
+            cantidad:     v.cantidad,
+            nombre:       p.nombre,
+            categoria:    p.categoria,
+            colegio:      p.colegio,
+            genero:       p.genero,
+          })
+        })
+      })
+
+      aplicarFiltros()
+    }
+
+    function aplicarFiltros() {
+      const texto     = document.getElementById('buscador').value.toLowerCase()
+      const categoria = document.getElementById('filtro-categoria').value
+      const colegio   = document.getElementById('filtro-colegio').value
+
+      filtradas = variantes.filter(v =>
+        (!texto    || v.nombre.toLowerCase().includes(texto)    ||
+                      v.colegio.toLowerCase().includes(texto)   ||
+                      v.categoria.toLowerCase().includes(texto) ||
+                      v.talla.toLowerCase().includes(texto)     ||
+                      v.codigo.includes(texto)) &&
+        (!categoria || v.categoria === categoria) &&
+        (!colegio   || v.colegio === colegio)
+      )
+
+      document.getElementById('contador').textContent =
+        `Mostrando ${filtradas.length} de ${variantes.length} codigos`
+
+      renderGrid()
+    }
+
+    function limpiarFiltros() {
+      document.getElementById('buscador').value = ''
+      document.getElementById('filtro-categoria').value = ''
+      document.getElementById('filtro-colegio').value = ''
+      aplicarFiltros()
+    }
+
+    function esCodigoValido(codigo) {
+      return typeof codigo === 'string' && /^\d{13}$/.test(codigo)
+    }
+
+    function dibujarPlaceholderCanvas(canvas, mensaje) {
+      canvas.width  = 200
+      canvas.height = 60
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = 'var(--bg-panel, #f0f0f0)'
+      ctx.fillRect(0, 0, 200, 60)
+      ctx.fillStyle = '#aaa'
+      ctx.font = '11px Arial'
+      ctx.textAlign = 'center'
+      ctx.fillText(mensaje, 100, 35)
+    }
+
+    // Genera un canvas offscreen con el código + info del producto y lo descarga como PNG
+    function descargarImagen(v) {
+      const offscreen = document.createElement('canvas')
+
+      if (!esCodigoValido(v.codigo)) {
+        alert('Este producto no tiene un codigo de barras valido')
+        return
+      }
+
+      // Primero renderizar el barcode para saber el tamaño
+      try {
+        JsBarcode(offscreen, v.codigo, {
+          format:       'EAN13',
+          lineColor:    '#1a1a2e',
+          width:        3,
+          height:       100,
+          displayValue: true,
+          fontSize:     18,
+          margin:       12
+        })
+      } catch(e) {
+        alert('Error al generar el codigo de barras')
+        return
+      }
+
+      // Crear canvas final con espacio para texto arriba
+      const padding   = 16
+      const textoAlto = 70
+      const final     = document.createElement('canvas')
+      final.width     = offscreen.width + padding * 2
+      final.height    = offscreen.height + textoAlto + padding * 2
+
+      const ctx = final.getContext('2d')
+
+      // Fondo blanco
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, final.width, final.height)
+
+      // Texto del producto
+      ctx.fillStyle = '#1a1a2e'
+      ctx.textAlign = 'center'
+      const cx = final.width / 2
+
+      ctx.font = 'bold 16px Arial'
+      ctx.fillText(v.nombre, cx, padding + 20)
+
+      ctx.font = '13px Arial'
+      ctx.fillStyle = '#555'
+      ctx.fillText(`${v.categoria} · ${v.colegio} · Talla ${v.talla} · ${v.genero}`, cx, padding + 40)
+
+      ctx.font = 'bold 14px Arial'
+      ctx.fillStyle = '#e94560'
+      ctx.fillText(`$${parseFloat(v.precio).toLocaleString('es-CO')}`, cx, padding + 60)
+
+      // Pegar el barcode
+      ctx.drawImage(offscreen, padding, textoAlto + padding)
+
+      // Disparar descarga
+      const link     = document.createElement('a')
+      const nombre   = `${v.nombre}_T${v.talla}_${v.colegio}`.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '')
+      link.download  = `${nombre}.png`
+      link.href      = final.toDataURL('image/png')
+      link.click()
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById('grid-codigos')
+
+      if (filtradas.length === 0) {
+        grid.innerHTML = '<div class="vacio" style="grid-column:1/-1; padding:60px; text-align:center;">No se encontraron codigos.</div>'
+        return
+      }
+
+      grid.innerHTML = filtradas.map(v => `
+        <div class="panel" style="text-align:center;">
+          <div style="cursor:pointer; transition:transform 0.15s;"
+            onclick="verCodigo(${v.variante_id})"
+            onmouseover="this.style.transform='translateY(-2px)'"
+            onmouseout="this.style.transform='translateY(0)'">
+            <canvas id="canvas-${v.variante_id}" style="max-width:100%;"></canvas>
+            <div style="margin-top:10px;">
+              <strong style="font-size:14px; color:var(--text);">${v.nombre}</strong><br>
+              <span style="font-size:12px; color:var(--text-muted);">${v.categoria} · ${v.colegio} · T${v.talla}</span><br>
+              <span style="font-size:12px; color:var(--text-muted);">${v.genero}</span><br>
+              <strong style="font-size:13px; color:#e94560;">$${parseFloat(v.precio).toLocaleString('es-CO')}</strong><br>
+              <span style="font-size:11px; color:var(--text-muted); letter-spacing:1px;">${v.codigo}</span>
+            </div>
+            <div style="margin-top:10px; display:flex; gap:6px; justify-content:center;">
+              <span class="badge ${v.cantidad > 0 ? 'badge-verde' : 'badge-rojo'}" style="font-size:11px;">
+                ${v.cantidad > 0 ? v.cantidad + ' en stock' : 'Agotado'}
+              </span>
+            </div>
+          </div>
+          <button class="btn btn-gris" style="width:100%; margin-top:10px; font-size:12px; padding:6px 0;"
+            onclick="descargarImagenPorId(${v.variante_id})">
+            Descargar imagen
+          </button>
+        </div>
+      `).join('')
+
+      // Generar codigos de barras en cada canvas
+      filtradas.forEach(v => {
+        const canvas = document.getElementById(`canvas-${v.variante_id}`)
+        if (!canvas) return
+
+        if (!esCodigoValido(v.codigo)) {
+          dibujarPlaceholderCanvas(canvas, 'Codigo pendiente')
+          return
+        }
+
+        try {
+          JsBarcode(canvas, v.codigo, {
+            format:       'EAN13',
+            lineColor:    '#1a1a2e',
+            width:        1.8,
+            height:       60,
+            displayValue: false,
+            margin:       6
+          })
+        } catch(e) {
+          console.error('Error generando codigo:', v.codigo, e)
+          dibujarPlaceholderCanvas(canvas, 'Error al generar')
+        }
+      })
+    }
+
+    function descargarImagenPorId(varianteId) {
+      const v = variantes.find(x => x.variante_id === varianteId)
+      if (!v) return
+      descargarImagen(v)
+    }
+
+    function verCodigo(varianteId) {
+      const v = variantes.find(x => x.variante_id === varianteId)
+      if (!v) return
+
+      document.getElementById('codigo-titulo').textContent       = v.nombre
+      document.getElementById('codigo-subtitulo').textContent    = `${v.categoria} · ${v.colegio} · Talla ${v.talla} · ${v.genero}`
+      document.getElementById('codigo-numero-modal').textContent = v.codigo
+
+      const canvas = document.getElementById('codigo-canvas-modal')
+
+      if (!esCodigoValido(v.codigo)) {
+        dibujarPlaceholderCanvas(canvas, 'Codigo no valido')
+        document.getElementById('modal-codigo').classList.add('activo')
+        return
+      }
+
+      try {
+        JsBarcode(canvas, v.codigo, {
+          format:       'EAN13',
+          lineColor:    '#1a1a2e',
+          width:        3,
+          height:       100,
+          displayValue: true,
+          fontSize:     18,
+          margin:       12
+        })
+      } catch(e) {
+        console.error('Error:', e)
+        dibujarPlaceholderCanvas(canvas, 'Error al generar')
+      }
+
+      document.getElementById('modal-codigo').classList.add('activo')
+    }
+
+    function cerrarModalCodigo() {
+      document.getElementById('modal-codigo').classList.remove('activo')
+    }
+
+    // Descarga desde el modal (usa la variante actualmente mostrada)
+    function descargarCodigoModal() {
+      const titulo = document.getElementById('codigo-titulo').textContent
+      const v = variantes.find(x => x.nombre === titulo &&
+        document.getElementById('codigo-subtitulo').textContent.includes(`Talla ${x.talla}`))
+      if (!v) return
+      descargarImagen(v)
+    }
+
+    function imprimirTodos() {
+      if (filtradas.length === 0) { alert('No hay codigos para imprimir'); return }
+      if (filtradas.length > 50) {
+        if (!confirm(`Vas a imprimir ${filtradas.length} codigos. Continuar?`)) return
+      }
+
+      const ventana = window.open('', '_blank', 'width=800,height=600')
+      const items   = filtradas.map(v => {
+        const canvas = document.getElementById(`canvas-${v.variante_id}`)
+        const imagen = canvas ? canvas.toDataURL('image/png') : ''
+        return `
+          <div class="codigo-item">
+            <strong>${v.nombre}</strong>
+            <span>${v.colegio} · T${v.talla}</span>
+            <img src="${imagen}">
+            <span class="numero">${v.codigo}</span>
+          </div>
+        `
+      }).join('')
+
+      ventana.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Codigos de Barras</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 10px; }
+            .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+            .codigo-item { text-align: center; border: 1px solid #ddd; padding: 8px; border-radius: 6px; }
+            .codigo-item strong { display: block; font-size: 12px; margin-bottom: 2px; }
+            .codigo-item span { display: block; font-size: 10px; color: #666; }
+            .codigo-item img { max-width: 100%; margin: 4px 0; }
+            .codigo-item .numero { font-size: 11px; letter-spacing: 1px; font-weight: bold; color: #333; }
+            @media print { @page { margin: 10mm; } }
+          </style>
+        </head>
+        <body>
+          <div class="grid">${items}</div>
+          <script>window.onload = () => { window.print(); window.close(); }<\/script>
+        </body>
+        </html>
+      `)
+      ventana.document.close()
+    }
+  </script>
+
+</body>
+</html>
