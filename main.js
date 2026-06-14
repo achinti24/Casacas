@@ -19,9 +19,9 @@ function calcularDigitoEAN13(doce) {
 function generarEAN13(productoId, varianteId) {
   const pPart  = String(productoId).padStart(5, '0').slice(-5)
   const vPart  = String(varianteId).padStart(5, '0').slice(-5)
-  const doce   = '10' + pPart + vPart   // 2 + 5 + 5 = 12 digitos
+  const doce   = '10' + pPart + vPart
   const digito = calcularDigitoEAN13(doce)
-  return doce + digito                  // 13 digitos
+  return doce + digito
 }
 
 // ── EXCEL ─────────────────────────────────────────
@@ -33,7 +33,6 @@ function getRutaExcel() {
 
 function actualizarExcelVentas(db) {
   try {
-    console.log('Intentando escribir Excel en:', getRutaExcel())
     const ventas = db.prepare(`
       SELECT v.id, v.fecha, u.nombre as vendedor, a.nombre as cliente,
              v.abono_aplicado, v.total, v.estado
@@ -163,7 +162,6 @@ app.whenReady().then(() => {
   } catch (err) {
     console.error('Error corrigiendo codigos NaN:', err)
   }
-  // ─────────────────────────────────────────────────
 
   function hacerBackup() {
     try {
@@ -572,11 +570,15 @@ app.whenReady().then(() => {
       GROUP BY pv.id ORDER BY total_vendido DESC LIMIT 5
     `).all()
 
+    // ── CORREGIDO: inferir colegio de los productos vendidos ──
     const porColegio = db.prepare(`
-      SELECT a.colegio, COUNT(*) as ventas, SUM(v.total) as total
-      FROM ventas v JOIN apartados a ON v.apartado_id = a.id
-      WHERE a.colegio IS NOT NULL AND a.colegio != ''
-      GROUP BY a.colegio ORDER BY ventas DESC
+      SELECT p.colegio, COUNT(DISTINCT v.id) as ventas, SUM(vi.cantidad * vi.precio_unitario) as total
+      FROM venta_items vi
+      JOIN producto_variantes pv ON vi.variante_id = pv.id
+      JOIN productos p ON pv.producto_id = p.id
+      JOIN ventas v ON vi.venta_id = v.id
+      WHERE p.colegio IS NOT NULL AND p.colegio != ''
+      GROUP BY p.colegio ORDER BY ventas DESC
     `).all()
 
     const apartadosVencidos = db.prepare(`
