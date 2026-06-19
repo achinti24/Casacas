@@ -4,7 +4,9 @@
   "description": "Sistema de inventario para tienda de ropa",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build-win": "electron-builder --win",
+    "build-linux": "electron-builder --linux"
   },
   "keywords": [],
   "author": "",
@@ -12,6 +14,7 @@
   "type": "commonjs",
   "devDependencies": {
     "electron": "^41.5.0",
+    "electron-builder": "^26.15.3",
     "electron-rebuild": "^3.2.9"
   },
   "dependencies": {
@@ -21,5 +24,30 @@
     "escpos-usb": "^3.0.0-alpha.4",
     "jsbarcode": "^3.12.3",
     "xlsx": "^0.18.5"
+  },
+  "build": {
+    "appId": "com.casacas.colegial",
+    "productName": "Casacas",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!reportes/**",
+      "!dist/**",
+      "!.git/**"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   }
 }

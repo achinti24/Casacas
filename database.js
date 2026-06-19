@@ -47,6 +47,7 @@ db.exec(`
     producto_id INTEGER NOT NULL,
     talla TEXT NOT NULL,
     precio REAL DEFAULT 0,
+    precio_costo REAL DEFAULT 0,
     cantidad INTEGER DEFAULT 0,
     stock_minimo INTEGER DEFAULT 3,
     codigo_barras TEXT UNIQUE,
@@ -81,11 +82,14 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS ventas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    numero_factura INTEGER UNIQUE,
     usuario_id INTEGER,
     apartado_id INTEGER,
     total REAL DEFAULT 0,
     abono_aplicado REAL DEFAULT 0,
     estado TEXT DEFAULT 'entregado',
+    anulada INTEGER DEFAULT 0,
+    motivo_anulacion TEXT,
     fecha TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
     FOREIGN KEY (apartado_id) REFERENCES apartados(id)
@@ -141,7 +145,43 @@ db.exec(`
     fecha_cierre TEXT,
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
   );
+
+  CREATE TABLE IF NOT EXISTS log_actividad (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id INTEGER,
+    usuario_nombre TEXT,
+    accion TEXT NOT NULL,
+    detalle TEXT,
+    fecha TEXT DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS contador_facturas (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    ultimo_numero INTEGER DEFAULT 0
+  );
 `)
+
+// ── Migrations para BD existente ──────────────────────────────────────────────
+const migrations = [
+  `ALTER TABLE ventas ADD COLUMN numero_factura INTEGER UNIQUE`,
+  `ALTER TABLE ventas ADD COLUMN anulada INTEGER DEFAULT 0`,
+  `ALTER TABLE ventas ADD COLUMN motivo_anulacion TEXT`,
+  // Nueva columna precio_costo para BDs existentes
+  `ALTER TABLE producto_variantes ADD COLUMN precio_costo REAL DEFAULT 0`,
+]
+
+migrations.forEach(sql => {
+  try { db.exec(sql) } catch(e) { /* columna ya existe, ignorar */ }
+})
+
+// Inicializar contador de facturas
+const contadorExiste = db.prepare('SELECT id FROM contador_facturas WHERE id = 1').get()
+if (!contadorExiste) {
+  const ultimaVenta = db.prepare('SELECT MAX(id) as max FROM ventas').get()
+  const inicio = ultimaVenta?.max || 0
+  db.prepare('INSERT INTO contador_facturas (id, ultimo_numero) VALUES (1, ?)').run(inicio)
+}
 
 // Admin por defecto
 const adminExiste = db.prepare("SELECT id FROM usuarios WHERE usuario = 'admin'").get()

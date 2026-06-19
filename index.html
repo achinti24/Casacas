@@ -32,6 +32,7 @@
       </div>
     </div>
 
+    <!-- CARDS RESUMEN -->
     <div class="cards">
       <div class="card rojo">
         <span class="icono">📦</span>
@@ -55,6 +56,7 @@
       </div>
     </div>
 
+    <!-- ALERTAS STOCK -->
     <div id="alertas-container" style="display:none; margin-bottom:20px;">
       <div id="alertas-inner" style="border-radius:10px; padding:16px 20px;">
         <strong id="alertas-titulo">Stock bajo:</strong>
@@ -62,26 +64,42 @@
       </div>
     </div>
 
+    <!-- ALERTA APARTADOS -->
     <div id="alerta-apartados" style="display:none; background:#fff8e1; border-left:4px solid #f39c12; border-radius:10px; padding:16px 20px; margin-bottom:20px;">
       <strong>Apartados sin recoger:</strong>
       <span id="alerta-apartados-texto" style="font-size:14px; color:#555; margin-left:10px;"></span>
     </div>
 
+    <!-- FILA 1: Ventas del periodo + Ingresos vs Egresos -->
     <div class="graficas-grid" style="margin-bottom:20px;">
       <div class="panel">
         <h3 style="margin-bottom:16px;">Ventas del periodo</h3>
         <canvas id="grafica-ventas" height="200"></canvas>
       </div>
       <div class="panel">
-        <h3 style="margin-bottom:16px;">Productos mas vendidos</h3>
-        <canvas id="grafica-productos" height="200"></canvas>
+        <h3 style="margin-bottom:16px;">Ingresos vs Egresos (6 meses)</h3>
+        <canvas id="grafica-ingresos-egresos" height="200"></canvas>
       </div>
     </div>
 
+    <!-- FILA 2: Top productos (con colegio) + Ventas por colegio -->
     <div class="graficas-grid" style="margin-bottom:20px;">
       <div class="panel">
+        <h3 style="margin-bottom:4px;">Productos mas vendidos</h3>
+        <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Nombre · Colegio · Talla</p>
+        <canvas id="grafica-productos" height="240"></canvas>
+      </div>
+      <div class="panel">
         <h3 style="margin-bottom:16px;">Ventas por colegio</h3>
-        <canvas id="grafica-colegios" height="200"></canvas>
+        <canvas id="grafica-colegios" height="240"></canvas>
+      </div>
+    </div>
+
+    <!-- FILA 3: Ventas por categoria + Estado inventario -->
+    <div class="graficas-grid" style="margin-bottom:20px;">
+      <div class="panel">
+        <h3 style="margin-bottom:16px;">Ventas por categoria</h3>
+        <canvas id="grafica-categorias" height="200"></canvas>
       </div>
       <div class="panel">
         <h3 style="margin-bottom:16px;">Estado del inventario</h3>
@@ -89,6 +107,19 @@
       </div>
     </div>
 
+    <!-- FILA 4: Ganancia bruta por periodo + Unidades vendidas por categoria -->
+    <div class="graficas-grid" style="margin-bottom:20px;">
+      <div class="panel">
+        <h3 style="margin-bottom:16px;">Ganancia bruta por mes</h3>
+        <canvas id="grafica-ganancia" height="200"></canvas>
+      </div>
+      <div class="panel">
+        <h3 style="margin-bottom:16px;">Unidades vendidas por talla</h3>
+        <canvas id="grafica-tallas" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- TABLAS INFERIORES -->
     <div class="dashboard-grid">
       <div class="panel">
         <h3>Productos Agotados</h3>
@@ -111,16 +142,20 @@
   <script src="nav.js"></script>
   <script src="node_modules/chart.js/dist/chart.umd.js"></script>
   <script>
-    let sesion          = null
-    let estadisticas    = null
-    let periodoActual   = 'dia'
-    let graficaVentas   = null
-    let graficaProductos = null
-    let graficaColegios  = null
-    let graficaInventario = null
+    let sesion             = null
+    let estadisticas       = null
+    let periodoActual      = 'dia'
+    let graficaVentas      = null
+    let graficaProductos   = null
+    let graficaColegios    = null
+    let graficaInventario  = null
+    let graficaCategorias  = null
+    let graficaGanancia    = null
+    let graficaTallas      = null
+    let graficaIngEgr      = null
 
-    const MESES  = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-    const COLORES = ['#e94560','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22']
+    const MESES   = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+    const COLORES = ['#e94560','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#e74c3c','#16a085','#8e44ad']
 
     cargarMenu('index.html').then(s => {
       sesion = s
@@ -144,9 +179,9 @@
       document.getElementById('agotados').textContent        = agotados
       document.getElementById('valor-total').textContent     = '$' + valorTotal.toLocaleString('es-CO')
 
+      // ── Alertas stock ───────────────────────────────
       const stockBajo    = []
       const agotadosList = []
-
       productos.forEach(p => {
         if (!p.variantes) return
         p.variantes.forEach(v => {
@@ -157,7 +192,6 @@
 
       const contenedor = document.getElementById('alertas-container')
       const inner      = document.getElementById('alertas-inner')
-
       if (agotadosList.length > 0 || stockBajo.length > 0) {
         contenedor.style.display = 'block'
         if (agotadosList.length > 0) {
@@ -165,16 +199,17 @@
           inner.style.borderLeft = '4px solid #e94560'
           document.getElementById('alertas-titulo').textContent = 'Agotados:'
           document.getElementById('alertas-texto').textContent  =
-            agotadosList.map(p => `${p.nombre} T${p.talla}`).join(', ')
+            agotadosList.map(p => `${p.nombre} T${p.talla} (${p.colegio})`).join(', ')
         } else {
           inner.style.background = '#fff8e1'
           inner.style.borderLeft = '4px solid #f39c12'
           document.getElementById('alertas-titulo').textContent = 'Stock bajo:'
           document.getElementById('alertas-texto').textContent  =
-            stockBajo.map(p => `${p.nombre} T${p.talla} (${p.cantidad} uds)`).join(', ')
+            stockBajo.map(p => `${p.nombre} T${p.talla} (${p.colegio}) — ${p.cantidad} uds`).join(', ')
         }
       }
 
+      // ── Tabla agotados ──────────────────────────────
       document.getElementById('tabla-agotados').innerHTML = agotadosList.length === 0
         ? '<tr><td colspan="4" class="vacio">Todo en stock</td></tr>'
         : agotadosList.map(p => `
@@ -185,6 +220,7 @@
               <td>${p.genero}</td>
             </tr>`).join('')
 
+      // ── Alerta apartados vencidos ───────────────────
       const diasAlerta = parseInt(localStorage.getItem('dias-alerta') || 7)
       const vencidos   = estadisticas.apartadosVencidos.filter(a => a.dias >= diasAlerta)
       if (vencidos.length > 0) {
@@ -193,6 +229,7 @@
           vencidos.map(a => `${a.nombre} (${a.dias} dias)`).join(', ')
       }
 
+      // ── Tabla apartados pendientes ──────────────────
       const pendientes = estadisticas.apartadosVencidos
       document.getElementById('tabla-apartados-pendientes').innerHTML = pendientes.length === 0
         ? '<tr><td colspan="3" class="vacio">Sin apartados pendientes</td></tr>'
@@ -210,20 +247,6 @@
       renderGraficas()
     }
 
-    function agrupar(productos, campo) {
-      const mapa = {}
-      productos.forEach(p => {
-        const key      = p[campo] || 'Sin definir'
-        const unidades = p.variantes ? p.variantes.reduce((acc, v) => acc + v.cantidad, 0) : 0
-        if (!mapa[key]) mapa[key] = { count: 0, unidades: 0 }
-        mapa[key].count++
-        mapa[key].unidades += unidades
-      })
-      return Object.entries(mapa)
-        .map(([key, val]) => ({ key, ...val }))
-        .sort((a, b) => b.unidades - a.unidades)
-    }
-
     function cambiarPeriodo(periodo, btn) {
       periodoActual = periodo
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
@@ -236,8 +259,13 @@
       renderGraficaProductos()
       renderGraficaColegios()
       renderGraficaInventario()
+      renderGraficaCategorias()
+      renderGraficaGanancia()
+      renderGraficaTallas()
+      renderGraficaIngresosEgresos()
     }
 
+    // ── 1. Ventas del periodo ───────────────────────────
     function renderGraficaVentas() {
       if (!estadisticas) return
       let datos, labels
@@ -284,9 +312,14 @@
       })
     }
 
+    // ── 2. Top productos CON colegio y categoria ────────
     function renderGraficaProductos() {
       if (!estadisticas || estadisticas.topProductos.length === 0) return
-      const labels = estadisticas.topProductos.map(p => `${p.nombre} (${p.talla})`)
+
+      // Label enriquecido: Nombre · Colegio · Talla
+      const labels = estadisticas.topProductos.map(p =>
+        `${p.nombre} · ${p.colegio || '?'} · T${p.talla}`
+      )
       const datos  = estadisticas.topProductos.map(p => p.total_vendido)
 
       if (graficaProductos) graficaProductos.destroy()
@@ -305,12 +338,23 @@
         options: {
           indexAxis: 'y',
           responsive: true,
-          plugins: { legend: { display: false } },
-          scales: { x: { beginAtZero: true } }
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => ` ${ctx.parsed.x} unidades`
+              }
+            }
+          },
+          scales: {
+            x: { beginAtZero: true, ticks: { stepSize: 1 } },
+            y: { ticks: { font: { size: 11 } } }
+          }
         }
       })
     }
 
+    // ── 3. Ventas por colegio (doughnut) ────────────────
     function renderGraficaColegios() {
       if (!estadisticas) return
 
@@ -336,10 +380,21 @@
           labels,
           datasets: [{ data: datos, backgroundColor: COLORES, borderWidth: 2 }]
         },
-        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom' },
+            tooltip: {
+              callbacks: {
+                label: ctx => ` ${ctx.label}: ${ctx.parsed} ventas`
+              }
+            }
+          }
+        }
       })
     }
 
+    // ── 4. Estado del inventario (doughnut) ─────────────
     function renderGraficaInventario() {
       ipcRenderer.invoke('obtener-productos').then(prods => {
         let enStock = 0, stockBajo = 0, agotados = 0
@@ -364,8 +419,209 @@
               borderWidth: 2,
             }]
           },
-          options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'bottom' },
+              tooltip: {
+                callbacks: {
+                  label: ctx => ` ${ctx.label}: ${ctx.parsed} variantes`
+                }
+              }
+            }
+          }
         })
+      })
+    }
+
+    // ── 5. Ventas por categoria (bar horizontal) ─────────
+    function renderGraficaCategorias() {
+      if (!estadisticas || !estadisticas.porCategoria || estadisticas.porCategoria.length === 0) return
+
+      const labels = estadisticas.porCategoria.map(c => c.categoria || 'Sin categoria')
+      const datos  = estadisticas.porCategoria.map(c => c.total_vendido)
+      const montos = estadisticas.porCategoria.map(c => c.total_pesos)
+
+      if (graficaCategorias) graficaCategorias.destroy()
+      const ctx = document.getElementById('grafica-categorias').getContext('2d')
+      graficaCategorias = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Unidades',
+              data: datos,
+              backgroundColor: '#3498db88',
+              borderColor: '#3498db',
+              borderWidth: 2,
+              borderRadius: 6,
+              yAxisID: 'y',
+            },
+            {
+              label: 'Ingresos ($)',
+              data: montos,
+              backgroundColor: '#2ecc7188',
+              borderColor: '#2ecc71',
+              borderWidth: 2,
+              borderRadius: 6,
+              yAxisID: 'y1',
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'top' } },
+          scales: {
+            y:  { beginAtZero: true, position: 'left',  title: { display: true, text: 'Unidades' } },
+            y1: { beginAtZero: true, position: 'right', title: { display: true, text: 'Pesos ($)' },
+                  ticks: { callback: v => '$' + v.toLocaleString('es-CO') }, grid: { drawOnChartArea: false } }
+          }
+        }
+      })
+    }
+
+    // ── 6. Ganancia bruta por mes (line) ─────────────────
+    function renderGraficaGanancia() {
+      if (!estadisticas || !estadisticas.resumenMeses) return
+
+      const labels    = estadisticas.resumenMeses.map(m => `${MESES[parseInt(m.mes)-1]} ${m.anio}`)
+      const ingresos  = estadisticas.resumenMeses.map(m => m.ingresos || 0)
+
+      // Egresos por mes mapeados al mismo periodo
+      const egresosMapa = {}
+      if (estadisticas.egresosPorMes) {
+        estadisticas.egresosPorMes.forEach(e => { egresosMapa[e.periodo] = e.egresos || 0 })
+      }
+      const egresos  = estadisticas.resumenMeses.map(m => egresosMapa[m.periodo] || 0)
+      const ganancia = ingresos.map((ing, i) => ing - egresos[i])
+
+      if (graficaGanancia) graficaGanancia.destroy()
+      const ctx = document.getElementById('grafica-ganancia').getContext('2d')
+      graficaGanancia = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Ingresos',
+              data: ingresos,
+              borderColor: '#2ecc71',
+              backgroundColor: '#2ecc7122',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 4,
+            },
+            {
+              label: 'Egresos',
+              data: egresos,
+              borderColor: '#e94560',
+              backgroundColor: '#e9456022',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 4,
+            },
+            {
+              label: 'Ganancia neta',
+              data: ganancia,
+              borderColor: '#3498db',
+              backgroundColor: '#3498db22',
+              fill: false,
+              tension: 0.3,
+              borderDash: [5, 5],
+              pointRadius: 4,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'top' } },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { callback: v => '$' + v.toLocaleString('es-CO') }
+            }
+          }
+        }
+      })
+    }
+
+    // ── 7. Unidades vendidas por talla (bar) ─────────────
+    function renderGraficaTallas() {
+      if (!estadisticas || !estadisticas.porTalla || estadisticas.porTalla.length === 0) return
+
+      const labels = estadisticas.porTalla.map(t => `T${t.talla}`)
+      const datos  = estadisticas.porTalla.map(t => t.total_vendido)
+
+      if (graficaTallas) graficaTallas.destroy()
+      const ctx = document.getElementById('grafica-tallas').getContext('2d')
+      graficaTallas = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Unidades vendidas',
+            data: datos,
+            backgroundColor: COLORES,
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+      })
+    }
+
+    // ── 8. Ingresos vs Egresos agrupados por mes (bar) ────
+    function renderGraficaIngresosEgresos() {
+      if (!estadisticas || !estadisticas.resumenMeses) return
+
+      const labels   = estadisticas.resumenMeses.map(m => `${MESES[parseInt(m.mes)-1]} ${m.anio}`)
+      const ingresos = estadisticas.resumenMeses.map(m => m.ingresos || 0)
+
+      const egresosMapa = {}
+      if (estadisticas.egresosPorMes) {
+        estadisticas.egresosPorMes.forEach(e => { egresosMapa[e.periodo] = e.egresos || 0 })
+      }
+      const egresos = estadisticas.resumenMeses.map(m => egresosMapa[m.periodo] || 0)
+
+      if (graficaIngEgr) graficaIngEgr.destroy()
+      const ctx = document.getElementById('grafica-ingresos-egresos').getContext('2d')
+      graficaIngEgr = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Ingresos',
+              data: ingresos,
+              backgroundColor: '#2ecc7188',
+              borderColor: '#2ecc71',
+              borderWidth: 2,
+              borderRadius: 6,
+            },
+            {
+              label: 'Egresos',
+              data: egresos,
+              backgroundColor: '#e9456088',
+              borderColor: '#e94560',
+              borderWidth: 2,
+              borderRadius: 6,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'top' } },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { callback: v => '$' + v.toLocaleString('es-CO') }
+            }
+          }
+        }
       })
     }
   </script>

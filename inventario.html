@@ -63,9 +63,8 @@
 
   <!-- MODAL PRODUCTO -->
   <div class="modal-overlay" id="modal-producto">
-    <div class="modal" style="width:560px; max-height:85vh; overflow-y:auto;">
+    <div class="modal" style="width:600px; max-height:85vh; overflow-y:auto;">
       <h2 id="modal-producto-titulo">Agregar Producto</h2>
-
       <div class="fila-doble">
         <div class="campo">
           <label>Nombre</label>
@@ -76,7 +75,6 @@
           <select id="p-categoria"></select>
         </div>
       </div>
-
       <div class="fila-doble">
         <div class="campo">
           <label>Colegio</label>
@@ -91,7 +89,6 @@
           </select>
         </div>
       </div>
-
       <div id="variantes-container">
         <div style="display:flex; justify-content:space-between; align-items:center; margin:16px 0 10px;">
           <h4 style="color:#555;">Tallas y precios</h4>
@@ -101,7 +98,8 @@
           <thead>
             <tr>
               <th style="background:#f5f6fa; color:#555; padding:8px 10px; font-size:12px; text-align:left;">Talla</th>
-              <th style="background:#f5f6fa; color:#555; padding:8px 10px; font-size:12px; text-align:left;">Precio ($)</th>
+              <th style="background:#f5f6fa; color:#555; padding:8px 10px; font-size:12px; text-align:left;">P. Costo ($)</th>
+              <th style="background:#f5f6fa; color:#555; padding:8px 10px; font-size:12px; text-align:left;">P. Venta ($)</th>
               <th style="background:#f5f6fa; color:#555; padding:8px 10px; font-size:12px; text-align:left;">Cantidad</th>
               <th style="background:#f5f6fa; color:#555; padding:8px 10px; font-size:12px; text-align:left;">Stock min.</th>
               <th style="background:#f5f6fa; padding:8px 10px;"></th>
@@ -110,7 +108,6 @@
           <tbody id="variantes-body"></tbody>
         </table>
       </div>
-
       <div class="modal-botones">
         <button class="btn btn-gris" onclick="cerrarModalProducto()">Cancelar</button>
         <button class="btn btn-rojo" onclick="guardarProducto()">Guardar</button>
@@ -118,35 +115,41 @@
     </div>
   </div>
 
-  <!-- MODAL VARIANTE (agregar talla a producto existente) -->
+  <!-- MODAL VARIANTE -->
   <div class="modal-overlay" id="modal-variante">
-    <div class="modal" style="width:420px;">
+    <div class="modal" style="width:480px;">
       <h2>Agregar Talla</h2>
       <div class="fila-doble">
         <div class="campo">
           <label>Talla</label>
           <select id="v-talla">
-            <option>Unica</option>
-            <option>2</option><option>4</option><option>6</option>
+            <option>Unica</option><option>2</option><option>4</option><option>6</option>
             <option>8</option><option>10</option><option>12</option><option>14</option>
             <option>XS</option><option>S</option><option>M</option>
             <option>L</option><option>XL</option><option>XXL</option>
           </select>
         </div>
         <div class="campo">
-          <label>Precio ($)</label>
-          <input type="number" id="v-precio" min="0" value="0">
+          <label>Precio Costo ($)</label>
+          <input type="number" id="v-precio-costo" min="0" value="0">
         </div>
       </div>
       <div class="fila-doble">
         <div class="campo">
+          <label>Precio Venta ($)</label>
+          <input type="number" id="v-precio" min="0" value="0">
+        </div>
+        <div class="campo">
           <label>Cantidad</label>
           <input type="number" id="v-cantidad" min="0" value="0">
         </div>
+      </div>
+      <div class="fila-doble">
         <div class="campo">
           <label>Stock minimo</label>
           <input type="number" id="v-stock-minimo" min="0" value="3">
         </div>
+        <div class="campo"></div>
       </div>
       <div class="modal-botones">
         <button class="btn btn-gris" onclick="cerrarModalVariante()">Cancelar</button>
@@ -157,33 +160,39 @@
 
   <!-- MODAL EDITAR VARIANTE -->
   <div class="modal-overlay" id="modal-editar-variante">
-    <div class="modal" style="width:420px;">
+    <div class="modal" style="width:480px;">
       <h2>Editar Talla</h2>
       <div class="fila-doble">
         <div class="campo">
           <label>Talla</label>
           <select id="ev-talla">
-            <option>Unica</option>
-            <option>2</option><option>4</option><option>6</option>
+            <option>Unica</option><option>2</option><option>4</option><option>6</option>
             <option>8</option><option>10</option><option>12</option><option>14</option>
             <option>XS</option><option>S</option><option>M</option>
             <option>L</option><option>XL</option><option>XXL</option>
           </select>
         </div>
         <div class="campo">
-          <label>Precio ($)</label>
-          <input type="number" id="ev-precio" min="0" value="0">
+          <label>Precio Costo ($)</label>
+          <input type="number" id="ev-precio-costo" min="0" value="0">
         </div>
       </div>
       <div class="fila-doble">
         <div class="campo">
+          <label>Precio Venta ($)</label>
+          <input type="number" id="ev-precio" min="0" value="0">
+        </div>
+        <div class="campo">
           <label>Cantidad</label>
           <input type="number" id="ev-cantidad" min="0" value="0">
         </div>
+      </div>
+      <div class="fila-doble">
         <div class="campo">
           <label>Stock minimo</label>
           <input type="number" id="ev-stock-minimo" min="0" value="3">
         </div>
+        <div class="campo"></div>
       </div>
       <div class="modal-botones">
         <button class="btn btn-gris" onclick="cerrarModalEditarVariante()">Cancelar</button>
@@ -230,17 +239,45 @@
     </div>
   </div>
 
+  <!-- MODAL ACTUALIZAR PRECIOS MASIVO -->
+  <div class="modal-overlay" id="modal-precios">
+    <div class="modal" style="width:580px; max-height:85vh; overflow-y:auto;">
+      <h2 id="precios-titulo">Actualizar Precios</h2>
+      <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">
+        Modifica los precios de todas las tallas del producto. Los cambios se guardan todos a la vez.
+      </p>
+      <table style="width:100%; margin-bottom:16px;">
+        <thead>
+          <tr>
+            <th style="background:var(--bg); color:var(--text-muted); padding:8px 12px; font-size:12px; text-align:left;">Talla</th>
+            <th style="background:var(--bg); color:var(--text-muted); padding:8px 12px; font-size:12px; text-align:left;">Costo actual</th>
+            <th style="background:var(--bg); color:var(--text-muted); padding:8px 12px; font-size:12px; text-align:left;">Nuevo costo ($)</th>
+            <th style="background:var(--bg); color:var(--text-muted); padding:8px 12px; font-size:12px; text-align:left;">Venta actual</th>
+            <th style="background:var(--bg); color:var(--text-muted); padding:8px 12px; font-size:12px; text-align:left;">Nuevo precio ($)</th>
+          </tr>
+        </thead>
+        <tbody id="precios-body"></tbody>
+      </table>
+      <div class="modal-botones">
+        <button class="btn btn-gris" onclick="cerrarModalPrecios()">Cancelar</button>
+        <button class="btn btn-rojo" onclick="guardarPrecios()">Guardar Precios</button>
+      </div>
+    </div>
+  </div>
+
   <script src="nav.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
   <script>
-    let sesion      = null
-    let productos   = []
-    let categorias  = []
-    let colegios    = []
-    let filasVariantes = []
-    let productoEditandoId   = null
-    let varianteProdId       = null
-    let varianteEditandoId   = null
+    let sesion             = null
+    let productos          = []
+    let categorias         = []
+    let colegios           = []
+    let filasVariantes     = []
+    let productoEditandoId = null
+    let varianteProdId     = null
+    let varianteEditandoId = null
+    let preciosProductoId  = null
+    let preciosVariantes   = []
 
     cargarMenu('inventario.html').then(s => {
       sesion = s
@@ -282,7 +319,6 @@
         const coincideCategoria = !categoria || p.categoria === categoria
         const coincideColegio   = !colegio   || p.colegio === colegio
         const coincideGenero    = !genero    || p.genero === genero
-
         let coincideStock = true
         if (stock) {
           coincideStock = p.variantes.some(v =>
@@ -291,7 +327,6 @@
             (stock === 'stock-bajo' && v.cantidad > 0 && v.cantidad <= v.stock_minimo)
           )
         }
-
         return coincideTexto && coincideCategoria && coincideColegio && coincideGenero && coincideStock
       })
 
@@ -322,6 +357,8 @@
         return
       }
 
+      const esAdmin = sesion && sesion.rol === 'admin'
+
       contenedor.innerHTML = lista.map(p => `
         <div class="producto-card">
           <div class="producto-header" onclick="toggleVariantes(${p.id})">
@@ -331,13 +368,23 @@
             </div>
             <div style="display:flex; align-items:center; gap:10px;">
               <span style="font-size:13px; color:#888;">${p.variantes.length} talla(s)</span>
-              ${sesion && sesion.rol === 'admin' ? `
-                <button class="btn btn-gris" style="padding:5px 12px; font-size:12px;"
-                  onclick="event.stopPropagation(); abrirModalEditarProducto(${p.id})">Editar</button>
-                <button class="btn btn-gris" style="padding:5px 12px; font-size:12px;"
-                  onclick="event.stopPropagation(); abrirModalVariante(${p.id})">+ Talla</button>
-                <button class="btn btn-rojo" style="padding:5px 12px; font-size:12px;"
-                  onclick="event.stopPropagation(); eliminarProducto(${p.id})">Eliminar</button>
+              ${esAdmin ? `
+                <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
+                  onclick="event.stopPropagation(); abrirModalEditarProducto(${p.id})">
+                  Editar
+                </button>
+                <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
+                  onclick="event.stopPropagation(); abrirModalPrecios(${p.id})">
+                  Precios
+                </button>
+                <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
+                  onclick="event.stopPropagation(); abrirModalVariante(${p.id})">
+                  + Talla
+                </button>
+                <button class="btn btn-rojo" style="padding:4px 10px; font-size:12px;"
+                  onclick="event.stopPropagation(); eliminarProducto(${p.id})">
+                  Eliminar
+                </button>
               ` : ''}
               <span class="chevron" id="chevron-${p.id}">▼</span>
             </div>
@@ -347,18 +394,20 @@
               <thead>
                 <tr>
                   <th>Talla</th>
-                  <th>Precio</th>
+                  <th>P. Costo</th>
+                  <th>P. Venta</th>
                   <th>Cantidad</th>
                   <th>Stock min.</th>
                   <th>Estado</th>
                   <th>Codigo</th>
-                  ${sesion && sesion.rol === 'admin' ? '<th>Acciones</th>' : ''}
+                  ${esAdmin ? '<th>Acciones</th>' : ''}
                 </tr>
               </thead>
               <tbody>
                 ${p.variantes.map(v => `
                   <tr>
                     <td><strong>${v.talla}</strong></td>
+                    <td style="color:var(--text-muted);">$${parseFloat(v.precio_costo || 0).toLocaleString('es-CO')}</td>
                     <td>$${parseFloat(v.precio).toLocaleString('es-CO')}</td>
                     <td>${v.cantidad}</td>
                     <td>${v.stock_minimo}</td>
@@ -369,11 +418,15 @@
                         Ver codigo
                       </button>
                     </td>
-                    ${sesion && sesion.rol === 'admin' ? `
-                      <td>
-                        <button class="btn btn-gris" style="padding:4px 10px; font-size:12px; margin-right:4px;"
-                          onclick="abrirModalEditarVariante(${v.id}, '${v.talla}', ${v.precio}, ${v.cantidad}, ${v.stock_minimo})">
+                    ${esAdmin ? `
+                      <td style="display:flex; gap:4px; flex-wrap:wrap;">
+                        <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
+                          onclick="abrirModalEditarVariante(${v.id}, '${v.talla}', ${v.precio_costo || 0}, ${v.precio}, ${v.cantidad}, ${v.stock_minimo})">
                           Editar
+                        </button>
+                        <button class="btn btn-gris" style="padding:4px 10px; font-size:12px; color:#2ecc71; border-color:#2ecc71;"
+                          onclick="abrirEntradaRapida(${v.id}, '${p.nombre}', '${v.talla}')">
+                          + Stock
                         </button>
                         <button class="btn btn-rojo" style="padding:4px 10px; font-size:12px;"
                           onclick="eliminarVariante(${v.id}, ${p.id})">
@@ -407,6 +460,7 @@
       document.getElementById('p-genero').value  = 'Unisex'
       if (categorias.length) document.getElementById('p-categoria').value = categorias[0].nombre
       if (colegios.length)   document.getElementById('p-colegio').value   = colegios[0].nombre
+      document.getElementById('variantes-container').style.display = 'block'
       renderFilasVariantes()
       document.getElementById('modal-producto').classList.add('activo')
     }
@@ -421,7 +475,7 @@
       document.getElementById('p-colegio').value   = p.colegio
       document.getElementById('p-genero').value    = p.genero
       filasVariantes = []
-      document.getElementById('variantes-container').style.display = productoEditandoId ? 'none' : 'block'
+      document.getElementById('variantes-container').style.display = 'none'
       document.getElementById('modal-producto').classList.add('activo')
     }
 
@@ -431,12 +485,12 @@
     }
 
     function agregarFilaVariante() {
-      filasVariantes.push({ talla: 'M', precio: 0, cantidad: 0, stock_minimo: 3 })
+      filasVariantes.push({ talla: 'M', precio_costo: 0, precio: 0, cantidad: 0, stock_minimo: 3 })
       renderFilasVariantes()
     }
 
     function renderFilasVariantes() {
-      const tbody = document.getElementById('variantes-body')
+      const tbody  = document.getElementById('variantes-body')
       const tallas = ['Unica','2','4','6','8','10','12','14','XS','S','M','L','XL','XXL']
 
       tbody.innerHTML = filasVariantes.map((v, i) => `
@@ -448,9 +502,14 @@
             </select>
           </td>
           <td>
+            <input type="number" min="0" value="${v.precio_costo}"
+              onchange="filasVariantes[${i}].precio_costo = parseFloat(this.value)"
+              style="width:85px; padding:6px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
+          </td>
+          <td>
             <input type="number" min="0" value="${v.precio}"
               onchange="filasVariantes[${i}].precio = parseFloat(this.value)"
-              style="width:90px; padding:6px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
+              style="width:85px; padding:6px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
           </td>
           <td>
             <input type="number" min="0" value="${v.cantidad}"
@@ -464,13 +523,13 @@
           </td>
           <td>
             <button onclick="filasVariantes.splice(${i},1); renderFilasVariantes()"
-              style="background:none; border:none; cursor:pointer; color:#e94560; font-size:16px;">X</button>
+              style="background:none; border:none; cursor:pointer; color:#e94560; font-size:16px;">✕</button>
           </td>
         </tr>
       `).join('')
 
       if (filasVariantes.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#aaa; padding:16px; font-size:13px;">
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#aaa; padding:16px; font-size:13px;">
           Agrega al menos una talla con el boton de arriba
         </td></tr>`
       }
@@ -506,10 +565,74 @@
       cargarDatos()
     }
 
+    // ── MODAL ACTUALIZAR PRECIOS MASIVO ───────────────
+    function abrirModalPrecios(productoId) {
+      const p = productos.find(x => x.id === productoId)
+      if (!p) return
+      preciosProductoId = productoId
+      preciosVariantes  = p.variantes.map(v => ({
+        id:            v.id,
+        talla:         v.talla,
+        costoActual:   v.precio_costo || 0,
+        costoNuevo:    v.precio_costo || 0,
+        precioActual:  v.precio,
+        precioNuevo:   v.precio
+      }))
+
+      document.getElementById('precios-titulo').textContent = `Actualizar Precios — ${p.nombre} (${p.colegio})`
+
+      document.getElementById('precios-body').innerHTML = preciosVariantes.map((v, i) => `
+        <tr>
+          <td style="padding:8px 12px;"><strong>${v.talla}</strong></td>
+          <td style="padding:8px 12px; color:var(--text-muted);">$${parseFloat(v.costoActual).toLocaleString('es-CO')}</td>
+          <td style="padding:8px 12px;">
+            <input type="number" min="0" value="${v.costoNuevo}"
+              onchange="preciosVariantes[${i}].costoNuevo = parseFloat(this.value)"
+              style="width:110px; padding:6px 10px; border:1px solid var(--input-border); border-radius:6px; font-size:14px; background:var(--input-bg); color:var(--text);">
+          </td>
+          <td style="padding:8px 12px; color:var(--text-muted);">$${parseFloat(v.precioActual).toLocaleString('es-CO')}</td>
+          <td style="padding:8px 12px;">
+            <input type="number" min="0" value="${v.precioNuevo}"
+              onchange="preciosVariantes[${i}].precioNuevo = parseFloat(this.value)"
+              style="width:110px; padding:6px 10px; border:1px solid var(--input-border); border-radius:6px; font-size:14px; background:var(--input-bg); color:var(--text);">
+          </td>
+        </tr>
+      `).join('')
+
+      document.getElementById('modal-precios').classList.add('activo')
+    }
+
+    function cerrarModalPrecios() {
+      document.getElementById('modal-precios').classList.remove('activo')
+      preciosProductoId = null
+      preciosVariantes  = []
+    }
+
+    async function guardarPrecios() {
+      if (!preciosProductoId) return
+
+      const variantes = preciosVariantes.map(v => ({
+        id:           v.id,
+        precio_costo: v.costoNuevo,
+        precio:       v.precioNuevo
+      }))
+      const res = await ipcRenderer.invoke('actualizar-precios-producto', {
+        productoId: preciosProductoId,
+        variantes
+      })
+
+      if (res.ok) {
+        cerrarModalPrecios()
+        cargarDatos()
+        alert('Precios actualizados correctamente')
+      }
+    }
+
     // ── MODAL VARIANTE ────────────────────────────────
     function abrirModalVariante(productoId) {
       varianteProdId = productoId
       document.getElementById('v-talla').value        = 'M'
+      document.getElementById('v-precio-costo').value = 0
       document.getElementById('v-precio').value       = 0
       document.getElementById('v-cantidad').value     = 0
       document.getElementById('v-stock-minimo').value = 3
@@ -523,21 +646,20 @@
     async function guardarVariante() {
       const variante = {
         talla:        document.getElementById('v-talla').value,
+        precio_costo: parseFloat(document.getElementById('v-precio-costo').value),
         precio:       parseFloat(document.getElementById('v-precio').value),
         cantidad:     parseInt(document.getElementById('v-cantidad').value),
         stock_minimo: parseInt(document.getElementById('v-stock-minimo').value)
       }
       const res = await ipcRenderer.invoke('agregar-variante', { productoId: varianteProdId, variante })
-      if (res.ok) {
-        cerrarModalVariante()
-        cargarDatos()
-      }
+      if (res.ok) { cerrarModalVariante(); cargarDatos() }
     }
 
     // ── MODAL EDITAR VARIANTE ─────────────────────────
-    function abrirModalEditarVariante(id, talla, precio, cantidad, stockMinimo) {
+    function abrirModalEditarVariante(id, talla, precioCosto, precio, cantidad, stockMinimo) {
       varianteEditandoId = id
       document.getElementById('ev-talla').value        = talla
+      document.getElementById('ev-precio-costo').value = precioCosto
       document.getElementById('ev-precio').value       = precio
       document.getElementById('ev-cantidad').value     = cantidad
       document.getElementById('ev-stock-minimo').value = stockMinimo
@@ -552,6 +674,7 @@
       const variante = {
         id:           varianteEditandoId,
         talla:        document.getElementById('ev-talla').value,
+        precio_costo: parseFloat(document.getElementById('ev-precio-costo').value),
         precio:       parseFloat(document.getElementById('ev-precio').value),
         cantidad:     parseInt(document.getElementById('ev-cantidad').value),
         stock_minimo: parseInt(document.getElementById('ev-stock-minimo').value)
@@ -578,13 +701,8 @@
       document.getElementById('codigo-numero').textContent = codigo
       const canvas = document.getElementById('codigo-canvas')
       JsBarcode(canvas, codigo, {
-        format:       'EAN13',
-        lineColor:    '#1a1a2e',
-        width:        2.5,
-        height:       80,
-        displayValue: true,
-        fontSize:     16,
-        margin:       10
+        format: 'EAN13', lineColor: '#1a1a2e',
+        width: 2.5, height: 80, displayValue: true, fontSize: 16, margin: 10
       })
       document.getElementById('modal-codigo').classList.add('activo')
     }
@@ -633,6 +751,26 @@
       cerrarModalEntrada()
       cargarDatos()
       alert(`Entrada registrada: +${cantidad} unidades`)
+    }
+
+    // ── ENTRADA RAPIDA DE STOCK POR VARIANTE ──────────
+    function abrirEntradaRapida(varianteId, nombreProducto, talla) {
+      const select = document.getElementById('e-producto')
+      select.innerHTML = ''
+      productos.forEach(p => {
+        if (!p.variantes) return
+        p.variantes.forEach(v => {
+          const opt = document.createElement('option')
+          opt.value = v.id
+          opt.textContent = `${p.nombre} — T${v.talla} — ${p.colegio} (Stock: ${v.cantidad})`
+          if (v.id === varianteId) opt.selected = true
+          select.appendChild(opt)
+        })
+      })
+      document.getElementById('e-cantidad').value = 1
+      document.getElementById('e-nota').value     = ''
+      document.getElementById('modal-entrada').classList.add('activo')
+      setTimeout(() => document.getElementById('e-cantidad').focus(), 150)
     }
   </script>
 

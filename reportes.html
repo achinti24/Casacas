@@ -74,6 +74,30 @@
       </div>
     </div>
 
+    <!-- CARDS RENTABILIDAD -->
+    <h3 style="margin:4px 0 12px; color:var(--text-muted); font-size:15px;">Rentabilidad del periodo</h3>
+    <div class="cards" style="margin-bottom:8px;">
+      <div class="card rojo">
+        <span class="etiqueta">Egresos del periodo</span>
+        <span class="valor" id="r-egresos">$0</span>
+      </div>
+      <div class="card morado">
+        <span class="etiqueta">Vendido - Egresos</span>
+        <span class="valor" id="r-ganancia-bruta">$0</span>
+      </div>
+      <div class="card azul">
+        <span class="etiqueta">Costo de productos vendidos</span>
+        <span class="valor" id="r-costo">$0</span>
+      </div>
+      <div class="card verde">
+        <span class="etiqueta">Ganancia neta</span>
+        <span class="valor" id="r-ganancia-neta">$0</span>
+      </div>
+    </div>
+    <p style="margin:0 0 20px; font-size:12.5px; color:var(--text-muted);">
+      Ganancia neta = vendido - egresos - costo de productos. Si aun no has configurado el precio de costo en tus productos, este valor sera igual a "Vendido - Egresos".
+    </p>
+
     <!-- GRILLA -->
     <div class="dashboard-grid" style="margin-bottom:20px;">
 
@@ -195,6 +219,11 @@
       document.getElementById('r-unidades').textContent = reporte.salidas
       document.getElementById('r-entradas').textContent = reporte.entradas + ' uds'
       document.getElementById('r-count').textContent    = reporte.cantidadVentas
+
+      document.getElementById('r-egresos').textContent        = '$' + parseFloat(reporte.totalEgresos).toLocaleString('es-CO')
+      document.getElementById('r-costo').textContent          = '$' + parseFloat(reporte.costoVendido).toLocaleString('es-CO')
+      document.getElementById('r-ganancia-bruta').textContent = '$' + parseFloat(reporte.gananciaBruta).toLocaleString('es-CO')
+      document.getElementById('r-ganancia-neta').textContent  = '$' + parseFloat(reporte.gananciaNeta).toLocaleString('es-CO')
 
       document.getElementById('tabla-mas-vendidos').innerHTML = reporte.masVendidos.length === 0
         ? '<tr><td colspan="5" class="vacio">Sin ventas en este periodo</td></tr>'

@@ -57,7 +57,7 @@ function actualizarExcelInventario(db) {
   try {
     const variantes = db.prepare(`
       SELECT p.nombre, p.categoria, p.colegio, p.genero,
-             v.talla, v.precio, v.cantidad, v.stock_minimo, v.codigo_barras
+             v.talla, v.precio, v.precio_costo, v.cantidad, v.stock_minimo, v.codigo_barras
       FROM producto_variantes v
       JOIN productos p ON v.producto_id = p.id
       ORDER BY p.nombre, v.talla
@@ -65,6 +65,7 @@ function actualizarExcelInventario(db) {
     const ws = XLSX.utils.json_to_sheet(variantes.map(v => ({
       Nombre: v.nombre, Categoria: v.categoria, Colegio: v.colegio,
       Genero: v.genero, Talla: v.talla, Precio: v.precio,
+      'Precio costo': v.precio_costo || 0,
       Cantidad: v.cantidad, 'Stock minimo': v.stock_minimo,
       'Codigo de barras': v.codigo_barras
     })))
@@ -161,6 +162,18 @@ app.whenReady().then(() => {
     }
   } catch (err) {
     console.error('Error corrigiendo codigos NaN:', err)
+  }
+
+  // ── FIX: AGREGAR COLUMNA precio_costo SI NO EXISTE ──
+  try {
+    const columnas    = db.prepare("PRAGMA table_info(producto_variantes)").all()
+    const tieneCosto  = columnas.some(c => c.name === 'precio_costo')
+    if (!tieneCosto) {
+      db.prepare('ALTER TABLE producto_variantes ADD COLUMN precio_costo REAL DEFAULT 0').run()
+      console.log('Columna precio_costo agregada a producto_variantes')
+    }
+  } catch (err) {
+    console.error('Error agregando columna precio_costo:', err)
   }
 
   function hacerBackup() {
@@ -289,12 +302,12 @@ app.whenReady().then(() => {
 
     const productoId = result.lastInsertRowid
     const insertVar  = db.prepare(`
-      INSERT INTO producto_variantes (producto_id, talla, precio, cantidad, stock_minimo, codigo_barras)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO producto_variantes (producto_id, talla, precio, precio_costo, cantidad, stock_minimo, codigo_barras)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `)
 
     for (const v of variantes) {
-      const varResult  = insertVar.run(productoId, v.talla, v.precio, v.cantidad, v.stock_minimo, 'TEMP')
+      const varResult  = insertVar.run(productoId, v.talla, v.precio, v.precio_costo || 0, v.cantidad, v.stock_minimo, 'TEMP')
       const varianteId = varResult.lastInsertRowid
       const codigo     = generarEAN13(productoId, varianteId)
       db.prepare('UPDATE producto_variantes SET codigo_barras = ? WHERE id = ?').run(codigo, varianteId)
@@ -314,9 +327,9 @@ app.whenReady().then(() => {
 
   ipcMain.handle('agregar-variante', (e, { productoId, variante }) => {
     const result = db.prepare(`
-      INSERT INTO producto_variantes (producto_id, talla, precio, cantidad, stock_minimo, codigo_barras)
-      VALUES (?, ?, ?, ?, ?, 'TEMP')
-    `).run(productoId, variante.talla, variante.precio, variante.cantidad, variante.stock_minimo)
+      INSERT INTO producto_variantes (producto_id, talla, precio, precio_costo, cantidad, stock_minimo, codigo_barras)
+      VALUES (?, ?, ?, ?, ?, ?, 'TEMP')
+    `).run(productoId, variante.talla, variante.precio, variante.precio_costo || 0, variante.cantidad, variante.stock_minimo)
     const varianteId = result.lastInsertRowid
     const codigo     = generarEAN13(productoId, varianteId)
     db.prepare('UPDATE producto_variantes SET codigo_barras = ? WHERE id = ?').run(codigo, varianteId)
@@ -325,9 +338,10 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('editar-variante', (e, variante) => {
+    const datos = { ...variante, precio_costo: variante.precio_costo || 0 }
     db.prepare(`
-      UPDATE producto_variantes SET talla=@talla, precio=@precio, cantidad=@cantidad, stock_minimo=@stock_minimo WHERE id=@id
-    `).run(variante)
+      UPDATE producto_variantes SET talla=@talla, precio=@precio, precio_costo=@precio_costo, cantidad=@cantidad, stock_minimo=@stock_minimo WHERE id=@id
+    `).run(datos)
     actualizarExcelInventario(db)
     return { ok: true }
   })
@@ -540,45 +554,77 @@ app.whenReady().then(() => {
     return { ok: true }
   })
 
-  // ── ESTADISTICAS ──────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// REEMPLAZA el handler 'obtener-estadisticas' en tu main.js
+// con este bloque completo. Agrega porCategoria y porTalla.
+// ═══════════════════════════════════════════════════════════════
+
   ipcMain.handle('obtener-estadisticas', () => {
     const ventasPorDia = db.prepare(`
       SELECT date(fecha) as dia, COUNT(*) as cantidad, SUM(total) as total
-      FROM ventas WHERE date(fecha) >= date('now', '-7 days', 'localtime')
+      FROM ventas WHERE anulada = 0 AND date(fecha) >= date('now', '-7 days', 'localtime')
       GROUP BY date(fecha) ORDER BY dia ASC
     `).all()
 
     const ventasPorSemana = db.prepare(`
       SELECT strftime('%W', fecha) as semana, strftime('%Y', fecha) as anio,
              COUNT(*) as cantidad, SUM(total) as total
-      FROM ventas WHERE date(fecha) >= date('now', '-28 days', 'localtime')
+      FROM ventas WHERE anulada = 0 AND date(fecha) >= date('now', '-28 days', 'localtime')
       GROUP BY strftime('%W', fecha) ORDER BY anio ASC, semana ASC
     `).all()
 
     const ventasPorMes = db.prepare(`
       SELECT strftime('%m', fecha) as mes, strftime('%Y', fecha) as anio,
              COUNT(*) as cantidad, SUM(total) as total
-      FROM ventas WHERE date(fecha) >= date('now', '-180 days', 'localtime')
+      FROM ventas WHERE anulada = 0 AND date(fecha) >= date('now', '-180 days', 'localtime')
       GROUP BY strftime('%Y-%m', fecha) ORDER BY anio ASC, mes ASC
     `).all()
 
+    // Top 8 productos: nombre + colegio + talla + categoria
     const topProductos = db.prepare(`
-      SELECT p.nombre, pv.talla, p.categoria, SUM(vi.cantidad) as total_vendido
+      SELECT p.nombre, p.colegio, p.categoria, pv.talla,
+             SUM(vi.cantidad) as total_vendido,
+             SUM(vi.cantidad * vi.precio_unitario) as total_pesos
       FROM venta_items vi
+      JOIN ventas v ON vi.venta_id = v.id
       JOIN producto_variantes pv ON vi.variante_id = pv.id
       JOIN productos p ON pv.producto_id = p.id
-      GROUP BY pv.id ORDER BY total_vendido DESC LIMIT 5
+      WHERE v.anulada = 0
+      GROUP BY pv.id ORDER BY total_vendido DESC LIMIT 8
     `).all()
 
-    // ── CORREGIDO: inferir colegio de los productos vendidos ──
+    // Ventas por colegio
     const porColegio = db.prepare(`
-      SELECT p.colegio, COUNT(DISTINCT v.id) as ventas, SUM(vi.cantidad * vi.precio_unitario) as total
+      SELECT p.colegio, COUNT(DISTINCT v.id) as ventas,
+             SUM(vi.cantidad * vi.precio_unitario) as total
       FROM venta_items vi
+      JOIN ventas v ON vi.venta_id = v.id
       JOIN producto_variantes pv ON vi.variante_id = pv.id
       JOIN productos p ON pv.producto_id = p.id
-      JOIN ventas v ON vi.venta_id = v.id
-      WHERE p.colegio IS NOT NULL AND p.colegio != ''
+      WHERE v.anulada = 0 AND p.colegio IS NOT NULL AND p.colegio != ''
       GROUP BY p.colegio ORDER BY ventas DESC
+    `).all()
+
+    // NUEVO: Ventas por categoria (unidades + pesos)
+    const porCategoria = db.prepare(`
+      SELECT p.categoria, SUM(vi.cantidad) as total_vendido,
+             SUM(vi.cantidad * vi.precio_unitario) as total_pesos
+      FROM venta_items vi
+      JOIN ventas v ON vi.venta_id = v.id
+      JOIN producto_variantes pv ON vi.variante_id = pv.id
+      JOIN productos p ON pv.producto_id = p.id
+      WHERE v.anulada = 0 AND p.categoria IS NOT NULL AND p.categoria != ''
+      GROUP BY p.categoria ORDER BY total_vendido DESC
+    `).all()
+
+    // NUEVO: Unidades vendidas por talla
+    const porTalla = db.prepare(`
+      SELECT pv.talla, SUM(vi.cantidad) as total_vendido
+      FROM venta_items vi
+      JOIN ventas v ON vi.venta_id = v.id
+      JOIN producto_variantes pv ON vi.variante_id = pv.id
+      WHERE v.anulada = 0
+      GROUP BY pv.talla ORDER BY total_vendido DESC
     `).all()
 
     const apartadosVencidos = db.prepare(`
@@ -591,7 +637,7 @@ app.whenReady().then(() => {
       SELECT strftime('%Y-%m', fecha) as periodo,
              strftime('%m', fecha) as mes, strftime('%Y', fecha) as anio,
              SUM(total) as ingresos, COUNT(*) as ventas
-      FROM ventas WHERE date(fecha) >= date('now', '-180 days', 'localtime')
+      FROM ventas WHERE anulada = 0 AND date(fecha) >= date('now', '-180 days', 'localtime')
       GROUP BY strftime('%Y-%m', fecha) ORDER BY periodo ASC
     `).all()
 
@@ -603,8 +649,8 @@ app.whenReady().then(() => {
 
     return {
       ventasPorDia, ventasPorSemana, ventasPorMes,
-      topProductos, porColegio, apartadosVencidos,
-      resumenMeses, egresosPorMes
+      topProductos, porColegio, porCategoria, porTalla,
+      apartadosVencidos, resumenMeses, egresosPorMes
     }
   })
 
@@ -655,11 +701,26 @@ app.whenReady().then(() => {
       WHERE date(fecha) BETWEEN date(?) AND date(?)
     `).get(fechaInicio, fechaFin)
 
+    // ── NUEVO: costo de los productos vendidos en el periodo ──
+    const costoVendido = db.prepare(`
+      SELECT COALESCE(SUM(vi.cantidad * pv.precio_costo), 0) as total
+      FROM venta_items vi
+      JOIN ventas v ON vi.venta_id = v.id
+      JOIN producto_variantes pv ON vi.variante_id = pv.id
+      WHERE date(v.fecha) BETWEEN date(?) AND date(?)
+    `).get(fechaInicio, fechaFin)
+
+    const gananciaBruta = totalVendido - (totalEgresos.total || 0)
+    const gananciaNeta  = gananciaBruta - (costoVendido.total || 0)
+
     return {
       ventas, totalVendido, cantidadVentas: ventas.length,
       masVendidos, entradas: entradas.total || 0,
       salidas: salidas.total || 0, porDia,
-      totalEgresos: totalEgresos.total || 0
+      totalEgresos: totalEgresos.total || 0,
+      costoVendido: costoVendido.total || 0,
+      gananciaBruta,
+      gananciaNeta
     }
   })
 
@@ -728,6 +789,81 @@ app.whenReady().then(() => {
       return { ok: true }
     } catch (err) {
       console.error('Error impresora:', err)
+      return { error: err.message }
+    }
+  })
+
+  // ── IMPRESORA TERMICA: COMPROBANTE DE APARTADO ────
+  ipcMain.handle('imprimir-comprobante-apartado', async (e, { nombre, telefono, colegio, notas, abono, items, total, vendedor }) => {
+    try {
+      const fs = require('fs')
+
+      const ESC          = '\x1B'
+      const INIT         = ESC + '@'
+      const BOLD         = ESC + 'E\x01'
+      const UNBOLD       = ESC + 'E\x00'
+      const CENTER       = ESC + 'a\x01'
+      const LEFT         = ESC + 'a\x00'
+      const RIGHT        = ESC + 'a\x02'
+      const NOMBRE_GRANDE = ESC + '!' + '\x38' // negrita + doble alto + doble ancho
+      const NORMAL        = ESC + '!' + '\x00' // vuelve a tamano normal
+      const CUT           = '\x1D' + 'V\x41\x00'
+      const LF            = '\n'
+
+      const linea = '--------------------------------'
+      const fecha = new Date().toLocaleString('es-CO')
+      const saldo = Math.max(0, total - (abono || 0))
+
+      const limpiar = (str) => str
+        .replace(/á/g, 'a').replace(/é/g, 'e').replace(/í/g, 'i')
+        .replace(/ó/g, 'o').replace(/ú/g, 'u').replace(/ü/g, 'u')
+        .replace(/Á/g, 'A').replace(/É/g, 'E').replace(/Í/g, 'I')
+        .replace(/Ó/g, 'O').replace(/Ú/g, 'U').replace(/ñ/g, 'n')
+        .replace(/Ñ/g, 'N')
+
+      let recibo = INIT
+      recibo += CENTER + BOLD + 'Casacas Colegial' + LF + UNBOLD
+      recibo += CENTER + 'San Gil - Calle 11 No. 10-66' + LF
+      recibo += CENTER + 'Piso 2, Local 201' + LF
+      recibo += CENTER + 'Tel: 313 849 5210' + LF
+      recibo += CENTER + linea + LF
+      recibo += CENTER + BOLD + 'COMPROBANTE DE APARTADO' + LF + UNBOLD
+      recibo += CENTER + fecha + LF
+      recibo += CENTER + linea + LF
+
+      recibo += CENTER + 'Reclama con el nombre de:' + LF
+      recibo += CENTER + NOMBRE_GRANDE + nombre + LF + NORMAL
+      if (telefono) recibo += CENTER + 'Tel: ' + telefono + LF
+      if (colegio)  recibo += CENTER + 'Colegio: ' + colegio + LF
+      recibo += LEFT + linea + LF
+
+      items.forEach(i => {
+        const sub = (i.precio_unitario * i.cantidad).toLocaleString('es-CO')
+        recibo += LEFT + i.nombre + ' T' + i.talla + LF
+        recibo += LEFT + '  ' + i.cantidad + ' x $' + parseFloat(i.precio_unitario).toLocaleString('es-CO') + ' = $' + sub + LF
+      })
+
+      recibo += LEFT + linea + LF
+      recibo += RIGHT + 'Total apartado: $' + total.toLocaleString('es-CO') + LF
+      recibo += RIGHT + 'Abono pagado:  -$' + (abono || 0).toLocaleString('es-CO') + LF
+      recibo += RIGHT + BOLD + 'SALDO:          $' + saldo.toLocaleString('es-CO') + LF + UNBOLD
+      recibo += LEFT + linea + LF
+
+      if (notas) {
+        recibo += LEFT + 'Notas: ' + notas + LF
+        recibo += LEFT + linea + LF
+      }
+
+      recibo += CENTER + 'Vendedor: ' + vendedor + LF
+      recibo += CENTER + 'Conserva este papel' + LF
+      recibo += CENTER + 'para reclamar tu pedido' + LF
+      recibo += LF + LF + LF
+      recibo += CUT
+
+      fs.writeFileSync('/dev/usb/lp0', Buffer.from(limpiar(recibo), 'latin1'))
+      return { ok: true }
+    } catch (err) {
+      console.error('Error impresora (apartado):', err)
       return { error: err.message }
     }
   })
