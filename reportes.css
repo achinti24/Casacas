@@ -1,24 +1,318 @@
-.filtro-fechas {
+/* ══════════════════════════════════════════════
+   REPORTES — Rediseño tipo dashboard
+   Usa las variables globales definidas en styles.css
+   ══════════════════════════════════════════════ */
+
+/* ── BARRA DE FILTROS SUPERIOR (estilo dashboard) ── */
+.reportes-toolbar {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  box-shadow: var(--shadow);
+  margin-bottom: 24px;
   display: flex;
-  gap: 15px;
   align-items: flex-end;
+  gap: 14px;
   flex-wrap: wrap;
 }
 
-.filtro-fechas .campo {
+.reportes-toolbar .campo {
   margin-bottom: 0;
 }
 
-.filtro-fechas input[type="date"] {
-  padding: 10px 14px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 14px;
-  background: white;
+.reportes-toolbar .campo label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  display: block;
 }
 
-.caja-abierta {
+.reportes-toolbar select,
+.reportes-toolbar input[type="date"] {
+  padding: 9px 14px;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  background: var(--input-bg);
+  color: var(--text);
+  min-width: 150px;
+}
+
+.reportes-toolbar select:focus,
+.reportes-toolbar input[type="date"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.1);
+}
+
+.reportes-toolbar .btn {
+  height: 39px;
+}
+
+/* ── SECCION TITULOS CON LINEA DE ACENTO ── */
+.reportes-seccion-titulo {
   display: flex;
   align-items: center;
-  padding: 12px 0;
+  gap: 10px;
+  margin: 28px 0 14px;
+}
+
+.reportes-seccion-titulo .barrita {
+  width: 4px;
+  height: 18px;
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+.reportes-seccion-titulo h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.reportes-seccion-titulo .nota {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 4px;
+}
+
+/* ── CARDS RESUMEN (estilo dashboard con icono) ── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.kpi-card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: var(--transition);
+  border: 1px solid transparent;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+
+.kpi-icono {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.kpi-icono.verde   { background: #d4f8e8; }
+.kpi-icono.azul    { background: #dbeafe; }
+.kpi-icono.rojo    { background: #fde8ec; }
+.kpi-icono.morado  { background: #f0e4f7; }
+
+body.dark .kpi-icono.verde  { background: #1a3d2a; }
+body.dark .kpi-icono.azul   { background: #1a2a3d; }
+body.dark .kpi-icono.rojo   { background: #3d1a22; }
+body.dark .kpi-icono.morado { background: #2e1f3d; }
+
+.kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kpi-texto .kpi-valor {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.kpi-texto .kpi-etiqueta {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* ── RENTABILIDAD: cards mas grandes con borde lateral ── */
+.rentabilidad-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 6px;
+}
+
+.rent-card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+  border-left: 4px solid var(--border);
+  position: relative;
+}
+
+.rent-card.rojo    { border-left-color: var(--accent); }
+.rent-card.morado  { border-left-color: var(--morado); }
+.rent-card.azul    { border-left-color: var(--azul); }
+.rent-card.verde   { border-left-color: var(--verde); }
+
+.rent-card .rent-etiqueta {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.rent-card .rent-valor {
+  font-size: 21px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.5px;
+}
+
+.rent-nota {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 10px 2px 0;
+  line-height: 1.5;
+}
+
+/* ── WIDGETS (paneles tipo dashboard) ── */
+.widgets-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 16px;
+}
+
+.widget {
+  background: var(--panel-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.widget-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.widget-header h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.widget-header .widget-contador {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  background: var(--bg);
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.widget-body {
+  padding: 4px 0;
+}
+
+.widget table {
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.widget th {
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 10.5px;
+  padding: 10px 20px;
+}
+
+.widget td {
+  padding: 11px 20px;
+  font-size: 13px;
+}
+
+.widget tr:last-child td { border-bottom: none; }
+
+/* Ranking number badge para "mas vendidos" */
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.rank-badge.top1 { background: #fff3cd; color: #856404; }
+.rank-badge.top2 { background: #e2e8f0; color: #475569; }
+.rank-badge.top3 { background: #fde8ec; color: #c0392b; }
+
+body.dark .rank-badge.top1 { background: #3d2f0a; color: #fbbf24; }
+body.dark .rank-badge.top2 { background: #2a2a3e; color: #94a3b8; }
+body.dark .rank-badge.top3 { background: #3d1a22; color: #f87171; }
+
+/* Mini barra de proporcion dentro de la tabla de "por dia" */
+.mini-barra-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mini-barra-track {
+  flex: 1;
+  height: 6px;
+  background: var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  min-width: 50px;
+}
+
+.mini-barra-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 10px;
+  transition: width 0.5s ease;
+}
+
+/* ── TABLA DETALLE VENTAS (panel inferior) ── */
+.detalle-panel {
+  background: var(--panel-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.detalle-panel .widget-header {
+  align-items: center;
 }

@@ -8,7 +8,7 @@
   <script src="toast.js"></script>
 </head>
 <body>
-
+  <div id="breadcrumb"></div>
   <div class="sidebar">
     <div class="sidebar-logo">
       <h2>Casacas</h2>
@@ -265,6 +265,45 @@
     </div>
   </div>
 
+  <!-- MODAL COMPONENTES BUNDLE -->
+  <div class="modal-overlay" id="modal-bundle">
+    <div class="modal" style="width:560px; max-height:85vh; overflow-y:auto;">
+      <h2 id="bundle-titulo">Componentes del Bundle</h2>
+      <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">
+        Agrega las piezas sueltas que componen este paquete. El stock disponible del bundle
+        se calcula automaticamente como el minimo entre todas las piezas.
+      </p>
+
+      <!-- Selector de talla (si tiene varias) -->
+      <div class="campo" id="bundle-talla-campo" style="display:none; margin-bottom:16px;">
+        <label>Talla a configurar</label>
+        <select id="bundle-talla-select"
+          style="width:100%; padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);"
+          onchange="cambiarTallaBundle()">
+        </select>
+      </div>
+
+      <!-- Buscador -->
+      <div style="position:relative; margin-bottom:16px;">
+        <input type="text" id="bundle-buscar"
+          placeholder="Buscar pieza suelta (ej: camiseta guanenta 10-12)..."
+          oninput="buscarPiezaBundle()"
+          style="width:100%; padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text); box-sizing:border-box;">
+        <div id="bundle-sugerencias"
+          style="position:absolute; top:100%; left:0; right:0; background:var(--card-bg); border:1px solid var(--border); border-radius:0 0 8px 8px; max-height:200px; overflow-y:auto; z-index:1000; display:none; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+        </div>
+      </div>
+
+      <!-- Piezas agregadas -->
+      <div id="bundle-piezas-lista" style="margin-bottom:16px;"></div>
+
+      <div class="modal-botones">
+        <button class="btn btn-gris" onclick="cerrarModalBundle()">Cancelar</button>
+        <button class="btn btn-rojo" onclick="guardarBundle()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="nav.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
   <script>
@@ -278,6 +317,12 @@
     let varianteEditandoId = null
     let preciosProductoId  = null
     let preciosVariantes   = []
+
+    // ── BUNDLES ───────────────────────────────────────
+    let bundleProductoId   = null   // producto al que pertenece el bundle
+    let bundleVarianteId   = null   // variante actualmente configurada
+    let bundleFilas        = []     // componentes en edicion
+    let todasLasVariantes  = []     // lista plana de todas las variantes
 
     cargarMenu('inventario.html').then(s => {
       sesion = s
@@ -301,7 +346,23 @@
       document.getElementById('filtro-colegio').innerHTML = '<option value="">Todos los colegios</option>' + optsCol
       document.getElementById('p-colegio').innerHTML = optsCol
 
+      // Reconstruir lista plana de variantes para el selector de bundles
+      reconstruirTodasLasVariantes()
+
       aplicarFiltros()
+    }
+
+    function reconstruirTodasLasVariantes() {
+      todasLasVariantes = []
+      productos.forEach(p => {
+        (p.variantes || []).forEach(v => {
+          todasLasVariantes.push({
+            id:    v.id,
+            label: `${p.nombre} T${v.talla} — ${p.colegio} (Stock: ${v.cantidad})`,
+            stock: v.cantidad
+          })
+        })
+      })
     }
 
     function aplicarFiltros() {
@@ -366,7 +427,7 @@
               <strong style="font-size:16px; color:var(--text);">${p.nombre}</strong>
               <span style="color:var(--text-muted); font-size:13px; margin-left:12px;">${p.categoria} — ${p.colegio} — ${p.genero}</span>
             </div>
-            <div style="display:flex; align-items:center; gap:10px;">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
               <span style="font-size:13px; color:#888;">${p.variantes.length} talla(s)</span>
               ${esAdmin ? `
                 <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
@@ -376,6 +437,11 @@
                 <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
                   onclick="event.stopPropagation(); abrirModalPrecios(${p.id})">
                   Precios
+                </button>
+                <button class="btn btn-gris" style="padding:4px 10px; font-size:12px; color:#8e44ad; border-color:#8e44ad;"
+                  onclick="event.stopPropagation(); abrirModalBundle(${p.id})"
+                  title="Definir que piezas componen este paquete">
+                  Bundles
                 </button>
                 <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
                   onclick="event.stopPropagation(); abrirModalVariante(${p.id})">
@@ -771,6 +837,192 @@
       document.getElementById('e-nota').value     = ''
       document.getElementById('modal-entrada').classList.add('activo')
       setTimeout(() => document.getElementById('e-cantidad').focus(), 150)
+    }
+
+    // ── MODAL BUNDLES ─────────────────────────────────
+    async function abrirModalBundle(productoId) {
+      const p = productos.find(x => x.id === productoId)
+      if (!p || !p.variantes || p.variantes.length === 0) return
+
+      bundleProductoId = productoId
+      reconstruirTodasLasVariantes()
+
+      const campoTalla  = document.getElementById('bundle-talla-campo')
+      const selectTalla = document.getElementById('bundle-talla-select')
+
+      if (p.variantes.length > 1) {
+        campoTalla.style.display = 'block'
+        selectTalla.innerHTML = p.variantes.map(v =>
+          `<option value="${v.id}">Talla ${v.talla}</option>`
+        ).join('')
+        bundleVarianteId  = p.variantes[0].id
+        selectTalla.value = bundleVarianteId
+      } else {
+        campoTalla.style.display = 'none'
+        bundleVarianteId = p.variantes[0].id
+      }
+
+      document.getElementById('bundle-titulo').textContent =
+        `Componentes — ${p.nombre} (${p.colegio})`
+      document.getElementById('bundle-buscar').value = ''
+      document.getElementById('bundle-sugerencias').style.display = 'none'
+
+      await cargarComponentesBundle()
+      document.getElementById('modal-bundle').classList.add('activo')
+    }
+
+    async function cambiarTallaBundle() {
+      const nuevaVarianteId = parseInt(document.getElementById('bundle-talla-select').value)
+      if (nuevaVarianteId === bundleVarianteId) return
+      // Guardar silenciosamente la talla actual antes de cambiar
+      await ipcRenderer.invoke('guardar-componentes-bundle', {
+        bundleVarianteId,
+        componentes: bundleFilas
+      })
+      bundleVarianteId = nuevaVarianteId
+      document.getElementById('bundle-buscar').value = ''
+      document.getElementById('bundle-sugerencias').style.display = 'none'
+      await cargarComponentesBundle()
+    }
+
+    async function cargarComponentesBundle() {
+      const existentes = await ipcRenderer.invoke('obtener-componentes-bundle', bundleVarianteId)
+      bundleFilas = existentes.map(c => ({
+        componente_variante_id: c.componente_variante_id,
+        cantidad:               1,
+        label:                  `${c.producto} T${c.talla} — ${c.colegio}`,
+        stock:                  c.stock
+      }))
+      renderPiezasBundle()
+    }
+
+    function cerrarModalBundle() {
+      document.getElementById('modal-bundle').classList.remove('activo')
+      document.getElementById('bundle-sugerencias').style.display = 'none'
+      bundleProductoId = null
+      bundleVarianteId = null
+      bundleFilas      = []
+    }
+
+    // Buscador estilo ventas
+    function buscarPiezaBundle() {
+      const texto       = document.getElementById('bundle-buscar').value.trim().toLowerCase()
+      const sugerencias = document.getElementById('bundle-sugerencias')
+
+      if (!texto) { sugerencias.style.display = 'none'; return }
+
+      const palabras   = texto.split(/\s+/).filter(Boolean)
+      const resultados = todasLasVariantes.filter(v => {
+        // Excluir variantes que ya están agregadas
+        if (bundleFilas.find(f => f.componente_variante_id === v.id)) return false
+        // Excluir la variante del bundle mismo
+        if (v.id === bundleVarianteId) return false
+        return palabras.every(p => v.label.toLowerCase().includes(p))
+      }).slice(0, 8)
+
+      if (resultados.length === 0) {
+        sugerencias.innerHTML = `<div style="padding:12px; color:var(--text-muted); font-size:14px;">Sin resultados</div>`
+        sugerencias.style.display = 'block'
+        return
+      }
+
+      sugerencias.innerHTML = resultados.map(v => `
+        <div onclick="agregarPiezaBundle(${v.id})"
+          style="padding:10px 14px; cursor:pointer; border-bottom:1px solid var(--border); font-size:13px;"
+          onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
+          <strong style="color:var(--text);">${v.label}</strong>
+          <span style="color:${v.stock <= 0 ? '#e94560' : v.stock <= 3 ? '#f39c12' : '#2ecc71'}; margin-left:8px; font-size:12px;">
+            Stock: ${v.stock}
+          </span>
+        </div>
+      `).join('')
+      sugerencias.style.display = 'block'
+    }
+
+    function agregarPiezaBundle(varianteId) {
+      const v = todasLasVariantes.find(x => x.id === varianteId)
+      if (!v) return
+      if (bundleFilas.find(f => f.componente_variante_id === varianteId)) return
+
+      bundleFilas.push({
+        componente_variante_id: varianteId,
+        cantidad:               1,
+        label:                  v.label,
+        stock:                  v.stock
+      })
+
+      document.getElementById('bundle-buscar').value = ''
+      document.getElementById('bundle-sugerencias').style.display = 'none'
+      renderPiezasBundle()
+    }
+
+    function renderPiezasBundle() {
+      const contenedor = document.getElementById('bundle-piezas-lista')
+
+      if (bundleFilas.length === 0) {
+        contenedor.innerHTML = `
+          <div style="text-align:center; color:var(--text-muted); padding:24px; font-size:13px;
+            border:1px dashed var(--border); border-radius:8px;">
+            Sin piezas agregadas. Usa el buscador para agregar las piezas sueltas.
+          </div>`
+        return
+      }
+
+      // Calcular stock disponible del bundle = min de todas las piezas
+      const stockBundle = Math.min(...bundleFilas.map(f => f.stock))
+
+      contenedor.innerHTML = `
+        <div style="margin-bottom:10px; padding:10px 14px; background:var(--bg); border-radius:8px; font-size:13px; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center;">
+          <span>Paquetes disponibles (minimo entre piezas):</span>
+          <strong style="font-size:16px; color:${stockBundle <= 0 ? '#e94560' : stockBundle <= 3 ? '#f39c12' : '#2ecc71'};">
+            ${stockBundle <= 0 ? 'Agotado' : stockBundle + ' uds'}
+          </strong>
+        </div>
+        ${bundleFilas.map((f, i) => `
+          <div style="display:flex; align-items:center; justify-content:space-between;
+            padding:10px 14px; border:1px solid var(--border); border-radius:8px; margin-bottom:6px; background:var(--card-bg);">
+            <div>
+              <strong style="font-size:14px; color:var(--text);">${f.label}</strong>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span style="font-size:13px; color:${f.stock <= 0 ? '#e94560' : f.stock <= 3 ? '#f39c12' : 'var(--text-muted)'};">
+                Stock: ${f.stock}
+              </span>
+              <button onclick="quitarPiezaBundle(${i})"
+                style="background:none; border:none; cursor:pointer; color:#e94560; font-size:18px; line-height:1; padding:0;">✕</button>
+            </div>
+          </div>
+        `).join('')}
+      `
+    }
+
+    function quitarPiezaBundle(idx) {
+      bundleFilas.splice(idx, 1)
+      renderPiezasBundle()
+    }
+
+    async function guardarBundle() {
+      if (!bundleVarianteId) return
+
+      if (bundleFilas.length === 0) {
+        if (!confirm('Sin piezas: esto desvinculara el bundle. El stock se manejara de forma independiente. Continuar?')) return
+      }
+
+      const res = await ipcRenderer.invoke('guardar-componentes-bundle', {
+        bundleVarianteId,
+        componentes: bundleFilas
+      })
+
+      if (res.ok) {
+        const p            = productos.find(x => x.id === bundleProductoId)
+        const tieneMasTallas = p && p.variantes.length > 1
+        cerrarModalBundle()
+        if (tieneMasTallas) {
+          alert('Guardado. Recuerda configurar las demas tallas por separado.')
+        } else {
+          alert('Componentes guardados correctamente.')
+        }
+      }
     }
   </script>
 

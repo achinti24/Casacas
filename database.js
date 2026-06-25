@@ -160,6 +160,44 @@ db.exec(`
     id INTEGER PRIMARY KEY CHECK (id = 1),
     ultimo_numero INTEGER DEFAULT 0
   );
+
+  CREATE TABLE IF NOT EXISTS bundle_componentes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bundle_variante_id INTEGER NOT NULL,
+    componente_variante_id INTEGER NOT NULL,
+    cantidad INTEGER DEFAULT 1,
+    FOREIGN KEY (bundle_variante_id) REFERENCES producto_variantes(id),
+    FOREIGN KEY (componente_variante_id) REFERENCES producto_variantes(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS categorias_insumo (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT UNIQUE NOT NULL,
+    orden INTEGER DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS insumos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    categoria TEXT,
+    unidad_medida TEXT NOT NULL DEFAULT 'unidades',
+    cantidad REAL DEFAULT 0,
+    stock_minimo REAL DEFAULT 0,
+    costo_unitario REAL DEFAULT 0,
+    fecha_creacion TEXT DEFAULT (datetime('now', 'localtime'))
+  );
+
+  CREATE TABLE IF NOT EXISTS movimientos_insumo (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    insumo_id INTEGER NOT NULL,
+    usuario_id INTEGER,
+    tipo TEXT NOT NULL,
+    cantidad REAL NOT NULL,
+    nota TEXT,
+    fecha TEXT DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (insumo_id) REFERENCES insumos(id),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+  );
 `)
 
 // ── Migrations para BD existente ──────────────────────────────────────────────
@@ -167,12 +205,45 @@ const migrations = [
   `ALTER TABLE ventas ADD COLUMN numero_factura INTEGER UNIQUE`,
   `ALTER TABLE ventas ADD COLUMN anulada INTEGER DEFAULT 0`,
   `ALTER TABLE ventas ADD COLUMN motivo_anulacion TEXT`,
-  // Nueva columna precio_costo para BDs existentes
   `ALTER TABLE producto_variantes ADD COLUMN precio_costo REAL DEFAULT 0`,
+  `CREATE TABLE IF NOT EXISTS bundle_componentes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bundle_variante_id INTEGER NOT NULL,
+    componente_variante_id INTEGER NOT NULL,
+    cantidad INTEGER DEFAULT 1,
+    FOREIGN KEY (bundle_variante_id) REFERENCES producto_variantes(id),
+    FOREIGN KEY (componente_variante_id) REFERENCES producto_variantes(id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS categorias_insumo (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT UNIQUE NOT NULL,
+    orden INTEGER DEFAULT 0
+  )`,
+  `CREATE TABLE IF NOT EXISTS insumos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    categoria TEXT,
+    unidad_medida TEXT NOT NULL DEFAULT 'unidades',
+    cantidad REAL DEFAULT 0,
+    stock_minimo REAL DEFAULT 0,
+    costo_unitario REAL DEFAULT 0,
+    fecha_creacion TEXT DEFAULT (datetime('now', 'localtime'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS movimientos_insumo (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    insumo_id INTEGER NOT NULL,
+    usuario_id INTEGER,
+    tipo TEXT NOT NULL,
+    cantidad REAL NOT NULL,
+    nota TEXT,
+    fecha TEXT DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (insumo_id) REFERENCES insumos(id),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+  )`,
 ]
 
 migrations.forEach(sql => {
-  try { db.exec(sql) } catch(e) { /* columna ya existe, ignorar */ }
+  try { db.exec(sql) } catch(e) { /* ya existe, ignorar */ }
 })
 
 // Inicializar contador de facturas
@@ -215,6 +286,13 @@ const catEgreso = [
 catEgreso.forEach((nombre, i) => {
   const existe = db.prepare('SELECT id FROM categorias_egreso WHERE nombre = ?').get(nombre)
   if (!existe) db.prepare('INSERT INTO categorias_egreso (nombre, orden) VALUES (?, ?)').run(nombre, i)
+})
+
+// Categorias insumo por defecto
+const catInsumo = ['Telas', 'Hilos', 'Botones', 'Cierres', 'Etiquetas', 'Empaques', 'Otro']
+catInsumo.forEach((nombre, i) => {
+  const existe = db.prepare('SELECT id FROM categorias_insumo WHERE nombre = ?').get(nombre)
+  if (!existe) db.prepare('INSERT INTO categorias_insumo (nombre, orden) VALUES (?, ?)').run(nombre, i)
 })
 
 // Metas por defecto

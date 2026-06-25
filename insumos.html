@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Casacas - Insumos</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="inventario.css">
+  <script src="toast.js"></script>
+</head>
+<body>
+    <div id="breadcrumb"></div>
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <h2>Casacas</h2>
+      <small>y Uniformes</small>
+    </div>
+    <nav id="nav-menu"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-usuario" id="info-usuario"></div>
+      <button class="btn-modo" onclick="toggleModo()">Modo oscuro</button>
+      <button class="btn-cerrar-sesion" onclick="cerrarSesion()">Cerrar sesion</button>
+    </div>
+  </div>
+
+  <div class="contenido">
+    <div class="encabezado">
+      <h1>Insumos</h1>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-gris" id="btn-entrada" onclick="abrirModalEntrada()">+ Entrada de Stock</button>
+        <button class="btn btn-rojo" id="btn-agregar" onclick="abrirModalInsumo()">+ Agregar Insumo</button>
+      </div>
+    </div>
+
+    <!-- RESUMEN -->
+    <div class="cards" style="margin-bottom:20px;">
+      <div class="card rojo">
+        <span class="etiqueta">Insumos por comprar</span>
+        <span class="valor" id="resumen-comprar">0</span>
+      </div>
+      <div class="card azul">
+        <span class="etiqueta">Valor total en bodega</span>
+        <span class="valor" id="resumen-valor">$0</span>
+      </div>
+      <div class="card morado">
+        <span class="etiqueta">Total de insumos</span>
+        <span class="valor" id="resumen-total">0</span>
+      </div>
+    </div>
+
+    <input class="buscador" type="text" placeholder="Buscar por nombre o categoria..."
+      oninput="aplicarFiltros()">
+
+    <div class="filtros">
+      <select id="filtro-categoria" onchange="aplicarFiltros()">
+        <option value="">Todas las categorias</option>
+      </select>
+      <select id="filtro-stock" onchange="aplicarFiltros()">
+        <option value="">Todo el stock</option>
+        <option value="en-stock">En stock</option>
+        <option value="agotado">Agotados</option>
+        <option value="stock-bajo">Hay que comprar</option>
+      </select>
+      <button class="btn-limpiar" onclick="limpiarFiltros()">Limpiar filtros</button>
+    </div>
+
+    <p id="contador" style="margin-bottom:12px; color:#888; font-size:14px;"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Categoria</th>
+          <th>Cantidad</th>
+          <th>Stock min.</th>
+          <th>Costo unitario</th>
+          <th>Valor total</th>
+          <th>Estado</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tabla-body">
+        <tr><td colspan="8" class="vacio">Cargando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- MODAL AGREGAR/EDITAR INSUMO -->
+  <div class="modal-overlay" id="modal-insumo">
+    <div class="modal" style="width:480px;">
+      <h2 id="modal-insumo-titulo">Agregar Insumo</h2>
+
+      <div class="campo">
+        <label>Nombre</label>
+        <input type="text" id="i-nombre" placeholder="Ej: Tela dacron azul">
+      </div>
+
+      <div class="fila-doble">
+        <div class="campo">
+          <label>Categoria</label>
+          <select id="i-categoria"></select>
+        </div>
+        <div class="campo">
+          <label>Unidad de medida</label>
+          <select id="i-unidad">
+            <option value="metros">Metros</option>
+            <option value="unidades">Unidades</option>
+            <option value="rollos">Rollos</option>
+            <option value="kilos">Kilos</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="fila-doble">
+        <div class="campo" id="i-cantidad-campo">
+          <label>Cantidad inicial</label>
+          <input type="number" id="i-cantidad" min="0" step="0.01" value="0">
+        </div>
+        <div class="campo">
+          <label>Stock minimo</label>
+          <input type="number" id="i-stock-minimo" min="0" step="0.01" value="0">
+        </div>
+      </div>
+
+      <div class="campo">
+        <label>Costo unitario ($)</label>
+        <input type="number" id="i-costo" min="0" value="0">
+      </div>
+
+      <div class="modal-botones">
+        <button class="btn btn-gris" onclick="cerrarModalInsumo()">Cancelar</button>
+        <button class="btn btn-rojo" onclick="guardarInsumo()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL ENTRADA DE STOCK -->
+  <div class="modal-overlay" id="modal-entrada">
+    <div class="modal" style="width:480px;">
+      <h2>Entrada de Stock</h2>
+      <div class="campo">
+        <label>Insumo</label>
+        <select id="e-insumo" style="width:100%; padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);"></select>
+      </div>
+      <div class="fila-doble">
+        <div class="campo">
+          <label>Cantidad a agregar</label>
+          <input type="number" id="e-cantidad" min="0.01" step="0.01" value="1">
+        </div>
+        <div class="campo">
+          <label>Nota (opcional)</label>
+          <input type="text" id="e-nota" placeholder="Ej: Compra a proveedor">
+        </div>
+      </div>
+      <div class="modal-botones">
+        <button class="btn btn-gris" onclick="cerrarModalEntrada()">Cancelar</button>
+        <button class="btn btn-rojo" onclick="guardarEntrada()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL SALIDA DE STOCK -->
+  <div class="modal-overlay" id="modal-salida">
+    <div class="modal" style="width:480px;">
+      <h2>Registrar Salida (uso)</h2>
+      <p id="salida-disponible" style="color:var(--text-muted); font-size:13px; margin-bottom:14px;"></p>
+      <div class="fila-doble">
+        <div class="campo">
+          <label>Cantidad usada</label>
+          <input type="number" id="s-cantidad" min="0.01" step="0.01" value="1">
+        </div>
+        <div class="campo">
+          <label>Nota (opcional)</label>
+          <input type="text" id="s-nota" placeholder="Ej: Corte para 10 camisas">
+        </div>
+      </div>
+      <div class="modal-botones">
+        <button class="btn btn-gris" onclick="cerrarModalSalida()">Cancelar</button>
+        <button class="btn btn-rojo" onclick="guardarSalida()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL HISTORIAL DE MOVIMIENTOS -->
+  <div class="modal-overlay" id="modal-historial">
+    <div class="modal" style="width:560px; max-height:80vh; overflow-y:auto;">
+      <h2 id="historial-titulo">Historial de movimientos</h2>
+      <table>
+        <thead>
+          <tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Usuario</th><th>Nota</th></tr>
+        </thead>
+        <tbody id="historial-body"></tbody>
+      </table>
+      <div class="modal-botones" style="justify-content:center;">
+        <button class="btn btn-gris" onclick="cerrarModalHistorial()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="nav.js"></script>
+  <script>
+    let sesion           = null
+    let insumos          = []
+    let categorias       = []
+    let insumoEditandoId = null
+    let insumoSalidaId   = null
+
+    cargarMenu('insumos.html').then(s => {
+      sesion = s
+      if (sesion && sesion.rol !== 'admin') {
+        navegar('index.html')
+        return
+      }
+      cargarDatos()
+    })
+
+    async function cargarDatos() {
+      categorias = await ipcRenderer.invoke('obtener-categorias-insumo')
+      insumos    = await ipcRenderer.invoke('obtener-insumos')
+
+      const optsCat = categorias.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('')
+      document.getElementById('filtro-categoria').innerHTML = '<option value="">Todas las categorias</option>' + optsCat
+      document.getElementById('i-categoria').innerHTML = optsCat
+
+      calcularResumen()
+      aplicarFiltros()
+    }
+
+    function calcularResumen() {
+      const porComprar = insumos.filter(i => i.cantidad <= i.stock_minimo).length
+      const valorTotal = insumos.reduce((acc, i) => acc + (i.cantidad * (i.costo_unitario || 0)), 0)
+
+      document.getElementById('resumen-comprar').textContent = porComprar
+      document.getElementById('resumen-valor').textContent   = '$' + valorTotal.toLocaleString('es-CO', { maximumFractionDigits: 0 })
+      document.getElementById('resumen-total').textContent   = insumos.length
+    }
+
+    function aplicarFiltros() {
+      const texto     = document.querySelector('.buscador').value.toLowerCase()
+      const categoria = document.getElementById('filtro-categoria').value
+      const stock     = document.getElementById('filtro-stock').value
+
+      const filtrados = insumos.filter(i => {
+        const coincideTexto = !texto ||
+          i.nombre.toLowerCase().includes(texto) ||
+          (i.categoria || '').toLowerCase().includes(texto)
+        const coincideCategoria = !categoria || i.categoria === categoria
+
+        let coincideStock = true
+        if (stock === 'en-stock')   coincideStock = i.cantidad > i.stock_minimo
+        if (stock === 'agotado')    coincideStock = i.cantidad <= 0
+        if (stock === 'stock-bajo') coincideStock = i.cantidad > 0 && i.cantidad <= i.stock_minimo
+
+        return coincideTexto && coincideCategoria && coincideStock
+      })
+
+      document.getElementById('contador').textContent =
+        `Mostrando ${filtrados.length} de ${insumos.length} insumos`
+      renderTabla(filtrados)
+    }
+
+    function limpiarFiltros() {
+      document.querySelector('.buscador').value = ''
+      document.getElementById('filtro-categoria').value = ''
+      document.getElementById('filtro-stock').value = ''
+      aplicarFiltros()
+    }
+
+    function stockBadge(i) {
+      if (i.cantidad <= 0)              return '<span class="badge badge-rojo">Agotado</span>'
+      if (i.cantidad <= i.stock_minimo) return '<span class="badge badge-amarillo">Comprar</span>'
+      return '<span class="badge badge-verde">En stock</span>'
+    }
+
+    function formatearCantidad(valor) {
+      return parseFloat(valor).toLocaleString('es-CO', { maximumFractionDigits: 2 })
+    }
+
+    function unidadCorta(unidad) {
+      const map = { metros: 'm', unidades: 'uds', rollos: 'rollos', kilos: 'kg' }
+      return map[unidad] || unidad
+    }
+
+    function renderTabla(lista) {
+      const tbody = document.getElementById('tabla-body')
+      if (lista.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="vacio">No se encontraron insumos.</td></tr>'
+        return
+      }
+
+      tbody.innerHTML = lista.map(i => `
+        <tr>
+          <td><strong>${i.nombre}</strong></td>
+          <td><span class="badge badge-rojo">${i.categoria || 'Sin categoria'}</span></td>
+          <td>${formatearCantidad(i.cantidad)} ${unidadCorta(i.unidad_medida)}</td>
+          <td>${formatearCantidad(i.stock_minimo)} ${unidadCorta(i.unidad_medida)}</td>
+          <td>$${parseFloat(i.costo_unitario || 0).toLocaleString('es-CO')}</td>
+          <td>$${(i.cantidad * (i.costo_unitario || 0)).toLocaleString('es-CO', { maximumFractionDigits: 0 })}</td>
+          <td>${stockBadge(i)}</td>
+          <td style="white-space:nowrap;">
+            <button class="btn btn-gris" style="padding:5px 10px; font-size:12px; margin-right:4px;"
+              onclick="abrirModalEditarInsumo(${i.id})">Editar</button>
+            <button class="btn btn-gris" style="padding:5px 10px; font-size:12px; color:#2ecc71; border-color:#2ecc71; margin-right:4px;"
+              onclick="abrirEntradaRapida(${i.id})">+ Stock</button>
+            <button class="btn btn-gris" style="padding:5px 10px; font-size:12px; color:#e67e22; border-color:#e67e22; margin-right:4px;"
+              onclick="abrirModalSalida(${i.id})">- Uso</button>
+            <button class="btn btn-gris" style="padding:5px 10px; font-size:12px; margin-right:4px;"
+              onclick="verHistorial(${i.id})">Historial</button>
+            <button class="btn btn-rojo" style="padding:5px 10px; font-size:12px;"
+              onclick="eliminarInsumo(${i.id})">Eliminar</button>
+          </td>
+        </tr>
+      `).join('')
+    }
+
+    // ── MODAL AGREGAR/EDITAR INSUMO ───────────────────
+    function abrirModalInsumo() {
+      insumoEditandoId = null
+      document.getElementById('modal-insumo-titulo').textContent = 'Agregar Insumo'
+      document.getElementById('i-nombre').value = ''
+      document.getElementById('i-unidad').value = 'metros'
+      document.getElementById('i-cantidad').value = 0
+      document.getElementById('i-stock-minimo').value = 0
+      document.getElementById('i-costo').value = 0
+      document.getElementById('i-cantidad-campo').style.display = 'block'
+      if (categorias.length) document.getElementById('i-categoria').value = categorias[0].nombre
+      document.getElementById('modal-insumo').classList.add('activo')
+    }
+
+    function abrirModalEditarInsumo(id) {
+      const i = insumos.find(x => x.id === id)
+      if (!i) return
+      insumoEditandoId = id
+      document.getElementById('modal-insumo-titulo').textContent = 'Editar Insumo'
+      document.getElementById('i-nombre').value        = i.nombre
+      document.getElementById('i-categoria').value     = i.categoria
+      document.getElementById('i-unidad').value        = i.unidad_medida
+      document.getElementById('i-stock-minimo').value  = i.stock_minimo
+      document.getElementById('i-costo').value         = i.costo_unitario || 0
+      // La cantidad actual no se edita aqui directamente, se maneja con entradas/salidas
+      document.getElementById('i-cantidad-campo').style.display = 'none'
+      document.getElementById('modal-insumo').classList.add('activo')
+    }
+
+    function cerrarModalInsumo() {
+      document.getElementById('modal-insumo').classList.remove('activo')
+    }
+
+    async function guardarInsumo() {
+      const nombre        = document.getElementById('i-nombre').value.trim()
+      const categoria     = document.getElementById('i-categoria').value
+      const unidad_medida = document.getElementById('i-unidad').value
+      const stock_minimo  = parseFloat(document.getElementById('i-stock-minimo').value) || 0
+      const costo_unitario = parseFloat(document.getElementById('i-costo').value) || 0
+
+      if (!nombre) { alert('El nombre es obligatorio'); return }
+
+      if (insumoEditandoId) {
+        await ipcRenderer.invoke('editar-insumo', {
+          id: insumoEditandoId, nombre, categoria, unidad_medida, stock_minimo, costo_unitario
+        })
+      } else {
+        const cantidad = parseFloat(document.getElementById('i-cantidad').value) || 0
+        await ipcRenderer.invoke('agregar-insumo', {
+          nombre, categoria, unidad_medida, cantidad, stock_minimo, costo_unitario
+        })
+      }
+
+      cerrarModalInsumo()
+      cargarDatos()
+    }
+
+    async function eliminarInsumo(id) {
+      if (!confirm('Seguro que quieres eliminar este insumo? Se borrara tambien su historial.')) return
+      await ipcRenderer.invoke('eliminar-insumo', id)
+      cargarDatos()
+    }
+
+    // ── MODAL ENTRADA DE STOCK ────────────────────────
+    function abrirModalEntrada() {
+      const select = document.getElementById('e-insumo')
+      select.innerHTML = insumos.map(i =>
+        `<option value="${i.id}">${i.nombre} — ${i.categoria} (Stock: ${formatearCantidad(i.cantidad)} ${unidadCorta(i.unidad_medida)})</option>`
+      ).join('')
+      document.getElementById('e-cantidad').value = 1
+      document.getElementById('e-nota').value     = ''
+      document.getElementById('modal-entrada').classList.add('activo')
+    }
+
+    function abrirEntradaRapida(insumoId) {
+      const select = document.getElementById('e-insumo')
+      select.innerHTML = insumos.map(i =>
+        `<option value="${i.id}" ${i.id === insumoId ? 'selected' : ''}>${i.nombre} — ${i.categoria} (Stock: ${formatearCantidad(i.cantidad)} ${unidadCorta(i.unidad_medida)})</option>`
+      ).join('')
+      document.getElementById('e-cantidad').value = 1
+      document.getElementById('e-nota').value     = ''
+      document.getElementById('modal-entrada').classList.add('activo')
+      setTimeout(() => document.getElementById('e-cantidad').focus(), 150)
+    }
+
+    function cerrarModalEntrada() {
+      document.getElementById('modal-entrada').classList.remove('activo')
+    }
+
+    async function guardarEntrada() {
+      const insumoId = parseInt(document.getElementById('e-insumo').value)
+      const cantidad = parseFloat(document.getElementById('e-cantidad').value)
+      const nota     = document.getElementById('e-nota').value.trim()
+
+      if (!insumoId || !cantidad || cantidad <= 0) { alert('Completa los campos correctamente'); return }
+
+      const res = await ipcRenderer.invoke('agregar-movimiento-insumo', {
+        insumo_id:  insumoId,
+        usuario_id: sesion.id,
+        tipo:       'entrada',
+        cantidad,
+        nota: nota || 'Entrada de stock'
+      })
+
+      if (res.error) { alert(res.error); return }
+
+      cerrarModalEntrada()
+      cargarDatos()
+      alert(`Entrada registrada: +${formatearCantidad(cantidad)}`)
+    }
+
+    // ── MODAL SALIDA DE STOCK (USO) ───────────────────
+    function abrirModalSalida(insumoId) {
+      const i = insumos.find(x => x.id === insumoId)
+      if (!i) return
+      insumoSalidaId = insumoId
+      document.getElementById('salida-disponible').textContent =
+        `Disponible: ${formatearCantidad(i.cantidad)} ${unidadCorta(i.unidad_medida)} de ${i.nombre}`
+      document.getElementById('s-cantidad').value = ''
+      document.getElementById('s-nota').value     = ''
+      document.getElementById('modal-salida').classList.add('activo')
+      setTimeout(() => document.getElementById('s-cantidad').focus(), 150)
+    }
+
+    function cerrarModalSalida() {
+      document.getElementById('modal-salida').classList.remove('activo')
+      insumoSalidaId = null
+    }
+
+    async function guardarSalida() {
+      const cantidad = parseFloat(document.getElementById('s-cantidad').value)
+      const nota     = document.getElementById('s-nota').value.trim()
+
+      if (!cantidad || cantidad <= 0) { alert('Ingresa una cantidad valida'); return }
+
+      const res = await ipcRenderer.invoke('agregar-movimiento-insumo', {
+        insumo_id:  insumoSalidaId,
+        usuario_id: sesion.id,
+        tipo:       'salida',
+        cantidad,
+        nota: nota || 'Uso registrado'
+      })
+
+      if (res.error) { alert(res.error); return }
+
+      cerrarModalSalida()
+      cargarDatos()
+      alert(`Salida registrada: -${formatearCantidad(cantidad)}`)
+    }
+
+    // ── HISTORIAL ──────────────────────────────────────
+    async function verHistorial(insumoId) {
+      const i = insumos.find(x => x.id === insumoId)
+      if (!i) return
+
+      const movimientos = await ipcRenderer.invoke('obtener-movimientos-insumo', insumoId)
+
+      document.getElementById('historial-titulo').textContent = `Historial — ${i.nombre}`
+
+      if (movimientos.length === 0) {
+        document.getElementById('historial-body').innerHTML =
+          '<tr><td colspan="5" class="vacio">Sin movimientos registrados.</td></tr>'
+      } else {
+        document.getElementById('historial-body').innerHTML = movimientos.map(m => `
+          <tr>
+            <td>${new Date(m.fecha).toLocaleString('es-CO')}</td>
+            <td>
+              ${m.tipo === 'entrada'
+                ? '<span class="badge badge-verde">Entrada</span>'
+                : '<span class="badge badge-amarillo">Salida</span>'}
+            </td>
+            <td>${m.tipo === 'entrada' ? '+' : '-'}${formatearCantidad(m.cantidad)} ${unidadCorta(m.unidad_medida)}</td>
+            <td>${m.usuario || '—'}</td>
+            <td>${m.nota || '—'}</td>
+          </tr>
+        `).join('')
+      }
+
+      document.getElementById('modal-historial').classList.add('activo')
+    }
+
+    function cerrarModalHistorial() {
+      document.getElementById('modal-historial').classList.remove('activo')
+    }
+  </script>
+
+</body>
+</html>

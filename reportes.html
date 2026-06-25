@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="reportes.css">
 </head>
 <body>
-
+  <div id="breadcrumb"></div>
   <div class="sidebar">
     <div class="sidebar-logo">
       <h2>Casacas</h2>
@@ -27,122 +27,180 @@
       <h1>Reportes</h1>
     </div>
 
-    <!-- FILTROS FECHA -->
-    <div class="panel" style="margin-bottom:20px;">
-      <h3 style="margin-bottom:16px;">Filtrar por periodo</h3>
-      <div class="filtro-fechas">
-        <div class="campo">
-          <label>Periodo rapido</label>
-          <select id="periodo-rapido" onchange="aplicarPeriodo()" style="padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);">
-            <option value="">Seleccionar...</option>
-            <option value="hoy">Hoy</option>
-            <option value="semana">Esta semana</option>
-            <option value="mes">Este mes</option>
-            <option value="mes_anterior">Mes anterior</option>
-            <option value="todo">Todo el tiempo</option>
-          </select>
+    <!-- BARRA DE FILTROS -->
+    <div class="reportes-toolbar">
+      <div class="campo">
+        <label>Periodo rapido</label>
+        <select id="periodo-rapido" onchange="aplicarPeriodo()">
+          <option value="">Seleccionar...</option>
+          <option value="hoy">Hoy</option>
+          <option value="semana">Esta semana</option>
+          <option value="mes">Este mes</option>
+          <option value="mes_anterior">Mes anterior</option>
+          <option value="todo">Todo el tiempo</option>
+        </select>
+      </div>
+      <div class="campo">
+        <label>Desde</label>
+        <input type="date" id="f-desde">
+      </div>
+      <div class="campo">
+        <label>Hasta</label>
+        <input type="date" id="f-hasta">
+      </div>
+      <button class="btn btn-rojo" onclick="cargarReporte()">Ver reporte</button>
+    </div>
+
+    <!-- KPIs PRINCIPALES -->
+    <div class="reportes-seccion-titulo">
+      <span class="barrita"></span>
+      <h3>Resumen del periodo</h3>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-icono verde">💰</div>
+        <div class="kpi-texto">
+          <span class="kpi-valor" id="r-total">$0</span>
+          <span class="kpi-etiqueta">Total recaudado</span>
         </div>
-        <div class="campo">
-          <label>Desde</label>
-          <input type="date" id="f-desde" style="padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);">
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icono azul">🧾</div>
+        <div class="kpi-texto">
+          <span class="kpi-valor" id="r-ventas">0</span>
+          <span class="kpi-etiqueta">Ventas realizadas</span>
         </div>
-        <div class="campo">
-          <label>Hasta</label>
-          <input type="date" id="f-hasta" style="padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);">
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icono rojo">📦</div>
+        <div class="kpi-texto">
+          <span class="kpi-valor" id="r-unidades">0</span>
+          <span class="kpi-etiqueta">Unidades vendidas</span>
         </div>
-        <button class="btn btn-rojo" onclick="cargarReporte()">Ver reporte</button>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icono morado">📥</div>
+        <div class="kpi-texto">
+          <span class="kpi-valor" id="r-entradas">0 uds</span>
+          <span class="kpi-etiqueta">Entradas de stock</span>
+        </div>
       </div>
     </div>
 
-    <!-- CARDS RESUMEN -->
-    <div class="cards" style="margin-bottom:20px;">
-      <div class="card verde">
-        <span class="etiqueta">Total recaudado</span>
-        <span class="valor" id="r-total">$0</span>
+    <!-- KPIs METODO DE PAGO -->
+    <div class="reportes-seccion-titulo">
+      <span class="barrita"></span>
+      <h3>Metodo de pago</h3>
+    </div>
+    <div class="kpi-grid" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="kpi-card" style="border-left: 4px solid #2ecc71;">
+        <div class="kpi-icono verde">💵</div>
+        <div class="kpi-texto">
+          <span class="kpi-valor" id="r-efectivo">$0</span>
+          <span class="kpi-etiqueta">
+            Ventas en efectivo &nbsp;<span id="r-efectivo-count" style="font-size:12px; color:var(--text-muted); font-weight:normal;">(0 ventas)</span>
+          </span>
+        </div>
       </div>
-      <div class="card azul">
-        <span class="etiqueta">Ventas realizadas</span>
-        <span class="valor" id="r-ventas">0</span>
-      </div>
-      <div class="card rojo">
-        <span class="etiqueta">Unidades vendidas</span>
-        <span class="valor" id="r-unidades">0</span>
-      </div>
-      <div class="card morado">
-        <span class="etiqueta">Entradas de stock</span>
-        <span class="valor" id="r-entradas">0 uds</span>
+      <div class="kpi-card" style="border-left: 4px solid #3b82f6;">
+        <div class="kpi-icono azul">📲</div>
+        <div class="kpi-texto">
+          <span class="kpi-valor" id="r-transferencia">$0</span>
+          <span class="kpi-etiqueta">
+            Ventas por transferencia &nbsp;<span id="r-transferencia-count" style="font-size:12px; color:var(--text-muted); font-weight:normal;">(0 ventas)</span>
+          </span>
+        </div>
       </div>
     </div>
 
-    <!-- CARDS RENTABILIDAD -->
-    <h3 style="margin:4px 0 12px; color:var(--text-muted); font-size:15px;">Rentabilidad del periodo</h3>
-    <div class="cards" style="margin-bottom:8px;">
-      <div class="card rojo">
-        <span class="etiqueta">Egresos del periodo</span>
-        <span class="valor" id="r-egresos">$0</span>
+    <!-- RENTABILIDAD -->
+    <div class="reportes-seccion-titulo">
+      <span class="barrita"></span>
+      <h3>Rentabilidad del periodo</h3>
+    </div>
+    <div class="rentabilidad-grid">
+      <div class="rent-card rojo">
+        <span class="rent-etiqueta">Egresos del periodo</span>
+        <span class="rent-valor" id="r-egresos">$0</span>
       </div>
-      <div class="card morado">
-        <span class="etiqueta">Vendido - Egresos</span>
-        <span class="valor" id="r-ganancia-bruta">$0</span>
+      <div class="rent-card morado">
+        <span class="rent-etiqueta">Vendido - Egresos</span>
+        <span class="rent-valor" id="r-ganancia-bruta">$0</span>
       </div>
-      <div class="card azul">
-        <span class="etiqueta">Costo de productos vendidos</span>
-        <span class="valor" id="r-costo">$0</span>
+      <div class="rent-card azul">
+        <span class="rent-etiqueta">Costo de productos vendidos</span>
+        <span class="rent-valor" id="r-costo">$0</span>
       </div>
-      <div class="card verde">
-        <span class="etiqueta">Ganancia neta</span>
-        <span class="valor" id="r-ganancia-neta">$0</span>
+      <div class="rent-card verde">
+        <span class="rent-etiqueta">Ganancia neta</span>
+        <span class="rent-valor" id="r-ganancia-neta">$0</span>
       </div>
     </div>
-    <p style="margin:0 0 20px; font-size:12.5px; color:var(--text-muted);">
+    <p class="rent-nota">
       Ganancia neta = vendido - egresos - costo de productos. Si aun no has configurado el precio de costo en tus productos, este valor sera igual a "Vendido - Egresos".
     </p>
 
-    <!-- GRILLA -->
-    <div class="dashboard-grid" style="margin-bottom:20px;">
+    <!-- WIDGETS: MAS VENDIDOS + POR DIA -->
+    <div class="reportes-seccion-titulo">
+      <span class="barrita"></span>
+      <h3>Analisis del periodo</h3>
+    </div>
+    <div class="widgets-grid" style="margin-bottom:8px;">
 
-      <div class="panel">
-        <h3 style="margin-bottom:16px;">Productos mas vendidos</h3>
-        <table>
-          <thead>
-            <tr><th>#</th><th>Producto</th><th>Talla</th><th>Uds</th><th>Total $</th></tr>
-          </thead>
-          <tbody id="tabla-mas-vendidos">
-            <tr><td colspan="5" class="vacio">Sin ventas en este periodo</td></tr>
-          </tbody>
-        </table>
+      <div class="widget">
+        <div class="widget-header">
+          <h3>Productos mas vendidos</h3>
+        </div>
+        <div class="widget-body">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Producto</th><th>Talla</th><th>Uds</th><th>Total $</th></tr>
+            </thead>
+            <tbody id="tabla-mas-vendidos">
+              <tr><td colspan="5" class="vacio">Sin ventas en este periodo</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <div class="panel">
-        <h3 style="margin-bottom:16px;">Ventas por dia</h3>
-        <table>
-          <thead>
-            <tr><th>Dia</th><th>Ventas</th><th>Total</th></tr>
-          </thead>
-          <tbody id="tabla-por-dia">
-            <tr><td colspan="3" class="vacio">Sin ventas en este periodo</td></tr>
-          </tbody>
-        </table>
+      <div class="widget">
+        <div class="widget-header">
+          <h3>Ventas por dia</h3>
+        </div>
+        <div class="widget-body">
+          <table>
+            <thead>
+              <tr><th>Dia</th><th>Ventas</th><th>Total</th></tr>
+            </thead>
+            <tbody id="tabla-por-dia">
+              <tr><td colspan="3" class="vacio">Sin ventas en este periodo</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
     </div>
 
     <!-- DETALLE VENTAS -->
-    <div class="panel">
-      <h3 style="margin-bottom:16px;">Detalle de ventas del periodo (<span id="r-count">0</span>)</h3>
+    <div class="detalle-panel">
+      <div class="widget-header">
+        <h3>Detalle de ventas del periodo</h3>
+        <span class="widget-contador" id="r-count">0 ventas</span>
+      </div>
       <table>
         <thead>
           <tr>
             <th>Fecha</th>
             <th>Vendedor</th>
             <th>Cliente</th>
+            <th>Metodo pago</th>
             <th>Abono aplicado</th>
             <th>Total cobrado</th>
             <th></th>
           </tr>
         </thead>
         <tbody id="tabla-ventas-reporte">
-          <tr><td colspan="6" class="vacio">Selecciona un periodo</td></tr>
+          <tr><td colspan="7" class="vacio">Selecciona un periodo</td></tr>
         </tbody>
       </table>
     </div>
@@ -172,7 +230,6 @@
     cargarMenu('reportes.html').then(s => {
       sesion = s
       if (sesion && sesion.rol !== 'admin') navegar('index.html')
-      // Cargar hoy por defecto
       document.getElementById('periodo-rapido').value = 'mes'
       aplicarPeriodo()
     })
@@ -214,46 +271,81 @@
 
       const reporte = await ipcRenderer.invoke('obtener-reporte', { fechaInicio, fechaFin })
 
+      // KPIs principales
       document.getElementById('r-total').textContent    = '$' + parseFloat(reporte.totalVendido).toLocaleString('es-CO')
       document.getElementById('r-ventas').textContent   = reporte.cantidadVentas
       document.getElementById('r-unidades').textContent = reporte.salidas
       document.getElementById('r-entradas').textContent = reporte.entradas + ' uds'
-      document.getElementById('r-count').textContent    = reporte.cantidadVentas
+      document.getElementById('r-count').textContent    = reporte.cantidadVentas + (reporte.cantidadVentas === 1 ? ' venta' : ' ventas')
 
+      // KPIs metodo de pago
+      document.getElementById('r-efectivo').textContent            = '$' + parseFloat(reporte.totalEfectivo).toLocaleString('es-CO')
+      document.getElementById('r-efectivo-count').textContent      = `(${reporte.cantidadEfectivo} venta${reporte.cantidadEfectivo === 1 ? '' : 's'})`
+      document.getElementById('r-transferencia').textContent       = '$' + parseFloat(reporte.totalTransferencia).toLocaleString('es-CO')
+      document.getElementById('r-transferencia-count').textContent = `(${reporte.cantidadTransferencia} venta${reporte.cantidadTransferencia === 1 ? '' : 's'})`
+
+      // Rentabilidad
       document.getElementById('r-egresos').textContent        = '$' + parseFloat(reporte.totalEgresos).toLocaleString('es-CO')
       document.getElementById('r-costo').textContent          = '$' + parseFloat(reporte.costoVendido).toLocaleString('es-CO')
       document.getElementById('r-ganancia-bruta').textContent = '$' + parseFloat(reporte.gananciaBruta).toLocaleString('es-CO')
       document.getElementById('r-ganancia-neta').textContent  = '$' + parseFloat(reporte.gananciaNeta).toLocaleString('es-CO')
 
+      // Productos mas vendidos
       document.getElementById('tabla-mas-vendidos').innerHTML = reporte.masVendidos.length === 0
         ? '<tr><td colspan="5" class="vacio">Sin ventas en este periodo</td></tr>'
-        : reporte.masVendidos.map((p, i) => `
-            <tr>
-              <td><strong>${i+1}</strong></td>
-              <td>${p.nombre}</td>
-              <td>${p.talla}</td>
-              <td>${p.total_vendido} uds</td>
-              <td>$${parseFloat(p.total_pesos).toLocaleString('es-CO')}</td>
-            </tr>
-          `).join('')
+        : reporte.masVendidos.map((p, i) => {
+            const rankClass = i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''
+            return `
+              <tr>
+                <td><span class="rank-badge ${rankClass}">${i+1}</span></td>
+                <td>${p.nombre}</td>
+                <td>${p.talla}</td>
+                <td>${p.total_vendido} uds</td>
+                <td><strong>$${parseFloat(p.total_pesos).toLocaleString('es-CO')}</strong></td>
+              </tr>
+            `
+          }).join('')
+
+      // Ventas por dia
+      const maxTotalDia = reporte.porDia.length > 0
+        ? Math.max(...reporte.porDia.map(d => parseFloat(d.total) || 0))
+        : 0
 
       document.getElementById('tabla-por-dia').innerHTML = reporte.porDia.length === 0
         ? '<tr><td colspan="3" class="vacio">Sin ventas en este periodo</td></tr>'
-        : reporte.porDia.map(d => `
-            <tr>
-              <td>${d.dia}</td>
-              <td>${d.cantidad_ventas}</td>
-              <td><strong>$${parseFloat(d.total).toLocaleString('es-CO')}</strong></td>
-            </tr>
-          `).join('')
+        : reporte.porDia.map(d => {
+            const total = parseFloat(d.total) || 0
+            const pct   = maxTotalDia > 0 ? Math.max(4, Math.round((total / maxTotalDia) * 100)) : 0
+            return `
+              <tr>
+                <td>${d.dia}</td>
+                <td>${d.cantidad_ventas}</td>
+                <td>
+                  <div class="mini-barra-wrap">
+                    <strong>$${total.toLocaleString('es-CO')}</strong>
+                    <div class="mini-barra-track">
+                      <div class="mini-barra-fill" style="width:${pct}%;"></div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            `
+          }).join('')
 
+      // Tabla detalle con columna de metodo de pago
       document.getElementById('tabla-ventas-reporte').innerHTML = reporte.ventas.length === 0
-        ? '<tr><td colspan="6" class="vacio">Sin ventas en este periodo</td></tr>'
+        ? '<tr><td colspan="7" class="vacio">Sin ventas en este periodo</td></tr>'
         : reporte.ventas.map(v => `
             <tr>
               <td>${new Date(v.fecha).toLocaleString('es-CO')}</td>
               <td>${v.vendedor}</td>
               <td>${v.cliente || '—'}</td>
+              <td>
+                ${v.metodo_pago === 'transferencia'
+                  ? '<span class="badge" style="background:#e8f0fe;color:#2c5282;">📲 Transf.</span>'
+                  : '<span class="badge" style="background:#d4f8e8;color:#1a7a4a;">💵 Efectivo</span>'
+                }
+              </td>
               <td>${v.abono_aplicado > 0 ? '$' + parseFloat(v.abono_aplicado).toLocaleString('es-CO') : '—'}</td>
               <td><strong>$${parseFloat(v.total).toLocaleString('es-CO')}</strong></td>
               <td><button class="btn btn-gris" style="padding:5px 10px" onclick="verDetalle(${v.id})">Ver</button></td>

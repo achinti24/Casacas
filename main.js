@@ -35,7 +35,7 @@ function actualizarExcelVentas(db) {
   try {
     const ventas = db.prepare(`
       SELECT v.id, v.fecha, u.nombre as vendedor, a.nombre as cliente,
-             v.abono_aplicado, v.total, v.estado
+             v.abono_aplicado, v.total, v.estado, v.metodo_pago
       FROM ventas v
       LEFT JOIN usuarios u ON v.usuario_id = u.id
       LEFT JOIN apartados a ON v.apartado_id = a.id
@@ -45,7 +45,9 @@ function actualizarExcelVentas(db) {
       ID: v.id, Fecha: v.fecha, Vendedor: v.vendedor || '',
       Cliente: v.cliente || 'Sin cliente',
       'Abono aplicado': v.abono_aplicado || 0,
-      'Total cobrado': v.total, Estado: v.estado
+      'Total cobrado': v.total,
+      'Metodo pago': v.metodo_pago || 'efectivo',
+      Estado: v.estado
     })))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Ventas')
@@ -115,6 +117,22 @@ function actualizarExcelEgresos(db) {
   } catch (err) { console.error('Error Excel egresos:', err) }
 }
 
+function actualizarExcelInsumos(db) {
+  try {
+    const insumos = db.prepare(`SELECT * FROM insumos ORDER BY categoria, nombre`).all()
+    const ws = XLSX.utils.json_to_sheet(insumos.map(i => ({
+      Nombre: i.nombre, Categoria: i.categoria,
+      'Unidad de medida': i.unidad_medida,
+      Cantidad: i.cantidad, 'Stock minimo': i.stock_minimo,
+      'Costo unitario': i.costo_unitario || 0,
+      'Valor total': (i.cantidad * (i.costo_unitario || 0))
+    })))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Insumos')
+    XLSX.writeFile(wb, path.join(getRutaExcel(), 'insumos.xlsx'))
+  } catch (err) { console.error('Error Excel insumos:', err) }
+}
+
 app.whenReady().then(() => {
   win = new BrowserWindow({
     width: 1200, height: 800, minWidth: 900, minHeight: 600,
@@ -174,6 +192,18 @@ app.whenReady().then(() => {
     }
   } catch (err) {
     console.error('Error agregando columna precio_costo:', err)
+  }
+
+  // ── FIX: AGREGAR COLUMNA metodo_pago SI NO EXISTE ──
+  try {
+    const columnasVentas  = db.prepare("PRAGMA table_info(ventas)").all()
+    const tieneMetodoPago = columnasVentas.some(c => c.name === 'metodo_pago')
+    if (!tieneMetodoPago) {
+      db.prepare("ALTER TABLE ventas ADD COLUMN metodo_pago TEXT DEFAULT 'efectivo'").run()
+      console.log('Columna metodo_pago agregada a ventas')
+    }
+  } catch (err) {
+    console.error('Error agregando columna metodo_pago:', err)
   }
 
   function hacerBackup() {
@@ -285,6 +315,23 @@ app.whenReady().then(() => {
     return { ok: true }
   })
 
+  // ── CATEGORIAS INSUMO ─────────────────────────────
+  ipcMain.handle('obtener-categorias-insumo', () => db.prepare('SELECT * FROM categorias_insumo ORDER BY orden, nombre').all())
+  ipcMain.handle('agregar-categoria-insumo', (e, nombre) => {
+    const existe = db.prepare('SELECT id FROM categorias_insumo WHERE nombre = ?').get(nombre)
+    if (existe) return { error: 'Ya existe esa categoria' }
+    db.prepare('INSERT INTO categorias_insumo (nombre) VALUES (?)').run(nombre)
+    return { ok: true }
+  })
+  ipcMain.handle('editar-categoria-insumo', (e, { id, nombre }) => {
+    db.prepare('UPDATE categorias_insumo SET nombre = ? WHERE id = ?').run(nombre, id)
+    return { ok: true }
+  })
+  ipcMain.handle('eliminar-categoria-insumo', (e, id) => {
+    db.prepare('DELETE FROM categorias_insumo WHERE id = ?').run(id)
+    return { ok: true }
+  })
+
   // ── PRODUCTOS ─────────────────────────────────────
   ipcMain.handle('obtener-productos', () => {
     const productos = db.prepare('SELECT * FROM productos ORDER BY nombre').all()
@@ -347,6 +394,8 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('eliminar-variante', (e, id) => {
+    db.prepare('DELETE FROM bundle_componentes WHERE bundle_variante_id = ?').run(id)
+    db.prepare('DELETE FROM bundle_componentes WHERE componente_variante_id = ?').run(id)
     db.prepare('DELETE FROM apartado_items WHERE variante_id = ?').run(id)
     db.prepare('DELETE FROM venta_items    WHERE variante_id = ?').run(id)
     db.prepare('DELETE FROM movimientos    WHERE variante_id = ?').run(id)
@@ -361,6 +410,8 @@ app.whenReady().then(() => {
 
     if (ids.length > 0) {
       const placeholders = ids.map(() => '?').join(',')
+      db.prepare(`DELETE FROM bundle_componentes WHERE bundle_variante_id IN (${placeholders})`).run(...ids)
+      db.prepare(`DELETE FROM bundle_componentes WHERE componente_variante_id IN (${placeholders})`).run(...ids)
       db.prepare(`DELETE FROM apartado_items WHERE variante_id IN (${placeholders})`).run(...ids)
       db.prepare(`DELETE FROM venta_items    WHERE variante_id IN (${placeholders})`).run(...ids)
       db.prepare(`DELETE FROM movimientos    WHERE variante_id IN (${placeholders})`).run(...ids)
@@ -379,6 +430,132 @@ app.whenReady().then(() => {
       JOIN productos p ON v.producto_id = p.id
       WHERE v.codigo_barras = ?
     `).get(codigo) || null
+  })
+
+  ipcMain.handle('actualizar-precios-producto', (e, { productoId, variantes }) => {
+    const update = db.prepare(`
+      UPDATE producto_variantes SET precio = @precio, precio_costo = @precio_costo WHERE id = @id
+    `)
+    for (const v of variantes) {
+      update.run({ id: v.id, precio: v.precio, precio_costo: v.precio_costo || 0 })
+    }
+    actualizarExcelInventario(db)
+    return { ok: true }
+  })
+
+  // ── BUNDLES ───────────────────────────────────────
+  ipcMain.handle('obtener-componentes-bundle', (e, bundleVarianteId) => {
+    return db.prepare(`
+      SELECT bc.id, bc.componente_variante_id, bc.cantidad,
+             p.nombre as producto, pv.talla, pv.cantidad as stock,
+             p.colegio, p.categoria
+      FROM bundle_componentes bc
+      JOIN producto_variantes pv ON bc.componente_variante_id = pv.id
+      JOIN productos p ON pv.producto_id = p.id
+      WHERE bc.bundle_variante_id = ?
+    `).all(bundleVarianteId)
+  })
+
+  ipcMain.handle('guardar-componentes-bundle', (e, { bundleVarianteId, componentes }) => {
+    db.prepare('DELETE FROM bundle_componentes WHERE bundle_variante_id = ?').run(bundleVarianteId)
+    const ins = db.prepare('INSERT INTO bundle_componentes (bundle_variante_id, componente_variante_id, cantidad) VALUES (?, ?, ?)')
+    for (const c of componentes) {
+      ins.run(bundleVarianteId, c.componente_variante_id, c.cantidad || 1)
+    }
+    return { ok: true }
+  })
+
+  ipcMain.handle('eliminar-componentes-bundle', (e, bundleVarianteId) => {
+    db.prepare('DELETE FROM bundle_componentes WHERE bundle_variante_id = ?').run(bundleVarianteId)
+    return { ok: true }
+  })
+
+  // ── INSUMOS ───────────────────────────────────────
+  ipcMain.handle('obtener-insumos', () => {
+    return db.prepare('SELECT * FROM insumos ORDER BY categoria, nombre').all()
+  })
+
+  ipcMain.handle('agregar-insumo', (e, insumo) => {
+    const result = db.prepare(`
+      INSERT INTO insumos (nombre, categoria, unidad_medida, cantidad, stock_minimo, costo_unitario)
+      VALUES (@nombre, @categoria, @unidad_medida, @cantidad, @stock_minimo, @costo_unitario)
+    `).run({
+      nombre:         insumo.nombre,
+      categoria:      insumo.categoria,
+      unidad_medida:  insumo.unidad_medida,
+      cantidad:       insumo.cantidad || 0,
+      stock_minimo:   insumo.stock_minimo || 0,
+      costo_unitario: insumo.costo_unitario || 0
+    })
+    actualizarExcelInsumos(db)
+    return { ok: true, insumoId: result.lastInsertRowid }
+  })
+
+  ipcMain.handle('editar-insumo', (e, insumo) => {
+    db.prepare(`
+      UPDATE insumos SET
+        nombre = @nombre,
+        categoria = @categoria,
+        unidad_medida = @unidad_medida,
+        stock_minimo = @stock_minimo,
+        costo_unitario = @costo_unitario
+      WHERE id = @id
+    `).run({
+      id:             insumo.id,
+      nombre:         insumo.nombre,
+      categoria:      insumo.categoria,
+      unidad_medida:  insumo.unidad_medida,
+      stock_minimo:   insumo.stock_minimo || 0,
+      costo_unitario: insumo.costo_unitario || 0
+    })
+    actualizarExcelInsumos(db)
+    return { ok: true }
+  })
+
+  ipcMain.handle('eliminar-insumo', (e, id) => {
+    db.prepare('DELETE FROM movimientos_insumo WHERE insumo_id = ?').run(id)
+    db.prepare('DELETE FROM insumos WHERE id = ?').run(id)
+    actualizarExcelInsumos(db)
+    return { ok: true }
+  })
+
+  ipcMain.handle('obtener-movimientos-insumo', (e, insumoId) => {
+    let query = `
+      SELECT m.id, m.tipo, m.cantidad, m.nota, m.fecha,
+             i.nombre as insumo, i.unidad_medida,
+             u.nombre as usuario
+      FROM movimientos_insumo m
+      LEFT JOIN insumos i ON m.insumo_id = i.id
+      LEFT JOIN usuarios u ON m.usuario_id = u.id
+    `
+    if (insumoId) {
+      query += ' WHERE m.insumo_id = ?'
+      return db.prepare(query + ' ORDER BY m.fecha DESC').all(insumoId)
+    }
+    return db.prepare(query + ' ORDER BY m.fecha DESC').all()
+  })
+
+  ipcMain.handle('agregar-movimiento-insumo', (e, m) => {
+    const insumo = db.prepare('SELECT cantidad FROM insumos WHERE id = ?').get(m.insumo_id)
+    if (!insumo) return { error: 'Insumo no encontrado' }
+
+    if (m.tipo === 'salida' && insumo.cantidad < m.cantidad) {
+      return { error: `Solo hay ${insumo.cantidad} disponible. No puedes registrar una salida de ${m.cantidad}.` }
+    }
+
+    db.prepare(`
+      INSERT INTO movimientos_insumo (insumo_id, usuario_id, tipo, cantidad, nota)
+      VALUES (@insumo_id, @usuario_id, @tipo, @cantidad, @nota)
+    `).run(m)
+
+    if (m.tipo === 'entrada') {
+      db.prepare('UPDATE insumos SET cantidad = cantidad + ? WHERE id = ?').run(m.cantidad, m.insumo_id)
+    } else if (m.tipo === 'salida') {
+      db.prepare('UPDATE insumos SET cantidad = cantidad - ? WHERE id = ?').run(m.cantidad, m.insumo_id)
+    }
+
+    actualizarExcelInsumos(db)
+    return { ok: true }
   })
 
   // ── APARTADOS ─────────────────────────────────────
@@ -432,23 +609,102 @@ app.whenReady().then(() => {
   })
 
   // ── VENTAS ────────────────────────────────────────
-  ipcMain.handle('registrar-venta', (e, { usuarioId, apartadoId, items, abonoAplicado }) => {
-    const totalItems = items.reduce((acc, i) => acc + (i.cantidad * i.precio_unitario), 0)
-    const total      = Math.max(0, totalItems - (abonoAplicado || 0))
+  ipcMain.handle('registrar-venta', (e, { usuarioId, apartadoId, items, abonoAplicado, metodoPago }) => {
+
+    const bundlesEnCarrito = new Set(
+      items
+        .filter(item => db.prepare('SELECT id FROM bundle_componentes WHERE bundle_variante_id = ? LIMIT 1').get(item.variante_id))
+        .map(item => item.variante_id)
+    )
+
+    const itemsParaStock    = []
+    const itemsParaRegistro = []
+
+    for (const item of items) {
+      const componentes = db.prepare(
+        'SELECT * FROM bundle_componentes WHERE bundle_variante_id = ?'
+      ).all(item.variante_id)
+
+      if (componentes.length > 0) {
+        itemsParaRegistro.push({ ...item })
+        itemsParaStock.push({
+          variante_id: item.variante_id,
+          cantidad:    item.cantidad,
+          nota:        'Venta bundle'
+        })
+        for (const c of componentes) {
+          itemsParaStock.push({
+            variante_id: c.componente_variante_id,
+            cantidad:    c.cantidad * item.cantidad,
+            nota:        `Venta como parte de bundle (x${item.cantidad})`
+          })
+        }
+      } else {
+        itemsParaRegistro.push({ ...item })
+        itemsParaStock.push({ ...item, nota: 'Venta registrada' })
+
+        const bundlesQueUsan = db.prepare(
+          'SELECT DISTINCT bundle_variante_id FROM bundle_componentes WHERE componente_variante_id = ?'
+        ).all(item.variante_id)
+
+        for (const b of bundlesQueUsan) {
+          if (bundlesEnCarrito.has(b.bundle_variante_id)) continue
+          itemsParaStock.push({
+            variante_id: b.bundle_variante_id,
+            cantidad:    item.cantidad,
+            nota:        `Pieza suelta vendida — bundle descompletado`
+          })
+        }
+      }
+    }
+
+    const stockRequerido = {}
+    for (const item of itemsParaStock) {
+      if (!stockRequerido[item.variante_id]) stockRequerido[item.variante_id] = 0
+      stockRequerido[item.variante_id] += item.cantidad
+    }
+
+    for (const [varianteId, cantidadRequerida] of Object.entries(stockRequerido)) {
+      const variante = db.prepare('SELECT cantidad FROM producto_variantes WHERE id = ?').get(varianteId)
+      if (!variante) {
+        return { error: `Producto no encontrado (variante ID ${varianteId}).` }
+      }
+      if (variante.cantidad < cantidadRequerida) {
+        const info = db.prepare(`
+          SELECT p.nombre, pv.talla FROM producto_variantes pv
+          JOIN productos p ON pv.producto_id = p.id WHERE pv.id = ?
+        `).get(varianteId)
+        const nombre = info ? `${info.nombre} T${info.talla}` : `variante ${varianteId}`
+        const disp   = variante.cantidad
+        return { error: `Stock insuficiente: solo hay ${disp} unidad${disp === 1 ? '' : 'es'} de "${nombre}".` }
+      }
+    }
+
+    const totalItems  = items.reduce((acc, i) => acc + (i.cantidad * i.precio_unitario), 0)
+    const total       = Math.max(0, totalItems - (abonoAplicado || 0))
+
+    const contador    = db.prepare('SELECT ultimo_numero FROM contador_facturas WHERE id = 1').get()
+    const nuevoNumero = (contador?.ultimo_numero || 0) + 1
+    db.prepare('UPDATE contador_facturas SET ultimo_numero = ? WHERE id = 1').run(nuevoNumero)
+
+    const metodo = metodoPago === 'transferencia' ? 'transferencia' : 'efectivo'
 
     const venta = db.prepare(`
-      INSERT INTO ventas (usuario_id, apartado_id, total, abono_aplicado, estado)
-      VALUES (?, ?, ?, ?, 'entregado')
-    `).run(usuarioId, apartadoId || null, total, abonoAplicado || 0)
+      INSERT INTO ventas (usuario_id, apartado_id, total, abono_aplicado, estado, numero_factura, metodo_pago)
+      VALUES (?, ?, ?, ?, 'entregado', ?, ?)
+    `).run(usuarioId, apartadoId || null, total, abonoAplicado || 0, nuevoNumero, metodo)
 
     const insertItem = db.prepare(`INSERT INTO venta_items (venta_id, variante_id, cantidad, precio_unitario) VALUES (?, ?, ?, ?)`)
     const descontar  = db.prepare(`UPDATE producto_variantes SET cantidad = cantidad - ? WHERE id = ?`)
-    const insertMov  = db.prepare(`INSERT INTO movimientos (variante_id, usuario_id, tipo, cantidad, nota) VALUES (?, ?, 'venta', ?, 'Venta registrada')`)
+    const insertMov  = db.prepare(`INSERT INTO movimientos (variante_id, usuario_id, tipo, cantidad, nota) VALUES (?, ?, 'venta', ?, ?)`)
 
-    for (const item of items) {
+    for (const item of itemsParaRegistro) {
       insertItem.run(venta.lastInsertRowid, item.variante_id, item.cantidad, item.precio_unitario)
+    }
+
+    for (const item of itemsParaStock) {
       descontar.run(item.cantidad, item.variante_id)
-      insertMov.run(item.variante_id, usuarioId, item.cantidad)
+      insertMov.run(item.variante_id, usuarioId, item.cantidad, item.nota || 'Venta registrada')
     }
 
     if (apartadoId) {
@@ -471,12 +727,13 @@ app.whenReady().then(() => {
       WHERE v.cantidad <= 0
     `).all()
 
-    return { ok: true, ventaId: venta.lastInsertRowid, alertasStockBajo, alertasAgotados }
+    return { ok: true, ventaId: venta.lastInsertRowid, numeroFactura: nuevoNumero, alertasStockBajo, alertasAgotados }
   })
 
   ipcMain.handle('obtener-ventas', () => {
     return db.prepare(`
-      SELECT v.id, v.total, v.fecha, v.estado, v.abono_aplicado,
+      SELECT v.id, v.total, v.fecha, v.estado, v.abono_aplicado, v.anulada,
+             v.numero_factura, v.motivo_anulacion, v.metodo_pago,
              u.nombre as vendedor, a.nombre as cliente
       FROM ventas v
       LEFT JOIN usuarios u ON v.usuario_id = u.id
@@ -494,6 +751,100 @@ app.whenReady().then(() => {
       JOIN productos p ON pv.producto_id = p.id
       WHERE vi.venta_id = ?
     `).all(ventaId)
+  })
+
+  // ── ANULAR VENTA ──────────────────────────────────
+  ipcMain.handle('anular-venta', (e, { ventaId, motivo, usuarioId }) => {
+    const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(ventaId)
+    if (!venta) return { error: 'Venta no encontrada' }
+    if (venta.anulada) return { error: 'La venta ya esta anulada' }
+
+    const items = db.prepare('SELECT * FROM venta_items WHERE venta_id = ?').all(ventaId)
+
+    const restaurar = db.prepare('UPDATE producto_variantes SET cantidad = cantidad + ? WHERE id = ?')
+    const insertMov = db.prepare(`INSERT INTO movimientos (variante_id, usuario_id, tipo, cantidad, nota) VALUES (?, ?, 'entrada', ?, ?)`)
+    const nota      = `Anulacion venta #${venta.numero_factura || ventaId}`
+
+    const bundlesEnVenta = new Set(
+      items
+        .filter(item => db.prepare('SELECT id FROM bundle_componentes WHERE bundle_variante_id = ? LIMIT 1').get(item.variante_id))
+        .map(item => item.variante_id)
+    )
+
+    for (const item of items) {
+      const componentes = db.prepare(
+        'SELECT * FROM bundle_componentes WHERE bundle_variante_id = ?'
+      ).all(item.variante_id)
+
+      if (componentes.length > 0) {
+        restaurar.run(item.cantidad, item.variante_id)
+        insertMov.run(item.variante_id, usuarioId, item.cantidad, nota)
+        for (const c of componentes) {
+          restaurar.run(c.cantidad * item.cantidad, c.componente_variante_id)
+          insertMov.run(c.componente_variante_id, usuarioId, c.cantidad * item.cantidad, nota)
+        }
+      } else {
+        restaurar.run(item.cantidad, item.variante_id)
+        insertMov.run(item.variante_id, usuarioId, item.cantidad, nota)
+
+        const bundlesQueUsan = db.prepare(
+          'SELECT DISTINCT bundle_variante_id FROM bundle_componentes WHERE componente_variante_id = ?'
+        ).all(item.variante_id)
+
+        for (const b of bundlesQueUsan) {
+          if (bundlesEnVenta.has(b.bundle_variante_id)) continue
+          restaurar.run(item.cantidad, b.bundle_variante_id)
+          insertMov.run(b.bundle_variante_id, usuarioId, item.cantidad, `${nota} — bundle restaurado`)
+        }
+      }
+    }
+
+    db.prepare('UPDATE ventas SET anulada = 1, motivo_anulacion = ? WHERE id = ?').run(motivo, ventaId)
+
+    actualizarExcelVentas(db)
+    actualizarExcelInventario(db)
+    actualizarExcelMovimientos(db)
+
+    return { ok: true }
+  })
+
+  // ── REIMPRIMIR RECIBO ─────────────────────────────
+  ipcMain.handle('reimprimir-recibo', async (e, ventaId) => {
+    try {
+      const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(ventaId)
+      if (!venta) return { error: 'Venta no encontrada' }
+
+      const items = db.prepare(`
+        SELECT vi.cantidad, vi.precio_unitario,
+               p.nombre, pv.talla
+        FROM venta_items vi
+        JOIN producto_variantes pv ON vi.variante_id = pv.id
+        JOIN productos p ON pv.producto_id = p.id
+        WHERE vi.venta_id = ?
+      `).all(ventaId)
+
+      const vendedor = db.prepare('SELECT nombre FROM usuarios WHERE id = ?').get(venta.usuario_id)
+      const cliente  = venta.apartado_id
+        ? db.prepare('SELECT nombre FROM apartados WHERE id = ?').get(venta.apartado_id)
+        : null
+
+      const subtotal    = items.reduce((acc, i) => acc + i.cantidad * i.precio_unitario, 0)
+      const totalCobrar = venta.total
+
+      return await ipcMain.emit('imprimir-recibo', null, {
+        items:         items.map(i => ({ ...i, nombre: i.nombre })),
+        subtotal,
+        abonoAplicado: venta.abono_aplicado || 0,
+        totalCobrar,
+        dado:          totalCobrar,
+        vueltos:       0,
+        vendedor:      vendedor?.nombre || 'Desconocido',
+        cliente:       cliente?.nombre || null,
+        metodoPago:    venta.metodo_pago || 'efectivo'
+      })
+    } catch (err) {
+      return { error: err.message }
+    }
   })
 
   // ── MOVIMIENTOS ───────────────────────────────────
@@ -554,11 +905,6 @@ app.whenReady().then(() => {
     return { ok: true }
   })
 
-// ═══════════════════════════════════════════════════════════════
-// REEMPLAZA el handler 'obtener-estadisticas' en tu main.js
-// con este bloque completo. Agrega porCategoria y porTalla.
-// ═══════════════════════════════════════════════════════════════
-
   ipcMain.handle('obtener-estadisticas', () => {
     const ventasPorDia = db.prepare(`
       SELECT date(fecha) as dia, COUNT(*) as cantidad, SUM(total) as total
@@ -580,7 +926,6 @@ app.whenReady().then(() => {
       GROUP BY strftime('%Y-%m', fecha) ORDER BY anio ASC, mes ASC
     `).all()
 
-    // Top 8 productos: nombre + colegio + talla + categoria
     const topProductos = db.prepare(`
       SELECT p.nombre, p.colegio, p.categoria, pv.talla,
              SUM(vi.cantidad) as total_vendido,
@@ -593,7 +938,6 @@ app.whenReady().then(() => {
       GROUP BY pv.id ORDER BY total_vendido DESC LIMIT 8
     `).all()
 
-    // Ventas por colegio
     const porColegio = db.prepare(`
       SELECT p.colegio, COUNT(DISTINCT v.id) as ventas,
              SUM(vi.cantidad * vi.precio_unitario) as total
@@ -605,7 +949,6 @@ app.whenReady().then(() => {
       GROUP BY p.colegio ORDER BY ventas DESC
     `).all()
 
-    // NUEVO: Ventas por categoria (unidades + pesos)
     const porCategoria = db.prepare(`
       SELECT p.categoria, SUM(vi.cantidad) as total_vendido,
              SUM(vi.cantidad * vi.precio_unitario) as total_pesos
@@ -617,7 +960,6 @@ app.whenReady().then(() => {
       GROUP BY p.categoria ORDER BY total_vendido DESC
     `).all()
 
-    // NUEVO: Unidades vendidas por talla
     const porTalla = db.prepare(`
       SELECT pv.talla, SUM(vi.cantidad) as total_vendido
       FROM venta_items vi
@@ -657,16 +999,23 @@ app.whenReady().then(() => {
   // ── REPORTES ──────────────────────────────────────
   ipcMain.handle('obtener-reporte', (e, { fechaInicio, fechaFin }) => {
     const ventas = db.prepare(`
-      SELECT v.id, v.total, v.fecha, v.estado, v.abono_aplicado,
+      SELECT v.id, v.total, v.fecha, v.estado, v.abono_aplicado, v.metodo_pago,
              u.nombre as vendedor, a.nombre as cliente
       FROM ventas v
       LEFT JOIN usuarios u ON v.usuario_id = u.id
       LEFT JOIN apartados a ON v.apartado_id = a.id
       WHERE date(v.fecha) BETWEEN date(?) AND date(?)
+        AND (v.anulada IS NULL OR v.anulada = 0)
       ORDER BY v.fecha DESC
     `).all(fechaInicio, fechaFin)
 
     const totalVendido = ventas.reduce((acc, v) => acc + v.total, 0)
+
+    // ── Desglose por metodo de pago ──
+    const ventasEfectivo      = ventas.filter(v => v.metodo_pago !== 'transferencia')
+    const ventasTransferencia = ventas.filter(v => v.metodo_pago === 'transferencia')
+    const totalEfectivo       = ventasEfectivo.reduce((acc, v) => acc + v.total, 0)
+    const totalTransferencia  = ventasTransferencia.reduce((acc, v) => acc + v.total, 0)
 
     const masVendidos = db.prepare(`
       SELECT p.nombre, p.colegio, pv.talla, p.categoria,
@@ -677,6 +1026,7 @@ app.whenReady().then(() => {
       JOIN productos p ON pv.producto_id = p.id
       JOIN ventas v ON vi.venta_id = v.id
       WHERE date(v.fecha) BETWEEN date(?) AND date(?)
+        AND (v.anulada IS NULL OR v.anulada = 0)
       GROUP BY pv.id ORDER BY total_vendido DESC LIMIT 10
     `).all(fechaInicio, fechaFin)
 
@@ -692,7 +1042,9 @@ app.whenReady().then(() => {
 
     const porDia = db.prepare(`
       SELECT date(v.fecha) as dia, COUNT(*) as cantidad_ventas, SUM(v.total) as total
-      FROM ventas v WHERE date(v.fecha) BETWEEN date(?) AND date(?)
+      FROM ventas v
+      WHERE date(v.fecha) BETWEEN date(?) AND date(?)
+        AND (v.anulada IS NULL OR v.anulada = 0)
       GROUP BY date(v.fecha) ORDER BY dia DESC
     `).all(fechaInicio, fechaFin)
 
@@ -701,24 +1053,32 @@ app.whenReady().then(() => {
       WHERE date(fecha) BETWEEN date(?) AND date(?)
     `).get(fechaInicio, fechaFin)
 
-    // ── NUEVO: costo de los productos vendidos en el periodo ──
     const costoVendido = db.prepare(`
       SELECT COALESCE(SUM(vi.cantidad * pv.precio_costo), 0) as total
       FROM venta_items vi
       JOIN ventas v ON vi.venta_id = v.id
       JOIN producto_variantes pv ON vi.variante_id = pv.id
       WHERE date(v.fecha) BETWEEN date(?) AND date(?)
+        AND (v.anulada IS NULL OR v.anulada = 0)
     `).get(fechaInicio, fechaFin)
 
     const gananciaBruta = totalVendido - (totalEgresos.total || 0)
     const gananciaNeta  = gananciaBruta - (costoVendido.total || 0)
 
     return {
-      ventas, totalVendido, cantidadVentas: ventas.length,
-      masVendidos, entradas: entradas.total || 0,
-      salidas: salidas.total || 0, porDia,
-      totalEgresos: totalEgresos.total || 0,
-      costoVendido: costoVendido.total || 0,
+      ventas,
+      totalVendido,
+      cantidadVentas:        ventas.length,
+      totalEfectivo,
+      cantidadEfectivo:      ventasEfectivo.length,
+      totalTransferencia,
+      cantidadTransferencia: ventasTransferencia.length,
+      masVendidos,
+      entradas:              entradas.total || 0,
+      salidas:               salidas.total  || 0,
+      porDia,
+      totalEgresos:          totalEgresos.total  || 0,
+      costoVendido:          costoVendido.total  || 0,
       gananciaBruta,
       gananciaNeta
     }
@@ -727,7 +1087,7 @@ app.whenReady().then(() => {
   ipcMain.handle('obtener-ruta-excel', () => getRutaExcel())
 
   // ── IMPRESORA TERMICA ─────────────────────────────
-  ipcMain.handle('imprimir-recibo', async (e, { items, subtotal, abonoAplicado, totalCobrar, dado, vueltos, vendedor, cliente }) => {
+  ipcMain.handle('imprimir-recibo', async (e, { items, subtotal, abonoAplicado, totalCobrar, dado, vueltos, vendedor, cliente, metodoPago }) => {
     try {
       const fs = require('fs')
 
@@ -777,8 +1137,16 @@ app.whenReady().then(() => {
         recibo += RIGHT + 'Abono:    -$' + abonoAplicado.toLocaleString('es-CO') + LF
       }
       recibo += RIGHT + BOLD + 'TOTAL:     $' + totalCobrar.toLocaleString('es-CO') + LF + UNBOLD
-      recibo += RIGHT + 'Recibido:  $' + dado.toLocaleString('es-CO') + LF
-      recibo += RIGHT + 'Vueltos:   $' + vueltos.toLocaleString('es-CO') + LF
+
+      // Metodo de pago en el recibo
+      const labelMetodo = metodoPago === 'transferencia' ? 'Transferencia' : 'Efectivo'
+      recibo += RIGHT + 'Pago:      ' + labelMetodo + LF
+
+      if (metodoPago !== 'transferencia') {
+        recibo += RIGHT + 'Recibido:  $' + dado.toLocaleString('es-CO') + LF
+        recibo += RIGHT + 'Vueltos:   $' + vueltos.toLocaleString('es-CO') + LF
+      }
+
       recibo += LEFT + linea + LF
       recibo += CENTER + 'Gracias por su compra!' + LF
       recibo += CENTER + 'Vuelve pronto :)' + LF
@@ -798,15 +1166,15 @@ app.whenReady().then(() => {
     try {
       const fs = require('fs')
 
-      const ESC          = '\x1B'
-      const INIT         = ESC + '@'
-      const BOLD         = ESC + 'E\x01'
-      const UNBOLD       = ESC + 'E\x00'
-      const CENTER       = ESC + 'a\x01'
-      const LEFT         = ESC + 'a\x00'
-      const RIGHT        = ESC + 'a\x02'
-      const NOMBRE_GRANDE = ESC + '!' + '\x38' // negrita + doble alto + doble ancho
-      const NORMAL        = ESC + '!' + '\x00' // vuelve a tamano normal
+      const ESC           = '\x1B'
+      const INIT          = ESC + '@'
+      const BOLD          = ESC + 'E\x01'
+      const UNBOLD        = ESC + 'E\x00'
+      const CENTER        = ESC + 'a\x01'
+      const LEFT          = ESC + 'a\x00'
+      const RIGHT         = ESC + 'a\x02'
+      const NOMBRE_GRANDE = ESC + '!' + '\x38'
+      const NORMAL        = ESC + '!' + '\x00'
       const CUT           = '\x1D' + 'V\x41\x00'
       const LF            = '\n'
 
@@ -867,7 +1235,6 @@ app.whenReady().then(() => {
       return { error: err.message }
     }
   })
-  // ─────────────────────────────────────────────────
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
