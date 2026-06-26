@@ -8,7 +8,7 @@
   <script src="toast.js"></script>
 </head>
 <body>
-  <div id="breadcrumb"></div>
+
   <div class="sidebar">
     <div class="sidebar-logo">
       <h2>Casacas</h2>
@@ -23,6 +23,7 @@
   </div>
 
   <div class="contenido">
+    <div id="breadcrumb" class="breadcrumb"></div>
     <div class="encabezado">
       <h1>Dashboard</h1>
       <div class="tabs-periodo">
@@ -179,7 +180,6 @@
       document.getElementById('agotados').textContent        = agotados
       document.getElementById('valor-total').textContent     = '$' + valorTotal.toLocaleString('es-CO')
 
-      // ── Alertas stock ───────────────────────────────
       const stockBajo    = []
       const agotadosList = []
       productos.forEach(p => {
@@ -209,7 +209,6 @@
         }
       }
 
-      // ── Tabla agotados ──────────────────────────────
       document.getElementById('tabla-agotados').innerHTML = agotadosList.length === 0
         ? '<tr><td colspan="4" class="vacio">Todo en stock</td></tr>'
         : agotadosList.map(p => `
@@ -220,7 +219,6 @@
               <td>${p.genero}</td>
             </tr>`).join('')
 
-      // ── Alerta apartados vencidos ───────────────────
       const diasAlerta = parseInt(localStorage.getItem('dias-alerta') || 7)
       const vencidos   = estadisticas.apartadosVencidos.filter(a => a.dias >= diasAlerta)
       if (vencidos.length > 0) {
@@ -229,7 +227,6 @@
           vencidos.map(a => `${a.nombre} (${a.dias} dias)`).join(', ')
       }
 
-      // ── Tabla apartados pendientes ──────────────────
       const pendientes = estadisticas.apartadosVencidos
       document.getElementById('tabla-apartados-pendientes').innerHTML = pendientes.length === 0
         ? '<tr><td colspan="3" class="vacio">Sin apartados pendientes</td></tr>'
@@ -265,7 +262,6 @@
       renderGraficaIngresosEgresos()
     }
 
-    // ── 1. Ventas del periodo ───────────────────────────
     function renderGraficaVentas() {
       if (!estadisticas) return
       let datos, labels
@@ -312,11 +308,9 @@
       })
     }
 
-    // ── 2. Top productos CON colegio y categoria ────────
     function renderGraficaProductos() {
       if (!estadisticas || estadisticas.topProductos.length === 0) return
 
-      // Label enriquecido: Nombre · Colegio · Talla
       const labels = estadisticas.topProductos.map(p =>
         `${p.nombre} · ${p.colegio || '?'} · T${p.talla}`
       )
@@ -354,7 +348,6 @@
       })
     }
 
-    // ── 3. Ventas por colegio (doughnut) ────────────────
     function renderGraficaColegios() {
       if (!estadisticas) return
 
@@ -394,7 +387,6 @@
       })
     }
 
-    // ── 4. Estado del inventario (doughnut) ─────────────
     function renderGraficaInventario() {
       ipcRenderer.invoke('obtener-productos').then(prods => {
         let enStock = 0, stockBajo = 0, agotados = 0
@@ -434,7 +426,6 @@
       })
     }
 
-    // ── 5. Ventas por categoria (bar horizontal) ─────────
     function renderGraficaCategorias() {
       if (!estadisticas || !estadisticas.porCategoria || estadisticas.porCategoria.length === 0) return
 
@@ -481,14 +472,12 @@
       })
     }
 
-    // ── 6. Ganancia bruta por mes (line) ─────────────────
     function renderGraficaGanancia() {
       if (!estadisticas || !estadisticas.resumenMeses) return
 
       const labels    = estadisticas.resumenMeses.map(m => `${MESES[parseInt(m.mes)-1]} ${m.anio}`)
       const ingresos  = estadisticas.resumenMeses.map(m => m.ingresos || 0)
 
-      // Egresos por mes mapeados al mismo periodo
       const egresosMapa = {}
       if (estadisticas.egresosPorMes) {
         estadisticas.egresosPorMes.forEach(e => { egresosMapa[e.periodo] = e.egresos || 0 })
@@ -546,7 +535,6 @@
       })
     }
 
-    // ── 7. Unidades vendidas por talla (bar) ─────────────
     function renderGraficaTallas() {
       if (!estadisticas || !estadisticas.porTalla || estadisticas.porTalla.length === 0) return
 
@@ -574,7 +562,6 @@
       })
     }
 
-    // ── 8. Ingresos vs Egresos agrupados por mes (bar) ────
     function renderGraficaIngresosEgresos() {
       if (!estadisticas || !estadisticas.resumenMeses) return
 
