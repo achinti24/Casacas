@@ -2,9 +2,169 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
 const fs   = require('fs')
 const XLSX = require('xlsx')
+const { ThermalPrinter, PrinterTypes, CharacterSet } = require('node-thermal-printer')
 
 let win
 let sesionActual = null
+
+// ── CONFIGURACION IMPRESORA ───────────────────────
+function getRutaConfig() {
+  return path.join(app.getPath('userData'), 'config.json')
+}
+
+function leerConfig() {
+  try {
+    const ruta = getRutaConfig()
+    if (fs.existsSync(ruta)) {
+      return JSON.parse(fs.readFileSync(ruta, 'utf8'))
+    }
+  } catch (err) {
+    console.error('Error leyendo config:', err)
+  }
+  return {
+    impresora: process.platform === 'win32' ? 'printer:POS-80' : '/dev/usb/lp0'
+  }
+}
+
+function guardarConfig(config) {
+  try {
+    fs.writeFileSync(getRutaConfig(), JSON.stringify(config, null, 2), 'utf8')
+  } catch (err) {
+    console.error('Error guardando config:', err)
+  }
+}
+
+function crearImpresora() {
+  const config = leerConfig()
+  return new ThermalPrinter({
+    type:                    PrinterTypes.EPSON,
+    interface:               config.impresora,
+    characterSet:            CharacterSet.PC858_EURO,
+    removeSpecialCharacters: false,
+    lineCharacter:           '-',
+    width:                   32
+  })
+}
+
+// ── IMPRESION DIRECTA WINDOWS ─────────────────────
+async function imprimirWindowsRaw(buffer) {
+  const tmp = path.join(app.getPath('temp'), 'casacas_print.bin')
+  fs.writeFileSync(tmp, buffer)
+  try {
+    const { execFileSync } = require('child_process')
+    const exePath = path.join(process.resourcesPath, 'app.asar.unpacked', 'assets', 'RawPrint.exe')
+    execFileSync(exePath, ['Generic / Text Only', tmp], { timeout: 5000 })
+    return { ok: true }
+  } catch (err) {
+    escribirLog('Error impresion Windows: ' + err.message)
+    return { error: err.message }
+  }
+}
+
+function construirBufferEscpos({ items, subtotal, abonoAplicado, totalCobrar, dado, vueltos, vendedor, cliente, numeroFactura, metodoPago }) {
+  const ESC    = '\x1B'
+  const INIT   = ESC + '@'
+  const BOLD   = ESC + 'E\x01'
+  const UNBOLD = ESC + 'E\x00'
+  const CENTER = ESC + 'a\x01'
+  const LEFT   = ESC + 'a\x00'
+  const RIGHT  = ESC + 'a\x02'
+  const CUT    = '\x1D' + 'V\x41\x00'
+  const LF     = '\n'
+  const linea  = '--------------------------------'
+  const fecha  = new Date().toLocaleString('es-CO')
+  const labelMetodo = metodoPago === 'transferencia' ? 'Transferencia' : 'Efectivo'
+
+  const limpiar = s => s
+    .replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i')
+    .replace(/ó/g,'o').replace(/ú/g,'u').replace(/ü/g,'u')
+    .replace(/Á/g,'A').replace(/É/g,'E').replace(/Í/g,'I')
+    .replace(/Ó/g,'O').replace(/Ú/g,'U').replace(/ñ/g,'n').replace(/Ñ/g,'N')
+
+  let r = INIT
+  r += CENTER + BOLD + 'Casacas Colegial' + LF + UNBOLD
+  r += CENTER + 'San Gil - Calle 11 No. 10-66' + LF
+  r += CENTER + 'Piso 2, Local 201' + LF
+  r += CENTER + 'Tel: 313 849 5210' + LF
+  r += CENTER + 'colegialcasacas@gmail.com' + LF
+  r += CENTER + linea + LF
+  r += CENTER + 'Factura No. ' + (numeroFactura || Date.now().toString().slice(-6)) + LF
+  r += CENTER + fecha + LF
+  r += CENTER + 'Vendedor: ' + vendedor + LF
+  if (cliente) r += CENTER + 'Cliente: ' + cliente + LF
+  r += LEFT + linea + LF
+  items.forEach(i => {
+    const sub = (i.precio_unitario * i.cantidad).toLocaleString('es-CO')
+    r += LEFT + i.nombre + ' T' + i.talla + LF
+    r += LEFT + '  ' + i.cantidad + ' x $' + parseFloat(i.precio_unitario).toLocaleString('es-CO') + ' = $' + sub + LF
+  })
+  r += LEFT + linea + LF
+  r += RIGHT + 'Subtotal:  $' + subtotal.toLocaleString('es-CO') + LF
+  if (abonoAplicado > 0) r += RIGHT + 'Abono:    -$' + abonoAplicado.toLocaleString('es-CO') + LF
+  r += RIGHT + BOLD + 'TOTAL:     $' + totalCobrar.toLocaleString('es-CO') + LF + UNBOLD
+  r += RIGHT + 'Pago:      ' + labelMetodo + LF
+  if (metodoPago !== 'transferencia') {
+    r += RIGHT + 'Recibido:  $' + dado.toLocaleString('es-CO') + LF
+    r += RIGHT + 'Vueltos:   $' + vueltos.toLocaleString('es-CO') + LF
+  }
+  r += LEFT + linea + LF
+  r += CENTER + 'Gracias por su compra!' + LF
+  r += CENTER + 'Vuelve pronto :)' + LF
+  r += LF + LF + LF + CUT
+  return Buffer.from(limpiar(r), 'latin1')
+}
+
+function construirBufferApartado({ nombre, telefono, colegio, notas, abono, items, total, vendedor }) {
+  const ESC    = '\x1B'
+  const INIT   = ESC + '@'
+  const BOLD   = ESC + 'E\x01'
+  const UNBOLD = ESC + 'E\x00'
+  const CENTER = ESC + 'a\x01'
+  const LEFT   = ESC + 'a\x00'
+  const RIGHT  = ESC + 'a\x02'
+  const CUT    = '\x1D' + 'V\x41\x00'
+  const LF     = '\n'
+  const linea  = '--------------------------------'
+  const fecha  = new Date().toLocaleString('es-CO')
+  const saldo  = Math.max(0, total - (abono || 0))
+
+  const limpiar = s => s
+    .replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i')
+    .replace(/ó/g,'o').replace(/ú/g,'u').replace(/ü/g,'u')
+    .replace(/Á/g,'A').replace(/É/g,'E').replace(/Í/g,'I')
+    .replace(/Ó/g,'O').replace(/Ú/g,'U').replace(/ñ/g,'n').replace(/Ñ/g,'N')
+
+  let r = INIT
+  r += CENTER + BOLD + 'Casacas Colegial' + LF + UNBOLD
+  r += CENTER + 'San Gil - Calle 11 No. 10-66' + LF
+  r += CENTER + 'Piso 2, Local 201' + LF
+  r += CENTER + 'Tel: 313 849 5210' + LF
+  r += CENTER + linea + LF
+  r += CENTER + BOLD + 'COMPROBANTE DE APARTADO' + LF + UNBOLD
+  r += CENTER + fecha + LF
+  r += CENTER + linea + LF
+  r += CENTER + 'Reclama con el nombre de:' + LF
+  r += CENTER + nombre + LF
+  if (telefono) r += CENTER + 'Tel: ' + telefono + LF
+  if (colegio)  r += CENTER + 'Colegio: ' + colegio + LF
+  r += LEFT + linea + LF
+  items.forEach(i => {
+    const sub = (i.precio_unitario * i.cantidad).toLocaleString('es-CO')
+    r += LEFT + i.nombre + ' T' + i.talla + LF
+    r += LEFT + '  ' + i.cantidad + ' x $' + parseFloat(i.precio_unitario).toLocaleString('es-CO') + ' = $' + sub + LF
+  })
+  r += LEFT + linea + LF
+  r += RIGHT + 'Total apartado: $' + total.toLocaleString('es-CO') + LF
+  r += RIGHT + 'Abono pagado:  -$' + (abono || 0).toLocaleString('es-CO') + LF
+  r += RIGHT + BOLD + 'SALDO:          $' + saldo.toLocaleString('es-CO') + LF + UNBOLD
+  r += LEFT + linea + LF
+  if (notas) { r += LEFT + 'Notas: ' + notas + LF; r += LEFT + linea + LF }
+  r += CENTER + 'Vendedor: ' + vendedor + LF
+  r += CENTER + 'Conserva este papel' + LF
+  r += CENTER + 'para reclamar tu pedido' + LF
+  r += LF + LF + LF + CUT
+  return Buffer.from(limpiar(r), 'latin1')
+}
 
 // ── EAN-13 ────────────────────────────────────────
 function calcularDigitoEAN13(doce) {
@@ -26,7 +186,7 @@ function generarEAN13(productoId, varianteId) {
 
 // ── EXCEL ─────────────────────────────────────────
 function getRutaExcel() {
-  const carpeta = path.join(__dirname, 'reportes')
+  const carpeta = path.join(app.getPath('documents'), 'Casacas', 'reportes')
   if (!fs.existsSync(carpeta)) fs.mkdirSync(carpeta, { recursive: true })
   return carpeta
 }
@@ -133,6 +293,17 @@ function actualizarExcelInsumos(db) {
   } catch (err) { console.error('Error Excel insumos:', err) }
 }
 
+// ── ESCRIBIR LOG DE ERRORES ───────────────────────
+function escribirLog(mensaje) {
+  try {
+    const logPath = path.join(app.getPath('userData'), 'logs', 'main.log')
+    const logDir  = path.dirname(logPath)
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true })
+    const linea = `[${new Date().toISOString()}] ${mensaje}\n`
+    fs.appendFileSync(logPath, linea, 'utf8')
+  } catch (e) { /* silencioso */ }
+}
+
 app.whenReady().then(() => {
   win = new BrowserWindow({
     width: 1200, height: 800, minWidth: 900, minHeight: 600,
@@ -146,7 +317,23 @@ app.whenReady().then(() => {
     win.loadFile('login.html')
   }, 2800)
 
-  const db = require('./database.js')
+  // ── CARGAR BASE DE DATOS CON MANEJO DE ERROR ─────
+  let db
+  try {
+    escribirLog('Iniciando carga de database.js...')
+    db = require('./database.js')
+    escribirLog('database.js cargado OK')
+  } catch (err) {
+    escribirLog('ERROR FATAL cargando database.js: ' + err.stack)
+    // Mostrar el error en pantalla en lugar de fallar silenciosamente
+    win.webContents.on('did-finish-load', () => {
+      win.webContents.executeJavaScript(`
+        document.body.style.cssText = 'background:#1a1a2e;color:#fff;font-family:monospace;padding:30px';
+        document.body.innerHTML = '<h2 style="color:#ff6b6b">Error al iniciar Casacas</h2><pre style="background:#0d0d1a;padding:20px;border-radius:8px;overflow:auto;font-size:12px">' + ${JSON.stringify(err.stack)} + '</pre><p>Ruta de logs: ' + ${JSON.stringify(path.join(app.getPath('userData'), 'logs', 'main.log'))} + '</p>';
+      `)
+    })
+    return
+  }
 
   // ── FIX: CORREGIR VARIANTES CON CODIGO 'TEMP' ────
   try {
@@ -159,10 +346,10 @@ app.whenReady().then(() => {
         const codigo = generarEAN13(v.producto_id, v.id)
         updateCodigo.run(codigo, v.id)
       }
-      console.log(`Codigos TEMP corregidos: ${variantes_temp.length}`)
+      escribirLog(`Codigos TEMP corregidos: ${variantes_temp.length}`)
     }
   } catch (err) {
-    console.error('Error corrigiendo codigos TEMP:', err)
+    escribirLog('Error corrigiendo codigos TEMP: ' + err.message)
   }
 
   // ── FIX: CORREGIR VARIANTES CON CODIGO QUE CONTIENE NaN ──
@@ -176,10 +363,10 @@ app.whenReady().then(() => {
         const codigo = generarEAN13(v.producto_id, v.id)
         updateCodigo.run(codigo, v.id)
       }
-      console.log(`Codigos NaN corregidos: ${variantes_nan.length}`)
+      escribirLog(`Codigos NaN corregidos: ${variantes_nan.length}`)
     }
   } catch (err) {
-    console.error('Error corrigiendo codigos NaN:', err)
+    escribirLog('Error corrigiendo codigos NaN: ' + err.message)
   }
 
   // ── FIX: AGREGAR COLUMNA precio_costo SI NO EXISTE ──
@@ -188,10 +375,10 @@ app.whenReady().then(() => {
     const tieneCosto  = columnas.some(c => c.name === 'precio_costo')
     if (!tieneCosto) {
       db.prepare('ALTER TABLE producto_variantes ADD COLUMN precio_costo REAL DEFAULT 0').run()
-      console.log('Columna precio_costo agregada a producto_variantes')
+      escribirLog('Columna precio_costo agregada a producto_variantes')
     }
   } catch (err) {
-    console.error('Error agregando columna precio_costo:', err)
+    escribirLog('Error agregando columna precio_costo: ' + err.message)
   }
 
   // ── FIX: AGREGAR COLUMNA metodo_pago SI NO EXISTE ──
@@ -200,10 +387,10 @@ app.whenReady().then(() => {
     const tieneMetodoPago = columnasVentas.some(c => c.name === 'metodo_pago')
     if (!tieneMetodoPago) {
       db.prepare("ALTER TABLE ventas ADD COLUMN metodo_pago TEXT DEFAULT 'efectivo'").run()
-      console.log('Columna metodo_pago agregada a ventas')
+      escribirLog('Columna metodo_pago agregada a ventas')
     }
   } catch (err) {
-    console.error('Error agregando columna metodo_pago:', err)
+    escribirLog('Error agregando columna metodo_pago: ' + err.message)
   }
 
   function hacerBackup() {
@@ -217,7 +404,7 @@ app.whenReady().then(() => {
 
       if (!fs.existsSync(destino)) {
         fs.copyFileSync(origen, destino)
-        console.log('Backup creado:', destino)
+        escribirLog('Backup creado: ' + destino)
       }
 
       const archivos = fs.readdirSync(carpeta)
@@ -228,11 +415,12 @@ app.whenReady().then(() => {
         if (diasDiff > 30) fs.unlinkSync(rutaArchivo)
       })
     } catch (err) {
-      console.error('Error en backup:', err)
+      escribirLog('Error en backup: ' + err.message)
     }
   }
 
   hacerBackup()
+  escribirLog('App iniciada correctamente')
 
   // ── SESION ────────────────────────────────────────
   ipcMain.handle('guardar-sesion', (e, d) => { sesionActual = d; return true })
@@ -245,6 +433,32 @@ app.whenReady().then(() => {
   // ── AUTH ──────────────────────────────────────────
   ipcMain.handle('login', (e, { usuario, contrasena }) => {
     return db.prepare('SELECT id, nombre, rol FROM usuarios WHERE usuario = ? AND contrasena = ?').get(usuario, contrasena) || null
+  })
+
+  // ── CONFIGURACION IMPRESORA (IPC) ─────────────────
+  ipcMain.handle('obtener-config-impresora', () => leerConfig())
+  ipcMain.handle('guardar-config-impresora', (e, config) => {
+    guardarConfig(config)
+    return { ok: true }
+  })
+  ipcMain.handle('probar-impresora', async () => {
+    try {
+      const printer   = crearImpresora()
+      const conectada = process.platform === 'win32' ? true : await printer.isPrinterConnected()
+      if (!conectada) return { error: 'No se pudo conectar con la impresora. Verifica la configuracion.' }
+      printer.alignCenter()
+      printer.bold(true)
+      printer.println('Casacas Colegial')
+      printer.bold(false)
+      printer.println('Prueba de impresora OK')
+      printer.println(new Date().toLocaleString('es-CO'))
+      printer.cut()
+      await printer.execute()
+      return { ok: true }
+    } catch (err) {
+      escribirLog('Error prueba impresora: ' + err.message)
+      return { error: err.message }
+    }
   })
 
   // ── USUARIOS ──────────────────────────────────────
@@ -652,7 +866,7 @@ app.whenReady().then(() => {
           itemsParaStock.push({
             variante_id: b.bundle_variante_id,
             cantidad:    item.cantidad,
-            nota:        `Pieza suelta vendida — bundle descompletado`
+            nota:        `Pieza suelta vendida - bundle descompletado`
           })
         }
       }
@@ -794,7 +1008,7 @@ app.whenReady().then(() => {
         for (const b of bundlesQueUsan) {
           if (bundlesEnVenta.has(b.bundle_variante_id)) continue
           restaurar.run(item.cantidad, b.bundle_variante_id)
-          insertMov.run(b.bundle_variante_id, usuarioId, item.cantidad, `${nota} — bundle restaurado`)
+          insertMov.run(b.bundle_variante_id, usuarioId, item.cantidad, `${nota} - bundle restaurado`)
         }
       }
     }
@@ -831,7 +1045,7 @@ app.whenReady().then(() => {
       const subtotal    = items.reduce((acc, i) => acc + i.cantidad * i.precio_unitario, 0)
       const totalCobrar = venta.total
 
-      return await ipcMain.emit('imprimir-recibo', null, {
+      return await imprimirRecibo({
         items:         items.map(i => ({ ...i, nombre: i.nombre })),
         subtotal,
         abonoAplicado: venta.abono_aplicado || 0,
@@ -840,6 +1054,7 @@ app.whenReady().then(() => {
         vueltos:       0,
         vendedor:      vendedor?.nombre || 'Desconocido',
         cliente:       cliente?.nombre || null,
+        numeroFactura: venta.numero_factura || ventaId,
         metodoPago:    venta.metodo_pago || 'efectivo'
       })
     } catch (err) {
@@ -1009,9 +1224,7 @@ app.whenReady().then(() => {
       ORDER BY v.fecha DESC
     `).all(fechaInicio, fechaFin)
 
-    const totalVendido = ventas.reduce((acc, v) => acc + v.total, 0)
-
-    // ── Desglose por metodo de pago ──
+    const totalVendido        = ventas.reduce((acc, v) => acc + v.total, 0)
     const ventasEfectivo      = ventas.filter(v => v.metodo_pago !== 'transferencia')
     const ventasTransferencia = ventas.filter(v => v.metodo_pago === 'transferencia')
     const totalEfectivo       = ventasEfectivo.reduce((acc, v) => acc + v.total, 0)
@@ -1086,152 +1299,129 @@ app.whenReady().then(() => {
 
   ipcMain.handle('obtener-ruta-excel', () => getRutaExcel())
 
-  // ── IMPRESORA TERMICA ─────────────────────────────
-  ipcMain.handle('imprimir-recibo', async (e, { items, subtotal, abonoAplicado, totalCobrar, dado, vueltos, vendedor, cliente, metodoPago }) => {
+  // ── IMPRESORA TERMICA: funcion compartida ─────────
+  async function imprimirRecibo(datos) {
     try {
-      const fs = require('fs')
-
-      const ESC    = '\x1B'
-      const INIT   = ESC + '@'
-      const BOLD   = ESC + 'E\x01'
-      const UNBOLD = ESC + 'E\x00'
-      const CENTER = ESC + 'a\x01'
-      const LEFT   = ESC + 'a\x00'
-      const RIGHT  = ESC + 'a\x02'
-      const CUT    = '\x1D' + 'V\x41\x00'
-      const LF     = '\n'
-
-      const linea   = '--------------------------------'
-      const fecha   = new Date().toLocaleString('es-CO')
-      const ventaId = Date.now().toString().slice(-6)
-
-      const limpiar = (str) => str
-        .replace(/á/g, 'a').replace(/é/g, 'e').replace(/í/g, 'i')
-        .replace(/ó/g, 'o').replace(/ú/g, 'u').replace(/ü/g, 'u')
-        .replace(/Á/g, 'A').replace(/É/g, 'E').replace(/Í/g, 'I')
-        .replace(/Ó/g, 'O').replace(/Ú/g, 'U').replace(/ñ/g, 'n')
-        .replace(/Ñ/g, 'N')
-
-      let recibo = INIT
-      recibo += CENTER + BOLD + 'Casacas Colegial' + LF + UNBOLD
-      recibo += CENTER + 'San Gil - Calle 11 No. 10-66' + LF
-      recibo += CENTER + 'Piso 2, Local 201' + LF
-      recibo += CENTER + 'Tel: 313 849 5210' + LF
-      recibo += CENTER + 'colegialcasacas@gmail.com' + LF
-      recibo += CENTER + linea + LF
-      recibo += CENTER + 'Factura No. ' + ventaId + LF
-      recibo += CENTER + fecha + LF
-      recibo += CENTER + 'Vendedor: ' + vendedor + LF
-      if (cliente) recibo += CENTER + 'Cliente: ' + cliente + LF
-      recibo += LEFT + linea + LF
-
+      if (process.platform === 'win32') {
+        const buffer = construirBufferEscpos(datos)
+        return await imprimirWindowsRaw(buffer)
+      }
+      const printer   = crearImpresora()
+      const conectada = await printer.isPrinterConnected()
+      if (!conectada) return { error: 'No se pudo conectar con la impresora. Verifica la configuracion en Ajustes.' }
+      const { items, subtotal, abonoAplicado, totalCobrar, dado, vueltos, vendedor, cliente, numeroFactura, metodoPago } = datos
+      const fecha       = new Date().toLocaleString('es-CO')
+      const labelMetodo = metodoPago === 'transferencia' ? 'Transferencia' : 'Efectivo'
+      printer.alignCenter()
+      printer.bold(true)
+      printer.println('Casacas Colegial')
+      printer.bold(false)
+      printer.println('San Gil - Calle 11 No. 10-66')
+      printer.println('Piso 2, Local 201')
+      printer.println('Tel: 313 849 5210')
+      printer.println('colegialcasacas@gmail.com')
+      printer.drawLine()
+      printer.println('Factura No. ' + (numeroFactura || Date.now().toString().slice(-6)))
+      printer.println(fecha)
+      printer.println('Vendedor: ' + vendedor)
+      if (cliente) printer.println('Cliente: ' + cliente)
+      printer.alignLeft()
+      printer.drawLine()
       items.forEach(i => {
         const sub = (i.precio_unitario * i.cantidad).toLocaleString('es-CO')
-        recibo += LEFT + i.nombre + ' T' + i.talla + LF
-        recibo += LEFT + '  ' + i.cantidad + ' x $' + parseFloat(i.precio_unitario).toLocaleString('es-CO') + ' = $' + sub + LF
+        printer.println(i.nombre + ' T' + i.talla)
+        printer.println('  ' + i.cantidad + ' x $' + parseFloat(i.precio_unitario).toLocaleString('es-CO') + ' = $' + sub)
       })
-
-      recibo += LEFT + linea + LF
-      recibo += RIGHT + 'Subtotal:  $' + subtotal.toLocaleString('es-CO') + LF
-      if (abonoAplicado > 0) {
-        recibo += RIGHT + 'Abono:    -$' + abonoAplicado.toLocaleString('es-CO') + LF
-      }
-      recibo += RIGHT + BOLD + 'TOTAL:     $' + totalCobrar.toLocaleString('es-CO') + LF + UNBOLD
-
-      // Metodo de pago en el recibo
-      const labelMetodo = metodoPago === 'transferencia' ? 'Transferencia' : 'Efectivo'
-      recibo += RIGHT + 'Pago:      ' + labelMetodo + LF
-
+      printer.drawLine()
+      printer.alignRight()
+      printer.println('Subtotal:  $' + subtotal.toLocaleString('es-CO'))
+      if (abonoAplicado > 0) printer.println('Abono:    -$' + abonoAplicado.toLocaleString('es-CO'))
+      printer.bold(true)
+      printer.println('TOTAL:     $' + totalCobrar.toLocaleString('es-CO'))
+      printer.bold(false)
+      printer.println('Pago:      ' + labelMetodo)
       if (metodoPago !== 'transferencia') {
-        recibo += RIGHT + 'Recibido:  $' + dado.toLocaleString('es-CO') + LF
-        recibo += RIGHT + 'Vueltos:   $' + vueltos.toLocaleString('es-CO') + LF
+        printer.println('Recibido:  $' + dado.toLocaleString('es-CO'))
+        printer.println('Vueltos:   $' + vueltos.toLocaleString('es-CO'))
       }
-
-      recibo += LEFT + linea + LF
-      recibo += CENTER + 'Gracias por su compra!' + LF
-      recibo += CENTER + 'Vuelve pronto :)' + LF
-      recibo += LF + LF + LF
-      recibo += CUT
-
-      fs.writeFileSync('/dev/usb/lp0', Buffer.from(limpiar(recibo), 'latin1'))
+      printer.alignLeft()
+      printer.drawLine()
+      printer.alignCenter()
+      printer.println('Gracias por su compra!')
+      printer.println('Vuelve pronto :)')
+      printer.cut()
+      await printer.execute()
+      printer.clear()
       return { ok: true }
     } catch (err) {
-      console.error('Error impresora:', err)
+      escribirLog('Error impresora: ' + err.message)
       return { error: err.message }
     }
+  }
+
+  ipcMain.handle('imprimir-recibo', async (e, datos) => {
+    return await imprimirRecibo(datos)
   })
 
   // ── IMPRESORA TERMICA: COMPROBANTE DE APARTADO ────
-  ipcMain.handle('imprimir-comprobante-apartado', async (e, { nombre, telefono, colegio, notas, abono, items, total, vendedor }) => {
+  ipcMain.handle('imprimir-comprobante-apartado', async (e, datos) => {
+    const { nombre, telefono, colegio, notas, abono, items, total, vendedor } = datos
     try {
-      const fs = require('fs')
-
-      const ESC           = '\x1B'
-      const INIT          = ESC + '@'
-      const BOLD          = ESC + 'E\x01'
-      const UNBOLD        = ESC + 'E\x00'
-      const CENTER        = ESC + 'a\x01'
-      const LEFT          = ESC + 'a\x00'
-      const RIGHT         = ESC + 'a\x02'
-      const NOMBRE_GRANDE = ESC + '!' + '\x38'
-      const NORMAL        = ESC + '!' + '\x00'
-      const CUT           = '\x1D' + 'V\x41\x00'
-      const LF            = '\n'
-
-      const linea = '--------------------------------'
+      if (process.platform === 'win32') {
+        const buffer = construirBufferApartado(datos)
+        return await imprimirWindowsRaw(buffer)
+      }
+      const printer   = crearImpresora()
+      const conectada = await printer.isPrinterConnected()
+      if (!conectada) return { error: 'No se pudo conectar con la impresora. Verifica la configuracion en Ajustes.' }
       const fecha = new Date().toLocaleString('es-CO')
       const saldo = Math.max(0, total - (abono || 0))
-
-      const limpiar = (str) => str
-        .replace(/á/g, 'a').replace(/é/g, 'e').replace(/í/g, 'i')
-        .replace(/ó/g, 'o').replace(/ú/g, 'u').replace(/ü/g, 'u')
-        .replace(/Á/g, 'A').replace(/É/g, 'E').replace(/Í/g, 'I')
-        .replace(/Ó/g, 'O').replace(/Ú/g, 'U').replace(/ñ/g, 'n')
-        .replace(/Ñ/g, 'N')
-
-      let recibo = INIT
-      recibo += CENTER + BOLD + 'Casacas Colegial' + LF + UNBOLD
-      recibo += CENTER + 'San Gil - Calle 11 No. 10-66' + LF
-      recibo += CENTER + 'Piso 2, Local 201' + LF
-      recibo += CENTER + 'Tel: 313 849 5210' + LF
-      recibo += CENTER + linea + LF
-      recibo += CENTER + BOLD + 'COMPROBANTE DE APARTADO' + LF + UNBOLD
-      recibo += CENTER + fecha + LF
-      recibo += CENTER + linea + LF
-
-      recibo += CENTER + 'Reclama con el nombre de:' + LF
-      recibo += CENTER + NOMBRE_GRANDE + nombre + LF + NORMAL
-      if (telefono) recibo += CENTER + 'Tel: ' + telefono + LF
-      if (colegio)  recibo += CENTER + 'Colegio: ' + colegio + LF
-      recibo += LEFT + linea + LF
-
+      printer.alignCenter()
+      printer.bold(true)
+      printer.println('Casacas Colegial')
+      printer.bold(false)
+      printer.println('San Gil - Calle 11 No. 10-66')
+      printer.println('Piso 2, Local 201')
+      printer.println('Tel: 313 849 5210')
+      printer.drawLine()
+      printer.bold(true)
+      printer.println('COMPROBANTE DE APARTADO')
+      printer.bold(false)
+      printer.println(fecha)
+      printer.drawLine()
+      printer.println('Reclama con el nombre de:')
+      printer.setTextSize(1, 1)
+      printer.println(nombre)
+      printer.setTextNormal()
+      if (telefono) printer.println('Tel: ' + telefono)
+      if (colegio)  printer.println('Colegio: ' + colegio)
+      printer.alignLeft()
+      printer.drawLine()
       items.forEach(i => {
         const sub = (i.precio_unitario * i.cantidad).toLocaleString('es-CO')
-        recibo += LEFT + i.nombre + ' T' + i.talla + LF
-        recibo += LEFT + '  ' + i.cantidad + ' x $' + parseFloat(i.precio_unitario).toLocaleString('es-CO') + ' = $' + sub + LF
+        printer.println(i.nombre + ' T' + i.talla)
+        printer.println('  ' + i.cantidad + ' x $' + parseFloat(i.precio_unitario).toLocaleString('es-CO') + ' = $' + sub)
       })
-
-      recibo += LEFT + linea + LF
-      recibo += RIGHT + 'Total apartado: $' + total.toLocaleString('es-CO') + LF
-      recibo += RIGHT + 'Abono pagado:  -$' + (abono || 0).toLocaleString('es-CO') + LF
-      recibo += RIGHT + BOLD + 'SALDO:          $' + saldo.toLocaleString('es-CO') + LF + UNBOLD
-      recibo += LEFT + linea + LF
-
-      if (notas) {
-        recibo += LEFT + 'Notas: ' + notas + LF
-        recibo += LEFT + linea + LF
-      }
-
-      recibo += CENTER + 'Vendedor: ' + vendedor + LF
-      recibo += CENTER + 'Conserva este papel' + LF
-      recibo += CENTER + 'para reclamar tu pedido' + LF
-      recibo += LF + LF + LF
-      recibo += CUT
-
-      fs.writeFileSync('/dev/usb/lp0', Buffer.from(limpiar(recibo), 'latin1'))
+      printer.drawLine()
+      printer.alignRight()
+      printer.println('Total apartado: $' + total.toLocaleString('es-CO'))
+      printer.println('Abono pagado:  -$' + (abono || 0).toLocaleString('es-CO'))
+      printer.bold(true)
+      printer.println('SALDO:          $' + saldo.toLocaleString('es-CO'))
+      printer.bold(false)
+      printer.alignLeft()
+      printer.drawLine()
+      if (notas) { printer.println('Notas: ' + notas); printer.drawLine() }
+      printer.alignCenter()
+      printer.println('Vendedor: ' + vendedor)
+      printer.println('Conserva este papel')
+      printer.println('para reclamar tu pedido')
+      printer.cut()
+      await printer.execute()
+      printer.clear()
       return { ok: true }
     } catch (err) {
-      console.error('Error impresora (apartado):', err)
+      escribirLog('Error impresora apartado: ' + err.message)
       return { error: err.message }
     }
   })

@@ -13,11 +13,11 @@
       --amarillo: #f39c12;
       --rojo:     #e94560;
       --azul:     #3498db;
-      --bg-card:  #ffffff;
-      --texto:    #1a1a2e;
-      --muted:    #888;
+      --bg-card:  var(--card-bg);
+      --texto:    var(--text);
+      --muted:    var(--text-muted);
       --radius:   12px;
-      --shadow:   0 2px 12px rgba(0,0,0,.08);
+      --shadow:   var(--shadow);
     }
 
     /* ── KPI CARDS ───────────────────────────────────────────── */
@@ -29,9 +29,10 @@
     }
 
     .kpi-card {
-      background: var(--bg-card);
+      background: var(--card-bg);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
+      border: 1px solid var(--border);
       padding: 24px 20px;
       display: flex;
       flex-direction: column;
@@ -54,20 +55,20 @@
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: .06em;
-      color: var(--muted);
+      color: var(--text-muted);
       margin: 0;
     }
 
     .kpi-monto {
       font-size: 30px;
       font-weight: 800;
-      color: var(--texto);
+      color: var(--text);
       line-height: 1;
     }
 
     .kpi-de {
       font-size: 13px;
-      color: var(--muted);
+      color: var(--text-muted);
     }
 
     .kpi-faltan {
@@ -79,12 +80,15 @@
       width: fit-content;
     }
 
-    .kpi-faltan.falta   { background: #ffeaea; color: var(--rojo); }
-    .kpi-faltan.cumple  { background: #e8fdf1; color: var(--verde); }
+    .kpi-faltan.falta  { background: #ffeaea; color: #e94560; }
+    .kpi-faltan.cumple { background: #e8fdf1; color: #2ecc71; }
+
+    body.dark .kpi-faltan.falta  { background: #3d1010; color: #f87171; }
+    body.dark .kpi-faltan.cumple { background: #0f2e1d; color: #4ade80; }
 
     /* barra de progreso */
     .barra-contenedor {
-      background: #f0f0f5;
+      background: var(--border);
       border-radius: 20px;
       height: 10px;
       overflow: hidden;
@@ -104,15 +108,19 @@
 
     .kpi-proyeccion {
       font-size: 12px;
-      color: var(--muted);
+      color: var(--text-muted);
       font-style: italic;
     }
 
     /* ── BADGES ──────────────────────────────────────────────── */
     .badge            { display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700; }
-    .badge-verde      { background:#e8fdf1; color:#27ae60; }
-    .badge-amarillo   { background:#fff8e1; color:#e67e22; }
-    .badge-rojo       { background:#ffeaea; color:#e94560; }
+    .badge-verde      { background:#dcfce7; color:#15803d; }
+    .badge-amarillo   { background:#fef3c7; color:#92400e; }
+    .badge-rojo       { background:#fee2e2; color:#b91c1c; }
+
+    body.dark .badge-verde    { background:#0f2e1d; color:#4ade80; }
+    body.dark .badge-amarillo { background:#2e2310; color:#fbbf24; }
+    body.dark .badge-rojo     { background:#2e1212; color:#f87171; }
 
     /* ── CONFIG METAS ────────────────────────────────────────── */
     .config-grid {
@@ -122,9 +130,10 @@
     }
 
     .config-meta-card {
-      background: var(--bg-card);
+      background: var(--card-bg);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
+      border: 1px solid var(--border);
       padding: 20px;
     }
 
@@ -132,7 +141,7 @@
       display: block;
       font-size: 13px;
       font-weight: 600;
-      color: var(--muted);
+      color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: .05em;
       margin-bottom: 10px;
@@ -146,17 +155,18 @@
     .config-meta-card input[type=number] {
       flex: 1;
       padding: 10px 12px;
-      border: 1.5px solid #e0e0e0;
+      border: 1.5px solid var(--input-border);
       border-radius: 8px;
       font-size: 15px;
       font-weight: 600;
-      color: var(--texto);
+      color: var(--text);
+      background: var(--input-bg);
       transition: border-color .2s;
       outline: none;
     }
 
     .config-meta-card input[type=number]:focus {
-      border-color: var(--rojo);
+      border-color: var(--accent);
     }
 
     /* ── MÉTRICAS SECUNDARIAS ────────────────────────────────── */
@@ -168,9 +178,10 @@
     }
 
     .metrica-chip {
-      background: var(--bg-card);
+      background: var(--card-bg);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
+      border: 1px solid var(--border);
       padding: 16px;
       text-align: center;
     }
@@ -178,14 +189,14 @@
     .metrica-chip .val {
       font-size: 20px;
       font-weight: 800;
-      color: var(--texto);
+      color: var(--text);
     }
 
     .metrica-chip .lbl {
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: .06em;
-      color: var(--muted);
+      color: var(--text-muted);
       margin-top: 4px;
     }
 
@@ -203,9 +214,13 @@
       margin-bottom: 24px;
       display: none;
     }
-    .alerta-ritmo.warn  { background: #fff8e1; color: #7d5a00; border-left: 4px solid var(--amarillo); }
-    .alerta-ritmo.ok    { background: #e8fdf1; color: #1a6b3c; border-left: 4px solid var(--verde); }
-    .alerta-ritmo.peligro { background: #ffeaea; color: #8b0000; border-left: 4px solid var(--rojo); }
+    .alerta-ritmo.warn    { background: var(--bg); color: var(--text); border-left: 4px solid var(--amarillo); }
+    .alerta-ritmo.ok      { background: var(--bg); color: var(--text); border-left: 4px solid var(--verde); }
+    .alerta-ritmo.peligro { background: var(--bg); color: var(--text); border-left: 4px solid var(--rojo); }
+
+    body.dark .alerta-ritmo.warn    { background: #1e1800; }
+    body.dark .alerta-ritmo.ok      { background: #061a0e; }
+    body.dark .alerta-ritmo.peligro { background: #1e0606; }
 
     /* ── SECCIÓN TITLE ───────────────────────────────────────── */
     .seccion-title {
@@ -213,7 +228,7 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: .07em;
-      color: var(--muted);
+      color: var(--text-muted);
       margin: 0 0 14px;
     }
 
@@ -235,32 +250,36 @@
     .top-prod-num {
       width: 26px; height: 26px;
       border-radius: 50%;
-      background: #f0f0f5;
+      background: var(--bg);
+      border: 1px solid var(--border);
       display: flex; align-items: center; justify-content: center;
       font-size: 12px; font-weight: 800;
-      color: var(--texto);
+      color: var(--text);
       flex-shrink: 0;
     }
 
-    .top-prod-nombre { flex: 1; font-size: 14px; font-weight: 500; }
-    .top-prod-cant   { font-size: 13px; color: var(--muted); white-space: nowrap; }
+    .top-prod-nombre { flex: 1; font-size: 14px; font-weight: 500; color: var(--text); }
+    .top-prod-cant   { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
     .top-prod-monto  { font-size: 14px; font-weight: 700; color: var(--verde); white-space: nowrap; }
 
-    /* ── TABLA ───────────────────────────────────────────────── */
-    table { width: 100%; border-collapse: collapse; }
-    thead th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 10px 12px; border-bottom: 2px solid #f0f0f5; text-align: left; }
-    tbody td { padding: 12px; border-bottom: 1px solid #f5f5f5; font-size: 14px; }
-    tbody tr:last-child td { border-bottom: none; }
-    .vacio { text-align: center; color: var(--muted); padding: 32px !important; }
-
-    /* ── PANEL ───────────────────────────────────────────────── */
-    .panel {
-      background: var(--bg-card);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 24px;
-      margin-bottom: 0;
+    /* ── TABLA LOCAL ─────────────────────────────────────────── */
+    .panel table { width: 100%; border-collapse: collapse; }
+    .panel thead th {
+      font-size: 12px; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--text-muted);
+      padding: 10px 12px;
+      border-bottom: 2px solid var(--border);
+      text-align: left;
+      background: var(--bg);
     }
+    .panel tbody td {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--text);
+    }
+    .panel tbody tr:last-child td { border-bottom: none; }
+    .vacio { text-align: center; color: var(--text-muted); padding: 32px !important; }
 
     /* ── RACHA ───────────────────────────────────────────────── */
     .racha-display {
@@ -271,17 +290,15 @@
     .racha-num {
       font-size: 36px;
       font-weight: 900;
-      color: var(--texto);
+      color: var(--text);
       line-height: 1;
     }
     .racha-label {
       font-size: 13px;
-      color: var(--muted);
+      color: var(--text-muted);
       line-height: 1.4;
     }
-    .racha-llamas {
-      font-size: 28px;
-    }
+    .racha-llamas { font-size: 28px; }
   </style>
 </head>
 <body>
@@ -315,7 +332,7 @@
             <input type="number" id="meta-dia" min="0" value="0" placeholder="0">
             <button class="btn btn-rojo" onclick="guardarMeta('dia')">Guardar</button>
           </div>
-          <div id="sugerido-dia" style="font-size:12px; color:var(--muted); margin-top:8px;"></div>
+          <div id="sugerido-dia" style="font-size:12px; color:var(--text-muted); margin-top:8px;"></div>
         </div>
 
         <div class="config-meta-card">
@@ -416,7 +433,7 @@
       <div class="panel">
         <p class="seccion-title">Top 3 productos del mes</p>
         <ul class="top-prod-list" id="top-productos">
-          <li style="color:var(--muted); font-size:14px;">Cargando...</li>
+          <li style="color:var(--text-muted); font-size:14px;">Cargando...</li>
         </ul>
       </div>
 
@@ -458,7 +475,7 @@
     let metas        = []
     let graficaMeses = null
 
-    const DIAS_NOMBRES = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
+    const DIAS_NOMBRES  = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
     const MESES_NOMBRES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                            'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
@@ -468,15 +485,14 @@
       cargarDatos()
     })
 
-    // ── HELPERS ────────────────────────────────────────────────
     function cop(n) {
       return '$' + Math.round(n).toLocaleString('es-CO')
     }
 
     function diasHabilesRestantes() {
-      const hoy  = new Date()
-      const fin  = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)
-      let count  = 0
+      const hoy = new Date()
+      const fin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)
+      let count = 0
       for (let d = new Date(hoy); d <= fin; d.setDate(d.getDate() + 1)) {
         const dow = d.getDay()
         if (dow !== 0 && dow !== 6) count++
@@ -485,10 +501,10 @@
     }
 
     function diasHabilesTotalesMes() {
-      const hoy  = new Date()
-      const ini  = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
-      const fin  = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)
-      let count  = 0
+      const hoy = new Date()
+      const ini = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
+      const fin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)
+      let count = 0
       for (let d = new Date(ini); d <= fin; d.setDate(d.getDate() + 1)) {
         const dow = d.getDay()
         if (dow !== 0 && dow !== 6) count++
@@ -498,7 +514,6 @@
 
     function calcularRacha(ventas, metaDia) {
       if (!metaDia || metaDia === 0) return 0
-      // agrupar ventas por día
       const porDia = {}
       ventas.forEach(v => {
         const d = v.fecha.slice(0, 10)
@@ -510,11 +525,8 @@
         const d = new Date(hoy)
         d.setDate(hoy.getDate() - i)
         const key = d.toISOString().slice(0, 10)
-        if ((porDia[key] || 0) >= metaDia) {
-          racha++
-        } else {
-          break
-        }
+        if ((porDia[key] || 0) >= metaDia) racha++
+        else break
       }
       return racha
     }
@@ -535,25 +547,23 @@
       return mejorDow !== null ? DIAS_NOMBRES[mejorDow] : '—'
     }
 
-    // ── CARGA PRINCIPAL ────────────────────────────────────────
     async function cargarDatos() {
-      metas          = await ipcRenderer.invoke('obtener-metas')
+      metas              = await ipcRenderer.invoke('obtener-metas')
       const estadisticas = await ipcRenderer.invoke('obtener-estadisticas')
       const ventas       = await ipcRenderer.invoke('obtener-ventas')
       const egresos      = await ipcRenderer.invoke('obtener-egresos')
 
-      // Llenar inputs
       metas.forEach(m => {
         const el = document.getElementById(`meta-${m.tipo}`)
         if (el) el.value = m.monto
       })
 
-      const ahora    = new Date()
-      const hoy      = ahora.toISOString().slice(0, 10)
-      const mesAct   = ahora.toISOString().slice(0, 7)
+      const ahora  = new Date()
+      const hoy    = ahora.toISOString().slice(0, 10)
+      const mesAct = ahora.toISOString().slice(0, 7)
 
       const inicioSemana = new Date(ahora)
-      inicioSemana.setDate(ahora.getDate() - ((ahora.getDay() + 6) % 7)) // lunes
+      inicioSemana.setDate(ahora.getDate() - ((ahora.getDay() + 6) % 7))
       const inicioSemanaStr = inicioSemana.toISOString().slice(0, 10)
 
       const ventasHoy    = ventas.filter(v => v.fecha.slice(0, 10) === hoy)
@@ -568,11 +578,10 @@
       const metaSemana = metas.find(m => m.tipo === 'semana')?.monto || 0
       const metaMes    = metas.find(m => m.tipo === 'mes')?.monto    || 0
 
-      // Sugerido diario basado en meta mensual
       if (metaMes > 0) {
         const diasRestantes = diasHabilesRestantes()
-        const necesario = Math.max(0, metaMes - totalMes)
-        const sugeridoDia = diasRestantes > 0 ? Math.ceil(necesario / diasRestantes) : 0
+        const necesario     = Math.max(0, metaMes - totalMes)
+        const sugeridoDia   = diasRestantes > 0 ? Math.ceil(necesario / diasRestantes) : 0
         const el = document.getElementById('sugerido-dia')
         if (el) {
           el.textContent = metaDia > 0
@@ -581,10 +590,9 @@
         }
       }
 
-      // KPI displays
-      document.getElementById('venta-hoy').textContent    = cop(totalHoy)
-      document.getElementById('venta-semana').textContent = cop(totalSemana)
-      document.getElementById('venta-mes').textContent    = cop(totalMes)
+      document.getElementById('venta-hoy').textContent           = cop(totalHoy)
+      document.getElementById('venta-semana').textContent        = cop(totalSemana)
+      document.getElementById('venta-mes').textContent           = cop(totalMes)
       document.getElementById('meta-hoy-display').textContent    = cop(metaDia)
       document.getElementById('meta-semana-display').textContent = cop(metaSemana)
       document.getElementById('meta-mes-display').textContent    = cop(metaMes)
@@ -593,56 +601,49 @@
       actualizarBarra('semana', totalSemana, metaSemana)
       actualizarBarra('mes',    totalMes,    metaMes)
 
-      // Faltan
       mostrarFaltan('dia',    totalHoy,    metaDia)
       mostrarFaltan('semana', totalSemana, metaSemana)
       mostrarFaltan('mes',    totalMes,    metaMes)
 
-      // Proyección mes
       const diasTotales    = diasHabilesTotalesMes()
       const diasTranscurri = diasTotales - diasHabilesRestantes() + 1
       if (metaMes > 0 && diasTranscurri > 0) {
-        const ritmoActual  = totalMes / diasTranscurri
-        const proyectado   = ritmoActual * diasTotales
+        const ritmoActual = totalMes / diasTranscurri
+        const proyectado  = ritmoActual * diasTotales
         document.getElementById('proj-mes').textContent =
           `A este ritmo cerrarás en ${cop(proyectado)}`
       }
 
-      // Alerta ritmo
       if (metaMes > 0) {
-        const diasRestantes = diasHabilesRestantes()
+        const diasRestantes   = diasHabilesRestantes()
         const necesarioPorDia = diasRestantes > 0 ? (metaMes - totalMes) / diasRestantes : Infinity
         const alerta = document.getElementById('alerta-ritmo')
         alerta.style.display = 'block'
         if (totalMes >= metaMes) {
-          alerta.className = 'alerta-ritmo ok'
+          alerta.className   = 'alerta-ritmo ok'
           alerta.textContent = `✅ ¡Meta mensual cumplida! Llevas ${cop(totalMes)} este mes.`
         } else if (diasRestantes === 0) {
-          alerta.className = 'alerta-ritmo peligro'
+          alerta.className   = 'alerta-ritmo peligro'
           alerta.textContent = `❌ El mes terminó sin cumplir la meta. Faltaron ${cop(metaMes - totalMes)}.`
         } else if (necesarioPorDia > metaDia * 1.5 && metaDia > 0) {
-          alerta.className = 'alerta-ritmo peligro'
+          alerta.className   = 'alerta-ritmo peligro'
           alerta.textContent = `⚠️ Vas muy por debajo del ritmo. Necesitas ${cop(necesarioPorDia)}/día en los ${diasRestantes} días hábiles restantes.`
         } else if (necesarioPorDia > metaDia && metaDia > 0) {
-          alerta.className = 'alerta-ritmo warn'
+          alerta.className   = 'alerta-ritmo warn'
           alerta.textContent = `⚡ Para cumplir el mes necesitas ${cop(necesarioPorDia)}/día en los ${diasRestantes} días hábiles restantes.`
         } else {
-          alerta.className = 'alerta-ritmo ok'
+          alerta.className   = 'alerta-ritmo ok'
           alerta.textContent = `✅ Vas bien. Necesitas ${cop(necesarioPorDia)}/día los ${diasRestantes} días hábiles que quedan.`
         }
       }
 
-      // Métricas secundarias
       const ticketProm = ventasHoy.length > 0 ? totalHoy / ventasHoy.length : 0
-      document.getElementById('ticket-promedio').textContent = cop(ticketProm)
-      document.getElementById('mejor-dia').textContent       = calcularMejorDia(ventas)
-      document.getElementById('racha-dias').textContent      = calcularRacha(ventas, metaDia)
-      document.getElementById('ventas-hoy-cant').textContent = ventasHoy.length
+      document.getElementById('ticket-promedio').textContent  = cop(ticketProm)
+      document.getElementById('mejor-dia').textContent        = calcularMejorDia(ventas)
+      document.getElementById('racha-dias').textContent       = calcularRacha(ventas, metaDia)
+      document.getElementById('ventas-hoy-cant').textContent  = ventasHoy.length
 
-      // Top productos del mes
       renderTopProductos(estadisticas)
-
-      // Gráfica y tabla
       renderResumenMeses(estadisticas, egresos, metaMes)
     }
 
@@ -675,10 +676,9 @@
 
     function renderTopProductos(estadisticas) {
       const lista = document.getElementById('top-productos')
-      // Intentar obtener top de estadisticas; si no existe, mostrar vacío
-      const top = estadisticas?.topProductosMes || estadisticas?.topProductos || []
+      const top   = estadisticas?.topProductosMes || estadisticas?.topProductos || []
       if (top.length === 0) {
-        lista.innerHTML = '<li style="color:var(--muted); font-size:14px;">Sin datos este mes</li>'
+        lista.innerHTML = '<li style="color:var(--text-muted); font-size:14px;">Sin datos este mes</li>'
         return
       }
       lista.innerHTML = top.slice(0, 3).map((p, i) => `
@@ -692,14 +692,18 @@
     }
 
     function renderResumenMeses(estadisticas, egresos, metaMes) {
-      const mesesData = estadisticas.resumenMeses || []
-      const egresosMap = {}
+      const mesesData   = estadisticas.resumenMeses || []
+      const egresosMap  = {}
       ;(estadisticas.egresosPorMes || []).forEach(e => { egresosMap[e.periodo] = e.egresos })
 
       const labels      = mesesData.map(m => MESES_NOMBRES[parseInt(m.mes) - 1] + ' ' + m.anio)
       const ingresos    = mesesData.map(m => m.ingresos || 0)
       const egresosList = mesesData.map(m => egresosMap[m.periodo] || 0)
       const balances    = ingresos.map((ing, i) => ing - egresosList[i])
+
+      const esModoOscuro = document.body.classList.contains('dark')
+      const colorTexto   = esModoOscuro ? '#e9eaee' : '#14161f'
+      const colorGrid    = esModoOscuro ? '#232531' : '#e8e9ee'
 
       if (graficaMeses) graficaMeses.destroy()
       const ctx = document.getElementById('grafica-meses').getContext('2d')
@@ -738,17 +742,26 @@
         },
         options: {
           responsive: true,
-          plugins: { legend: { position: 'top' } },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { color: colorTexto }
+            }
+          },
           scales: {
+            x: { ticks: { color: colorTexto }, grid: { color: colorGrid } },
             y: {
               beginAtZero: true,
-              ticks: { callback: v => '$' + v.toLocaleString('es-CO') }
+              ticks: {
+                color: colorTexto,
+                callback: v => '$' + v.toLocaleString('es-CO')
+              },
+              grid: { color: colorGrid }
             }
           }
         }
       })
 
-      // Tabla
       const tbody = document.getElementById('tabla-meses')
       if (mesesData.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="vacio">Sin datos aún</td></tr>'
@@ -768,14 +781,14 @@
             <td><strong>${MESES_NOMBRES[parseInt(m.mes) - 1]} ${m.anio}</strong></td>
             <td><strong style="color:#2ecc71;">${cop(ingresos[i])}</strong></td>
             <td>${cantVentas}</td>
-            <td style="color:var(--muted);">${cop(ticket)}</td>
+            <td style="color:var(--text-muted);">${cop(ticket)}</td>
             <td style="color:#e94560;">${cop(egreso)}</td>
             <td>
               <strong style="color:${balance >= 0 ? '#2ecc71' : '#e94560'};">
                 ${balance >= 0 ? '+' : ''}${cop(balance)}
               </strong>
             </td>
-            <td>${metaMes > 0 ? cop(metaMes) : '<span style="color:var(--muted)">—</span>'}</td>
+            <td>${metaMes > 0 ? cop(metaMes) : '<span style="color:var(--text-muted)">—</span>'}</td>
             <td>
               <span class="badge ${cumple ? 'badge-verde' : pct >= 60 ? 'badge-amarillo' : 'badge-rojo'}">
                 ${metaMes > 0 ? pct + '%' : 'Sin meta'}${cumple ? ' ✓' : ''}

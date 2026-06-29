@@ -3,15 +3,16 @@
   "version": "1.0.0",
   "description": "Sistema de inventario para tienda de ropa",
   "main": "main.js",
+  "type": "commonjs",
   "scripts": {
     "start": "electron .",
+    "postinstall": "electron-builder install-app-deps",
     "build-win": "electron-builder --win",
     "build-linux": "electron-builder --linux"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "devDependencies": {
     "electron": "^41.5.0",
     "electron-builder": "^26.15.3",
@@ -23,11 +24,14 @@
     "escpos": "^3.0.0-alpha.6",
     "escpos-usb": "^3.0.0-alpha.4",
     "jsbarcode": "^3.12.3",
+    "node-thermal-printer": "^4.6.0",
     "xlsx": "^0.18.5"
   },
   "build": {
     "appId": "com.casacas.colegial",
     "productName": "Casacas",
+    "npmRebuild": true,
+    "buildDependenciesFromSource": true,
     "directories": {
       "output": "dist"
     },
@@ -37,8 +41,12 @@
       "!dist/**",
       "!.git/**"
     ],
+    "asarUnpack": [
+      "assets/RawPrint.exe"
+    ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,
@@ -47,7 +55,8 @@
       "createStartMenuShortcut": true
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "icon": "assets/casacas.jpg"
     }
   }
 }

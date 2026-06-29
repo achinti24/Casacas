@@ -82,18 +82,13 @@ body {
   border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
+/* ── Sin cuadro azul ── */
 .sidebar-logo::before {
-  content: '';
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
-  flex-shrink: 0;
-  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+  display: none;
 }
 
 .sidebar-logo h2 {
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 800;
   color: #ffffff;
   letter-spacing: -0.3px;
@@ -103,7 +98,7 @@ body {
 .sidebar-logo small {
   display: block;
   color: #4b4f5e;
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 1.5px;
   text-transform: uppercase;
   margin-top: 1px;
