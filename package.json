@@ -41,9 +41,6 @@
       "!dist/**",
       "!.git/**"
     ],
-    "asarUnpack": [
-      "assets/RawPrint.exe"
-    ],
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico"

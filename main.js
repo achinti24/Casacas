@@ -48,12 +48,42 @@ function crearImpresora() {
 
 // ── IMPRESION DIRECTA WINDOWS ─────────────────────
 async function imprimirWindowsRaw(buffer) {
-  const tmp = path.join(app.getPath('temp'), 'casacas_print.bin')
+  const tmp   = path.join(app.getPath('temp'), 'casacas_print.bin')
+  const tmpPs = path.join(app.getPath('temp'), 'casacas_print.ps1')
   fs.writeFileSync(tmp, buffer)
+
+  const escaped = tmp.replace(/\\/g, '\\\\')
+  const ps = `
+$bytes = [IO.File]::ReadAllBytes("${escaped}")
+$p = "Generic / Text Only"
+$h = [IntPtr]::Zero
+Add-Type -TypeDefinition @'
+using System; using System.Runtime.InteropServices;
+public class WP {
+  [DllImport("winspool.drv",CharSet=CharSet.Auto)] public static extern bool OpenPrinter(string n,out IntPtr h,IntPtr d);
+  [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Auto)] public struct DI { public string n; public string o; public string t; }
+  [DllImport("winspool.drv",CharSet=CharSet.Auto)] public static extern int StartDocPrinter(IntPtr h,int l,ref DI i);
+  [DllImport("winspool.drv")] public static extern bool StartPagePrinter(IntPtr h);
+  [DllImport("winspool.drv")] public static extern bool WritePrinter(IntPtr h,byte[] b,int l,out int w);
+  [DllImport("winspool.drv")] public static extern bool EndPagePrinter(IntPtr h);
+  [DllImport("winspool.drv")] public static extern bool EndDocPrinter(IntPtr h);
+  [DllImport("winspool.drv")] public static extern bool ClosePrinter(IntPtr h);
+}
+'@
+[WP]::OpenPrinter($p,[ref]$h,[IntPtr]::Zero)|Out-Null
+$di=New-Object WP+DI; $di.n="Casacas"; $di.t="RAW"
+[WP]::StartDocPrinter($h,1,[ref]$di)|Out-Null
+[WP]::StartPagePrinter($h)|Out-Null
+$w=0; [WP]::WritePrinter($h,$bytes,$bytes.Length,[ref]$w)|Out-Null
+[WP]::EndPagePrinter($h)|Out-Null; [WP]::EndDocPrinter($h)|Out-Null; [WP]::ClosePrinter($h)|Out-Null
+`
+  fs.writeFileSync(tmpPs, ps, 'utf8')
   try {
-    const { execFileSync } = require('child_process')
-    const exePath = path.join(process.resourcesPath, 'app.asar.unpacked', 'assets', 'RawPrint.exe')
-    execFileSync(exePath, ['Generic / Text Only', tmp], { timeout: 5000 })
+    const { execSync } = require('child_process')
+    execSync(`powershell -NonInteractive -NoProfile -ExecutionPolicy Bypass -File "${tmpPs}"`, {
+      shell:   'cmd.exe',
+      timeout: 15000
+    })
     return { ok: true }
   } catch (err) {
     escribirLog('Error impresion Windows: ' + err.message)
