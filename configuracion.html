@@ -47,7 +47,7 @@
     </div>
 
     <!-- CATEGORIAS -->
-    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px;">
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:20px;">
 
       <div class="panel">
         <h3 style="margin-bottom:16px;">Categorias de Productos</h3>
@@ -67,6 +67,16 @@
           <button class="btn btn-rojo" onclick="agregarColegio()">+</button>
         </div>
         <div id="lista-colegios"></div>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin-bottom:16px;">Tallas</h3>
+        <div style="display:flex; gap:8px; margin-bottom:16px;">
+          <input type="text" id="nueva-talla" placeholder="Nueva talla..."
+            style="flex:1; padding:10px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);">
+          <button class="btn btn-rojo" onclick="agregarTalla()">+</button>
+        </div>
+        <div id="lista-tallas"></div>
       </div>
 
       <div class="panel">
@@ -103,6 +113,7 @@
     let catProductos = []
     let colegios     = []
     let catEgresos   = []
+    let tallas       = []
     let editandoTipo = null
     let editandoId   = null
 
@@ -131,12 +142,14 @@
       catProductos = await ipcRenderer.invoke('obtener-categorias-producto')
       colegios     = await ipcRenderer.invoke('obtener-colegios')
       catEgresos   = await ipcRenderer.invoke('obtener-categorias-egreso')
+      tallas       = await ipcRenderer.invoke('obtener-tallas')
       renderListas()
     }
 
     function renderListas() {
       renderLista('lista-cat-producto', catProductos, 'producto')
       renderLista('lista-colegios',     colegios,     'colegio')
+      renderLista('lista-tallas',       tallas,       'talla')
       renderLista('lista-cat-egreso',   catEgresos,   'egreso')
     }
 
@@ -185,10 +198,19 @@
       cargarDatos()
     }
 
+    async function agregarTalla() {
+      const nombre = document.getElementById('nueva-talla').value.trim()
+      if (!nombre) { alert('Escribe un nombre'); return }
+      const res = await ipcRenderer.invoke('agregar-talla', nombre)
+      if (res.error) { alert(res.error); return }
+      document.getElementById('nueva-talla').value = ''
+      cargarDatos()
+    }
+
     function abrirEditar(tipo, id, nombre) {
       editandoTipo = tipo
       editandoId   = id
-      const titulos = { producto: 'Editar Categoria de Producto', colegio: 'Editar Colegio', egreso: 'Editar Categoria de Egreso' }
+      const titulos = { producto: 'Editar Categoria de Producto', colegio: 'Editar Colegio', talla: 'Editar Talla', egreso: 'Editar Categoria de Egreso' }
       document.getElementById('modal-editar-titulo').textContent = titulos[tipo]
       document.getElementById('editar-nombre').value = nombre
       document.getElementById('modal-editar').classList.add('activo')
@@ -206,6 +228,7 @@
       let res
       if (editandoTipo === 'producto') res = await ipcRenderer.invoke('editar-categoria-producto', { id: editandoId, nombre })
       else if (editandoTipo === 'colegio') res = await ipcRenderer.invoke('editar-colegio', { id: editandoId, nombre })
+      else if (editandoTipo === 'talla') res = await ipcRenderer.invoke('editar-talla', { id: editandoId, nombre })
       else res = await ipcRenderer.invoke('editar-categoria-egreso', { id: editandoId, nombre })
       if (res.error) { alert(res.error); return }
       cerrarModalEditar()
@@ -217,6 +240,7 @@
       let res
       if (tipo === 'producto') res = await ipcRenderer.invoke('eliminar-categoria-producto', id)
       else if (tipo === 'colegio') res = await ipcRenderer.invoke('eliminar-colegio', id)
+      else if (tipo === 'talla') res = await ipcRenderer.invoke('eliminar-talla', id)
       else res = await ipcRenderer.invoke('eliminar-categoria-egreso', id)
       if (res && res.error) { alert(res.error); return }
       cargarDatos()

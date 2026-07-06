@@ -122,12 +122,7 @@
       <div class="fila-doble">
         <div class="campo">
           <label>Talla</label>
-          <select id="v-talla">
-            <option>Unica</option><option>2</option><option>4</option><option>6</option>
-            <option>8</option><option>10</option><option>12</option><option>14</option><option>16</option>
-            <option>XS</option><option>S</option><option>M</option>
-            <option>L</option><option>XL</option><option>XXL</option>
-          </select>
+          <select id="v-talla"></select>
         </div>
         <div class="campo">
           <label>Precio Costo ($)</label>
@@ -165,12 +160,7 @@
       <div class="fila-doble">
         <div class="campo">
           <label>Talla</label>
-          <select id="ev-talla">
-            <option>Unica</option><option>2</option><option>4</option><option>6</option>
-            <option>8</option><option>10</option><option>12</option><option>14</option>
-            <option>XS</option><option>S</option><option>M</option>
-            <option>L</option><option>XL</option><option>XXL</option>
-          </select>
+          <select id="ev-talla"></select>
         </div>
         <div class="campo">
           <label>Precio Costo ($)</label>
@@ -311,6 +301,7 @@
     let productos          = []
     let categorias         = []
     let colegios           = []
+    let tallas              = []
     let filasVariantes     = []
     let productoEditandoId = null
     let varianteProdId     = null
@@ -336,6 +327,7 @@
     async function cargarDatos() {
       categorias = await ipcRenderer.invoke('obtener-categorias-producto')
       colegios   = await ipcRenderer.invoke('obtener-colegios')
+      tallas     = await ipcRenderer.invoke('obtener-tallas')
       productos  = await ipcRenderer.invoke('obtener-productos')
 
       const optsCat = categorias.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('')
@@ -345,6 +337,10 @@
       const optsCol = colegios.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('')
       document.getElementById('filtro-colegio').innerHTML = '<option value="">Todos los colegios</option>' + optsCol
       document.getElementById('p-colegio').innerHTML = optsCol
+
+      const optsTalla = tallas.map(t => `<option>${t.nombre}</option>`).join('')
+      document.getElementById('v-talla').innerHTML  = optsTalla
+      document.getElementById('ev-talla').innerHTML = optsTalla
 
       // Reconstruir lista plana de variantes para el selector de bundles
       reconstruirTodasLasVariantes()
@@ -551,20 +547,21 @@
     }
 
     function agregarFilaVariante() {
-      filasVariantes.push({ talla: 'M', precio_costo: 0, precio: 0, cantidad: 0, stock_minimo: 3 })
+      if (tallas.length === 0) { alert('No hay tallas configuradas. Ve a Configuracion y agrega al menos una.'); return }
+      filasVariantes.push({ talla: tallas[0].nombre, precio_costo: 0, precio: 0, cantidad: 0, stock_minimo: 3 })
       renderFilasVariantes()
     }
 
     function renderFilasVariantes() {
       const tbody  = document.getElementById('variantes-body')
-      const tallas = ['Unica','2','4','6','8','10','12','14','XS','S','M','L','XL','XXL']
+      const opcionesTalla = tallas.map(t => t.nombre)
 
       tbody.innerHTML = filasVariantes.map((v, i) => `
         <tr>
           <td>
             <select onchange="filasVariantes[${i}].talla = this.value"
               style="padding:6px; border:1px solid #ddd; border-radius:6px; font-size:13px; width:80px;">
-              ${tallas.map(t => `<option ${t === v.talla ? 'selected' : ''}>${t}</option>`).join('')}
+              ${opcionesTalla.map(t => `<option ${t === v.talla ? 'selected' : ''}>${t}</option>`).join('')}
             </select>
           </td>
           <td>
@@ -697,7 +694,7 @@
     // ── MODAL VARIANTE ────────────────────────────────
     function abrirModalVariante(productoId) {
       varianteProdId = productoId
-      document.getElementById('v-talla').value        = 'M'
+      document.getElementById('v-talla').selectedIndex = 0
       document.getElementById('v-precio-costo').value = 0
       document.getElementById('v-precio').value       = 0
       document.getElementById('v-cantidad').value     = 0

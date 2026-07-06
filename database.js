@@ -33,6 +33,12 @@ db.exec(`
     orden INTEGER DEFAULT 0
   );
 
+  CREATE TABLE IF NOT EXISTS tallas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT UNIQUE NOT NULL,
+    orden INTEGER DEFAULT 0
+  );
+
   CREATE TABLE IF NOT EXISTS productos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre TEXT NOT NULL,
@@ -240,6 +246,11 @@ const migrations = [
     FOREIGN KEY (insumo_id) REFERENCES insumos(id),
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
   )`,
+  `CREATE TABLE IF NOT EXISTS tallas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT UNIQUE NOT NULL,
+    orden INTEGER DEFAULT 0
+  )`,
 ]
 
 migrations.forEach(sql => {
@@ -293,6 +304,13 @@ const catInsumo = ['Telas', 'Hilos', 'Botones', 'Cierres', 'Etiquetas', 'Empaque
 catInsumo.forEach((nombre, i) => {
   const existe = db.prepare('SELECT id FROM categorias_insumo WHERE nombre = ?').get(nombre)
   if (!existe) db.prepare('INSERT INTO categorias_insumo (nombre, orden) VALUES (?, ?)').run(nombre, i)
+})
+
+// Tallas por defecto
+const tallasDefault = ['6','8','10','12','14','16','S','M','L','XL']
+tallasDefault.forEach((nombre, i) => {
+  const existe = db.prepare('SELECT id FROM tallas WHERE nombre = ?').get(nombre)
+  if (!existe) db.prepare('INSERT INTO tallas (nombre, orden) VALUES (?, ?)').run(nombre, i)
 })
 
 // Metas por defecto

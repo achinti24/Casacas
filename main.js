@@ -576,6 +576,23 @@ app.whenReady().then(() => {
     return { ok: true }
   })
 
+  // ── TALLAS ─────────────────────────────────────────
+  ipcMain.handle('obtener-tallas', () => db.prepare('SELECT * FROM tallas ORDER BY orden, nombre').all())
+  ipcMain.handle('agregar-talla', (e, nombre) => {
+    const existe = db.prepare('SELECT id FROM tallas WHERE nombre = ?').get(nombre)
+    if (existe) return { error: 'Ya existe esa talla' }
+    db.prepare('INSERT INTO tallas (nombre) VALUES (?)').run(nombre)
+    return { ok: true }
+  })
+  ipcMain.handle('editar-talla', (e, { id, nombre }) => {
+    db.prepare('UPDATE tallas SET nombre = ? WHERE id = ?').run(nombre, id)
+    return { ok: true }
+  })
+  ipcMain.handle('eliminar-talla', (e, id) => {
+    db.prepare('DELETE FROM tallas WHERE id = ?').run(id)
+    return { ok: true }
+  })
+
   // ── PRODUCTOS ─────────────────────────────────────
   ipcMain.handle('obtener-productos', () => {
     const productos = db.prepare('SELECT * FROM productos ORDER BY nombre').all()
