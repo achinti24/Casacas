@@ -107,15 +107,23 @@
         <button class="btn btn-rojo" style="width:100%; margin-top:15px;" onclick="abrirModalPago()">
           Registrar Venta
         </button>
+        <button class="btn btn-gris" style="width:100%; margin-top:8px;" onclick="generarCotizacion()">
+          Imprimir cotizacion
+        </button>
       </div>
 
       <div class="panel">
         <h3>Ventas Recientes</h3>
+        <input type="text" id="v-buscar-ventas"
+          placeholder="Buscar por producto, talla, colegio, vendedor, cliente o factura..."
+          oninput="aplicarFiltroVentas()"
+          style="width:100%; padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; margin-bottom:12px; background:var(--input-bg); color:var(--text);">
         <table>
           <thead>
             <tr>
               <th>Factura</th>
               <th>Fecha</th>
+              <th>Producto(s)</th>
               <th>Vendedor</th>
               <th>Cliente</th>
               <th>Total</th>
@@ -125,7 +133,7 @@
             </tr>
           </thead>
           <tbody id="tabla-ventas">
-            <tr><td colspan="8" class="vacio">Cargando...</td></tr>
+            <tr><td colspan="9" class="vacio">Cargando...</td></tr>
           </tbody>
         </table>
       </div>
@@ -244,43 +252,61 @@
 
   <!-- MODAL DETALLE VENTA -->
   <div class="modal-overlay" id="modal-detalle">
-    <div class="modal">
+    <div class="modal" style="width:820px; max-width:95vw; max-height:85vh; overflow-y:auto;">
       <h2 id="detalle-titulo">Detalle de Venta</h2>
       <div id="detalle-header" style="margin-bottom:14px; font-size:14px; color:var(--text-muted);"></div>
-      <table>
-        <thead>
-          <tr><th>Producto</th><th>Categoria</th><th>Talla</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr>
-        </thead>
-        <tbody id="detalle-body"></tbody>
-      </table>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;">
+          <thead>
+            <tr><th>Producto</th><th>Categoria</th><th>Talla</th><th>Cant.</th><th>Precio</th><th>Subtotal</th><th></th></tr>
+          </thead>
+          <tbody id="detalle-body"></tbody>
+        </table>
+      </div>
       <div class="modal-botones" style="justify-content:space-between;">
         <button class="btn btn-gris" onclick="cerrarDetalle()">Cerrar</button>
         <div style="display:flex; gap:8px;">
           <button class="btn btn-gris" id="btn-reimprimir" onclick="reimprimirRecibo()" style="display:none;">
             Reimprimir
           </button>
-          <button class="btn btn-rojo" id="btn-anular" onclick="abrirModalAnular()" style="display:none;">
-            Anular Venta
-          </button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- MODAL ANULAR VENTA -->
-  <div class="modal-overlay" id="modal-anular">
-    <div class="modal" style="width:420px;">
-      <h2>Anular Venta</h2>
-      <p style="color:var(--text-muted); font-size:14px; margin-bottom:16px;">
-        Esta accion devuelve el stock de todos los productos de la venta y no se puede deshacer.
-      </p>
+  <!-- MODAL CAMBIO DE PRODUCTO / TALLA -->
+  <div class="modal-overlay" id="modal-cambio">
+    <div class="modal" style="width:480px;">
+      <h2>Cambio de Producto</h2>
+
       <div class="campo">
-        <label>Motivo de anulacion</label>
-        <input type="text" id="anular-motivo" placeholder="Ej: Error en la venta, devolucion del cliente...">
+        <label>Producto actual</label>
+        <div id="cambio-actual" style="
+          background:var(--bg); border:1px solid var(--border); border-radius:8px;
+          padding:10px 14px; font-size:14px; color:var(--text);"></div>
       </div>
+
+      <div class="campo">
+        <label>Nuevo producto o talla</label>
+        <input type="text" id="c-buscar"
+          placeholder="Ej: camiseta guanenta talla 12..."
+          oninput="buscarProductoCambio()"
+          style="width:100%; padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; margin-bottom:6px; background:var(--input-bg); color:var(--text);">
+        <div id="c-sugerencias" class="sugerencias"></div>
+      </div>
+
+      <div id="cambio-nuevo-seleccionado" style="
+        display:none; background:#e8f0fe; border-radius:8px; padding:12px 14px;
+        margin-bottom:14px; font-size:14px; color:#2c5282;"></div>
+
+      <div class="campo">
+        <label>Motivo (opcional)</label>
+        <input type="text" id="cambio-motivo" placeholder="Ej: no le quedo bien la talla">
+      </div>
+
       <div class="modal-botones">
-        <button class="btn btn-gris" onclick="cerrarModalAnular()">Cancelar</button>
-        <button class="btn btn-rojo" onclick="confirmarAnulacion()">Confirmar Anulacion</button>
+        <button class="btn btn-gris" onclick="cerrarModalCambio()">Cancelar</button>
+        <button class="btn btn-rojo" id="btn-confirmar-cambio" onclick="confirmarCambio()" disabled>Confirmar Cambio</button>
       </div>
     </div>
   </div>
@@ -292,9 +318,23 @@
     let apartados      = []
     let carrito        = []
     let apartadoActual = null
+    let ventasCache     = []
     let ventaDetalleId = null
+    let ventaDetalleAnulada = false
     let datosPendientesImpresion = null
     let metodoPago     = 'efectivo'   // 'efectivo' | 'transferencia'
+    let cambioItemActual = null
+    let cambioVarianteNuevaSeleccionada = null
+
+    // ── NORMALIZACION DE BUSQUEDA (soporta "talla 12", "t12", etc) ──
+    function normalizarPalabrasBusqueda(texto) {
+      return texto.toLowerCase().split(/\s+/).filter(Boolean)
+        .filter(palabra => palabra !== 'talla' && palabra !== 'talle')
+        .map(palabra => {
+          const m = palabra.match(/^t(\d+[a-z]?)$/)   // t12, t8, tM -> 12, 8, M
+          return m ? m[1] : palabra
+        })
+    }
 
     // ── METODO DE PAGO ────────────────────────────────
     function seleccionarMetodoPago(metodo) {
@@ -396,16 +436,47 @@
     }
 
     async function cargarVentas() {
-      const ventas = await ipcRenderer.invoke('obtener-ventas')
-      const tbody  = document.getElementById('tabla-ventas')
+      ventasCache = await ipcRenderer.invoke('obtener-ventas')
+      aplicarFiltroVentas()
+    }
+
+    function aplicarFiltroVentas() {
+      const texto = document.getElementById('v-buscar-ventas').value.trim()
+      const lista = texto ? filtrarVentas(texto) : ventasCache
+      renderTablaVentas(lista)
+    }
+
+    function filtrarVentas(texto) {
+      const palabras = normalizarPalabrasBusqueda(texto)
+      return ventasCache.filter(v => {
+        const campo = [
+          '#' + String(v.numero_factura || v.id).padStart(6, '0'),
+          v.vendedor || '',
+          v.cliente || '',
+          v.items_resumen || ''
+        ].join(' ').toLowerCase()
+        return palabras.every(p => campo.includes(p))
+      })
+    }
+
+    function renderTablaVentas(ventas) {
+      const tbody = document.getElementById('tabla-ventas')
       if (ventas.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="vacio">No hay ventas aun.</td></tr>'
+        tbody.innerHTML = ventasCache.length === 0
+          ? '<tr><td colspan="9" class="vacio">No hay ventas aun.</td></tr>'
+          : '<tr><td colspan="9" class="vacio">No se encontraron ventas con esa busqueda.</td></tr>'
         return
       }
       tbody.innerHTML = ventas.map(v => `
         <tr style="${v.anulada ? 'opacity:0.5;' : ''}">
           <td><strong style="font-family:monospace;">#${String(v.numero_factura || v.id).padStart(6,'0')}</strong></td>
           <td>${new Date(v.fecha).toLocaleString('es-CO')}</td>
+          <td style="max-width:220px;">
+            <div title="${(v.items_display || '').replace(/"/g, '&quot;')}"
+              style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px; color:var(--text);">
+              ${v.items_display || '—'}
+            </div>
+          </td>
           <td>${v.vendedor}</td>
           <td>${v.cliente || '—'}</td>
           <td><strong ${v.anulada ? 'style="text-decoration:line-through;color:#aaa;"' : ''}>$${parseFloat(v.total).toLocaleString('es-CO')}</strong></td>
@@ -535,7 +606,7 @@
         return
       }
 
-      const palabras = texto.toLowerCase().split(/\s+/).filter(Boolean)
+      const palabras = normalizarPalabrasBusqueda(texto)
 
       const resultados = []
       productos.forEach(p => {
@@ -679,6 +750,24 @@
 
       const total = carrito.reduce((acc, i) => acc + i.precio_unitario * i.cantidad, 0)
       document.getElementById('total-display').textContent = '$' + total.toLocaleString('es-CO')
+    }
+
+    async function generarCotizacion() {
+      if (carrito.length === 0) { alert('El carrito esta vacio. Agrega los productos que el cliente quiere cotizar.'); return }
+
+      const nombreCliente = (prompt('Nombre del cliente (opcional):') || '').trim()
+      const subtotal = carrito.reduce((acc, i) => acc + i.precio_unitario * i.cantidad, 0)
+
+      const datos = {
+        items:     carrito,
+        subtotal,
+        cliente:   nombreCliente,
+        vendedor:  sesion ? sesion.nombre : ''
+      }
+
+      const res = await ipcRenderer.invoke('imprimir-cotizacion', datos)
+      if (res.error) alert('No se pudo imprimir la cotizacion: ' + res.error)
+      else alert('Cotizacion impresa. No se registro como venta ni afecto el inventario.')
     }
 
     function abrirModalPago() {
@@ -850,6 +939,8 @@
       const ventas = await ipcRenderer.invoke('obtener-ventas')
       const v      = ventas.find(x => x.id === ventaId)
 
+      ventaDetalleAnulada = !!(v && v.anulada)
+
       const numFactura = v ? `#${String(v.numero_factura || v.id).padStart(6,'0')}` : ''
       document.getElementById('detalle-titulo').textContent = `Detalle de Venta ${numFactura}`
 
@@ -874,12 +965,14 @@
           <td>${i.cantidad}</td>
           <td>$${parseFloat(i.precio_unitario).toLocaleString('es-CO')}</td>
           <td>$${(i.precio_unitario * i.cantidad).toLocaleString('es-CO')}</td>
+          <td>
+            ${ventaDetalleAnulada ? '' : `<button class="btn btn-gris" style="padding:4px 8px; font-size:12px;"
+              onclick="abrirModalCambio(${i.item_id}, ${i.variante_id}, ${i.cantidad}, '${i.producto.replace(/'/g, "\\'")}', '${i.talla}', ${i.precio_unitario})">Cambiar</button>`}
+          </td>
         </tr>
       `).join('')
 
-      const esAdmin = sesion && sesion.rol === 'admin'
       document.getElementById('btn-reimprimir').style.display = 'inline-block'
-      document.getElementById('btn-anular').style.display     = (esAdmin && v && !v.anulada) ? 'inline-block' : 'none'
 
       document.getElementById('modal-detalle').classList.add('activo')
     }
@@ -896,32 +989,131 @@
       else alert('Recibo reimpreso')
     }
 
-    function abrirModalAnular() {
-      document.getElementById('anular-motivo').value = ''
-      document.getElementById('modal-anular').classList.add('activo')
+    // ── CAMBIO DE PRODUCTO / TALLA ────────────────────
+    function abrirModalCambio(itemId, varianteViejaId, cantidad, nombre, talla, precio) {
+      cambioItemActual = { itemId, varianteViejaId, cantidad, nombre, talla, precio: parseFloat(precio) }
+      cambioVarianteNuevaSeleccionada = null
+
+      document.getElementById('cambio-actual').textContent = `${nombre} - Talla ${talla} (x${cantidad})`
+      document.getElementById('c-buscar').value = ''
+      document.getElementById('c-sugerencias').innerHTML = ''
+      document.getElementById('cambio-nuevo-seleccionado').style.display = 'none'
+      document.getElementById('cambio-motivo').value = ''
+      document.getElementById('btn-confirmar-cambio').disabled = true
+
+      document.getElementById('modal-cambio').classList.add('activo')
+      setTimeout(() => document.getElementById('c-buscar').focus(), 100)
     }
 
-    function cerrarModalAnular() {
-      document.getElementById('modal-anular').classList.remove('activo')
+    function cerrarModalCambio() {
+      document.getElementById('modal-cambio').classList.remove('activo')
+      cambioItemActual = null
+      cambioVarianteNuevaSeleccionada = null
     }
 
-    async function confirmarAnulacion() {
-      const motivo = document.getElementById('anular-motivo').value.trim()
-      if (!motivo) { alert('Escribe un motivo para la anulacion'); return }
+    function buscarProductoCambio() {
+      const texto       = document.getElementById('c-buscar').value.trim()
+      const sugerencias = document.getElementById('c-sugerencias')
 
-      const res = await ipcRenderer.invoke('anular-venta', {
-        ventaId:   ventaDetalleId,
-        motivo,
-        usuarioId: sesion.id
+      if (!texto) { sugerencias.innerHTML = ''; return }
+      if (!cambioItemActual) return
+
+      const palabras   = normalizarPalabrasBusqueda(texto)
+      const resultados = []
+      productos.forEach(p => {
+        if (!p.variantes) return
+        p.variantes.forEach(v => {
+          if (v.id === cambioItemActual.varianteViejaId) return
+          if (coincideConBusqueda(p, v, palabras)) {
+            resultados.push({ producto: p, variante: v })
+          }
+        })
+      })
+
+      if (resultados.length === 0) {
+        sugerencias.innerHTML = '<div style="padding:12px; color:var(--text-muted); font-size:14px;">No se encontraron productos</div>'
+        return
+      }
+
+      sugerencias.innerHTML = resultados.map(({ producto: p, variante: v }) => {
+        const sinStock = v.cantidad <= 0
+        return `
+          <div class="sugerencia-item" onclick="${sinStock ? '' : `seleccionarVarianteCambio(${v.id})`}"
+            style="${sinStock ? 'opacity:0.5; cursor:not-allowed;' : 'cursor:pointer;'}">
+            <strong>${p.nombre} — Talla ${v.talla}</strong>
+            <span>${p.categoria} · ${p.colegio} · ${p.genero}</span>
+            <span style="color:${sinStock ? '#e94560' : 'inherit'};">
+              $${parseFloat(v.precio).toLocaleString('es-CO')} — ${sinStock ? 'Agotado' : 'Stock: ' + v.cantidad}
+            </span>
+          </div>
+        `
+      }).join('')
+    }
+
+    function seleccionarVarianteCambio(varianteId) {
+      let productoEncontrado = null
+      let varianteEncontrada = null
+      for (const p of productos) {
+        if (!p.variantes) continue
+        const v = p.variantes.find(x => x.id === varianteId)
+        if (v) { productoEncontrado = p; varianteEncontrada = v; break }
+      }
+      if (!varianteEncontrada || !cambioItemActual) return
+
+      cambioVarianteNuevaSeleccionada = {
+        id:     varianteId,
+        nombre: productoEncontrado.nombre,
+        talla:  varianteEncontrada.talla,
+        precio: parseFloat(varianteEncontrada.precio)
+      }
+
+      document.getElementById('c-buscar').value = ''
+      document.getElementById('c-sugerencias').innerHTML = ''
+
+      const diferencia = (cambioVarianteNuevaSeleccionada.precio - cambioItemActual.precio) * cambioItemActual.cantidad
+      const div = document.getElementById('cambio-nuevo-seleccionado')
+      div.style.display = 'block'
+      div.innerHTML = `
+        <strong>${productoEncontrado.nombre} — Talla ${varianteEncontrada.talla}</strong>
+        <br>$${parseFloat(varianteEncontrada.precio).toLocaleString('es-CO')} c/u
+        <br><span style="color:${diferencia > 0 ? '#c0392b' : (diferencia < 0 ? '#1a7a4a' : '#2c5282')}; font-weight:600;">
+          ${diferencia > 0
+            ? 'El cliente debe pagar $' + diferencia.toLocaleString('es-CO') + ' mas'
+            : diferencia < 0
+              ? 'Se le devuelve al cliente $' + Math.abs(diferencia).toLocaleString('es-CO')
+              : 'Sin diferencia de precio'}
+        </span>
+      `
+      document.getElementById('btn-confirmar-cambio').disabled = false
+    }
+
+    async function confirmarCambio() {
+      if (!cambioItemActual || !cambioVarianteNuevaSeleccionada) return
+      const motivo = document.getElementById('cambio-motivo').value.trim()
+
+      const res = await ipcRenderer.invoke('cambiar-item-venta', {
+        ventaId:         ventaDetalleId,
+        itemId:          cambioItemActual.itemId,
+        varianteNuevaId: cambioVarianteNuevaSeleccionada.id,
+        usuarioId:       sesion.id,
+        motivo
       })
 
       if (res.error) { alert('Error: ' + res.error); return }
 
-      cerrarModalAnular()
-      cerrarDetalle()
-      cargarVentas()
-      alert('Venta anulada. El stock fue restaurado.')
+      cerrarModalCambio()
+
+      let mensaje = `Cambio realizado\n${res.productoViejo} -> ${res.productoNuevo}`
+      if (res.diferencia > 0)      mensaje += `\n\nEl cliente debe pagar $${res.diferencia.toLocaleString('es-CO')} mas`
+      else if (res.diferencia < 0) mensaje += `\n\nSe le devuelve al cliente $${Math.abs(res.diferencia).toLocaleString('es-CO')}`
+      else                         mensaje += `\n\nSin diferencia de precio`
+      alert(mensaje)
+
+      productos = await ipcRenderer.invoke('obtener-productos')
+      await cargarDatos()
+      verDetalle(ventaDetalleId)
     }
+
   </script>
 
 </body>

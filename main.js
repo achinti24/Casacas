@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, Menu } = require('electron')
 const path = require('path')
 const fs   = require('fs')
 const XLSX = require('xlsx')
@@ -6,6 +6,34 @@ const { ThermalPrinter, PrinterTypes, CharacterSet } = require('node-thermal-pri
 
 let win
 let sesionActual = null
+
+// ── ORDEN INTELIGENTE DE TALLAS ───────────────────
+// Soporta tallas simples ("6", "M"), combinadas ("6-8", "XS-S") y
+// tallas de pantalon que saltan a numeros grandes ("28", "30"...).
+// Regla: los numeros siempre van antes que las letras, y dentro de
+// cada grupo se ordena ascendente/segun la secuencia de letras.
+const ORDEN_LETRAS = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL']
+
+function claveTalla(talla) {
+  const texto   = String(talla || '').trim()
+  const primera = texto.split(/[-\/]/)[0].trim() || texto
+  const numero  = parseFloat(primera.replace(',', '.'))
+
+  if (!isNaN(numero)) return [0, numero, primera]
+
+  const idx = ORDEN_LETRAS.indexOf(primera.toUpperCase())
+  if (idx !== -1) return [1, idx, primera]
+
+  return [2, 0, primera] // formato desconocido, al final, alfabetico
+}
+
+function compararTallas(a, b) {
+  const [ba, na, pa] = claveTalla(a)
+  const [bb, nb, pb] = claveTalla(b)
+  if (ba !== bb) return ba - bb
+  if (na !== nb) return na - nb
+  return pa.localeCompare(pb)
+}
 
 // ── CONFIGURACION IMPRESORA ───────────────────────
 function getRutaConfig() {
@@ -196,6 +224,51 @@ function construirBufferApartado({ nombre, telefono, colegio, notas, abono, item
   return Buffer.from(limpiar(r), 'latin1')
 }
 
+function construirBufferCotizacion({ items, subtotal, cliente, vendedor }) {
+  const ESC    = '\x1B'
+  const INIT   = ESC + '@'
+  const BOLD   = ESC + 'E\x01'
+  const UNBOLD = ESC + 'E\x00'
+  const CENTER = ESC + 'a\x01'
+  const LEFT   = ESC + 'a\x00'
+  const RIGHT  = ESC + 'a\x02'
+  const CUT    = '\x1D' + 'V\x41\x00'
+  const LF     = '\n'
+  const linea  = '--------------------------------'
+  const fecha  = new Date().toLocaleString('es-CO')
+
+  const limpiar = s => s
+    .replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i')
+    .replace(/ó/g,'o').replace(/ú/g,'u').replace(/ü/g,'u')
+    .replace(/Á/g,'A').replace(/É/g,'E').replace(/Í/g,'I')
+    .replace(/Ó/g,'O').replace(/Ú/g,'U').replace(/ñ/g,'n').replace(/Ñ/g,'N')
+
+  let r = INIT
+  r += CENTER + BOLD + 'Casacas Colegial' + LF + UNBOLD
+  r += CENTER + 'San Gil - Calle 11 No. 10-66' + LF
+  r += CENTER + 'Piso 2, Local 201' + LF
+  r += CENTER + 'Tel: 313 849 5210' + LF
+  r += CENTER + linea + LF
+  r += CENTER + BOLD + 'COTIZACION' + LF + UNBOLD
+  r += CENTER + '(no es factura de venta)' + LF
+  r += CENTER + fecha + LF
+  if (cliente) r += CENTER + 'Cliente: ' + cliente + LF
+  r += LEFT + linea + LF
+  items.forEach(i => {
+    const sub = (i.precio_unitario * i.cantidad).toLocaleString('es-CO')
+    r += LEFT + i.nombre + ' T' + i.talla + LF
+    r += LEFT + '  ' + i.cantidad + ' x $' + parseFloat(i.precio_unitario).toLocaleString('es-CO') + ' = $' + sub + LF
+  })
+  r += LEFT + linea + LF
+  r += RIGHT + BOLD + 'TOTAL:     $' + subtotal.toLocaleString('es-CO') + LF + UNBOLD
+  r += LEFT + linea + LF
+  r += CENTER + 'Precios sujetos a cambio sin previo aviso.' + LF
+  r += CENTER + 'Este documento no reserva stock.' + LF
+  r += CENTER + 'Vendedor: ' + vendedor + LF
+  r += LF + LF + LF + CUT
+  return Buffer.from(limpiar(r), 'latin1')
+}
+
 // ── EAN-13 ────────────────────────────────────────
 function calcularDigitoEAN13(doce) {
   let suma = 0
@@ -252,8 +325,11 @@ function actualizarExcelInventario(db) {
              v.talla, v.precio, v.precio_costo, v.cantidad, v.stock_minimo, v.codigo_barras
       FROM producto_variantes v
       JOIN productos p ON v.producto_id = p.id
-      ORDER BY p.nombre, v.talla
-    `).all()
+    `).all().sort((a, b) => {
+      const porNombre = a.nombre.localeCompare(b.nombre)
+      if (porNombre !== 0) return porNombre
+      return compararTallas(a.talla, b.talla)
+    })
     const ws = XLSX.utils.json_to_sheet(variantes.map(v => ({
       Nombre: v.nombre, Categoria: v.categoria, Colegio: v.colegio,
       Genero: v.genero, Talla: v.talla, Precio: v.precio,
@@ -266,6 +342,110 @@ function actualizarExcelInventario(db) {
     XLSX.writeFile(wb, path.join(getRutaExcel(), 'inventario.xlsx'))
   } catch (err) { console.error('Error Excel inventario:', err) }
 }
+
+// ── WORD - CODIGOS DE BARRAS ─────────────────────────────────────────
+ipcMain.handle('generar-word-codigos', async (e, items) => {
+  try {
+    const {
+      Document, Packer, Table, TableRow, TableCell, Paragraph, TextRun,
+      ImageRun, WidthType, AlignmentType, VerticalAlign
+    } = require('docx')
+
+    if (!items || items.length === 0) return { error: 'No hay codigos para generar' }
+
+    const POR_PAGINA = 10   // 2 columnas x 5 filas
+    const COLUMNAS    = 2
+    const FILAS       = POR_PAGINA / COLUMNAS
+
+    function crearCelda(item) {
+      if (!item) {
+        return new TableCell({
+          children:      [new Paragraph('')],
+          verticalAlign: VerticalAlign.CENTER,
+          width:         { size: 50, type: WidthType.PERCENTAGE },
+          margins:       { top: 150, bottom: 150, left: 150, right: 150 }
+        })
+      }
+
+      const hijos = [
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing:   { after: 40 },
+          children:  [ new TextRun({ text: item.nombre, bold: true, size: 20 }) ]
+        }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing:   { after: 60 },
+          children:  [ new TextRun({ text: item.detalle, size: 16, color: '666666' }) ]
+        })
+      ]
+
+      if (item.imagenBase64) {
+        hijos.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing:   { after: 60 },
+          children:  [ new ImageRun({
+            data:           Buffer.from(item.imagenBase64, 'base64'),
+            transformation: { width: 220, height: 90 }
+          }) ]
+        }))
+      } else {
+        hijos.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing:   { after: 60 },
+          children:  [ new TextRun({ text: 'Codigo pendiente', italics: true, size: 16, color: '999999' }) ]
+        }))
+      }
+
+      hijos.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children:  [ new TextRun({ text: `$${item.precio}`, bold: true, size: 18, color: 'E94560' }) ]
+      }))
+
+      return new TableCell({
+        children:      hijos,
+        verticalAlign: VerticalAlign.CENTER,
+        width:         { size: 50, type: WidthType.PERCENTAGE },
+        margins:       { top: 150, bottom: 150, left: 150, right: 150 }
+      })
+    }
+
+    const bloques = []
+    for (let i = 0; i < items.length; i += POR_PAGINA) {
+      bloques.push(items.slice(i, i + POR_PAGINA))
+    }
+
+    const contenido = []
+    bloques.forEach((bloque, idxBloque) => {
+      if (idxBloque > 0) {
+        contenido.push(new Paragraph({ children: [], pageBreakBefore: true }))
+      }
+      const filas = []
+      for (let f = 0; f < FILAS; f++) {
+        const celdas = []
+        for (let c = 0; c < COLUMNAS; c++) {
+          celdas.push(crearCelda(bloque[f * COLUMNAS + c]))
+        }
+        filas.push(new TableRow({ children: celdas }))
+      }
+      contenido.push(new Table({ rows: filas, width: { size: 100, type: WidthType.PERCENTAGE } }))
+    })
+
+    const doc = new Document({ sections: [{ properties: {}, children: contenido }] })
+    const buffer = await Packer.toBuffer(doc)
+
+    const carpeta = getRutaExcel()
+    const fecha   = new Date().toISOString().slice(0, 10)
+    const ruta    = path.join(carpeta, `codigos_barras_${fecha}.docx`)
+    fs.writeFileSync(ruta, buffer)
+    shell.openPath(ruta)
+
+    return { ok: true, ruta, total: items.length, paginas: bloques.length }
+  } catch (err) {
+    console.error('Error generando Word de codigos:', err)
+    return { error: 'Error al generar el documento Word. Verifica que el paquete "docx" este instalado (npm install docx).' }
+  }
+})
 
 function actualizarExcelMovimientos(db) {
   try {
@@ -335,6 +515,8 @@ function escribirLog(mensaje) {
 }
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null)
+
   win = new BrowserWindow({
     width: 1200, height: 800, minWidth: 900, minHeight: 600,
     title: 'Casacas - Inventario',
@@ -598,7 +780,9 @@ app.whenReady().then(() => {
     const productos = db.prepare('SELECT * FROM productos ORDER BY nombre').all()
     return productos.map(p => ({
       ...p,
-      variantes: db.prepare('SELECT * FROM producto_variantes WHERE producto_id = ? ORDER BY talla').all(p.id)
+      variantes: db.prepare('SELECT * FROM producto_variantes WHERE producto_id = ?')
+        .all(p.id)
+        .sort((a, b) => compararTallas(a.talla, b.talla))
     }))
   })
 
@@ -995,7 +1179,27 @@ app.whenReady().then(() => {
     return db.prepare(`
       SELECT v.id, v.total, v.fecha, v.estado, v.abono_aplicado, v.anulada,
              v.numero_factura, v.motivo_anulacion, v.metodo_pago,
-             u.nombre as vendedor, a.nombre as cliente
+             u.nombre as vendedor, a.nombre as cliente,
+             (
+               SELECT GROUP_CONCAT(
+                 p.nombre || ' ' || COALESCE(p.categoria,'') || ' ' || COALESCE(p.colegio,'') || ' ' || COALESCE(p.genero,'') || ' T' || pv.talla,
+                 ' | '
+               )
+               FROM venta_items vi
+               JOIN producto_variantes pv ON vi.variante_id = pv.id
+               JOIN productos p ON pv.producto_id = p.id
+               WHERE vi.venta_id = v.id
+             ) as items_resumen,
+             (
+               SELECT GROUP_CONCAT(
+                 p.nombre || ' T' || pv.talla || ' (' || vi.cantidad || 'x) — ' || p.colegio,
+                 ', '
+               )
+               FROM venta_items vi
+               JOIN producto_variantes pv ON vi.variante_id = pv.id
+               JOIN productos p ON pv.producto_id = p.id
+               WHERE vi.venta_id = v.id
+             ) as items_display
       FROM ventas v
       LEFT JOIN usuarios u ON v.usuario_id = u.id
       LEFT JOIN apartados a ON v.apartado_id = a.id
@@ -1005,7 +1209,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('obtener-venta-detalle', (e, ventaId) => {
     return db.prepare(`
-      SELECT vi.cantidad, vi.precio_unitario,
+      SELECT vi.id as item_id, vi.variante_id, vi.cantidad, vi.precio_unitario,
              p.nombre as producto, pv.talla, p.colegio, p.categoria
       FROM venta_items vi
       JOIN producto_variantes pv ON vi.variante_id = pv.id
@@ -1014,60 +1218,78 @@ app.whenReady().then(() => {
     `).all(ventaId)
   })
 
-  // ── ANULAR VENTA ──────────────────────────────────
-  ipcMain.handle('anular-venta', (e, { ventaId, motivo, usuarioId }) => {
+  // ── CAMBIAR PRODUCTO / TALLA DE UNA VENTA ─────────
+  // Reemplaza un item de una venta ya registrada por otro (ej: talla S por talla M).
+  // Devuelve al stock la variante vieja, descuenta la variante nueva, y ajusta el
+  // total de la venta segun la diferencia de precio entre ambas variantes.
+  ipcMain.handle('cambiar-item-venta', (e, { ventaId, itemId, varianteNuevaId, usuarioId, motivo }) => {
     const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(ventaId)
     if (!venta) return { error: 'Venta no encontrada' }
-    if (venta.anulada) return { error: 'La venta ya esta anulada' }
+    if (venta.anulada) return { error: 'No se puede cambiar un producto de una venta anulada' }
 
-    const items = db.prepare('SELECT * FROM venta_items WHERE venta_id = ?').all(ventaId)
+    const item = db.prepare('SELECT * FROM venta_items WHERE id = ? AND venta_id = ?').get(itemId, ventaId)
+    if (!item) return { error: 'Producto de la venta no encontrado' }
 
-    const restaurar = db.prepare('UPDATE producto_variantes SET cantidad = cantidad + ? WHERE id = ?')
-    const insertMov = db.prepare(`INSERT INTO movimientos (variante_id, usuario_id, tipo, cantidad, nota) VALUES (?, ?, 'entrada', ?, ?)`)
-    const nota      = `Anulacion venta #${venta.numero_factura || ventaId}`
-
-    const bundlesEnVenta = new Set(
-      items
-        .filter(item => db.prepare('SELECT id FROM bundle_componentes WHERE bundle_variante_id = ? LIMIT 1').get(item.variante_id))
-        .map(item => item.variante_id)
-    )
-
-    for (const item of items) {
-      const componentes = db.prepare(
-        'SELECT * FROM bundle_componentes WHERE bundle_variante_id = ?'
-      ).all(item.variante_id)
-
-      if (componentes.length > 0) {
-        restaurar.run(item.cantidad, item.variante_id)
-        insertMov.run(item.variante_id, usuarioId, item.cantidad, nota)
-        for (const c of componentes) {
-          restaurar.run(c.cantidad * item.cantidad, c.componente_variante_id)
-          insertMov.run(c.componente_variante_id, usuarioId, c.cantidad * item.cantidad, nota)
-        }
-      } else {
-        restaurar.run(item.cantidad, item.variante_id)
-        insertMov.run(item.variante_id, usuarioId, item.cantidad, nota)
-
-        const bundlesQueUsan = db.prepare(
-          'SELECT DISTINCT bundle_variante_id FROM bundle_componentes WHERE componente_variante_id = ?'
-        ).all(item.variante_id)
-
-        for (const b of bundlesQueUsan) {
-          if (bundlesEnVenta.has(b.bundle_variante_id)) continue
-          restaurar.run(item.cantidad, b.bundle_variante_id)
-          insertMov.run(b.bundle_variante_id, usuarioId, item.cantidad, `${nota} - bundle restaurado`)
-        }
-      }
+    if (item.variante_id === varianteNuevaId) {
+      return { error: 'Selecciona una talla o producto diferente al actual' }
     }
 
-    db.prepare('UPDATE ventas SET anulada = 1, motivo_anulacion = ? WHERE id = ?').run(motivo, ventaId)
+    // Los bundles (paquetes) no estan soportados en el cambio por ahora,
+    // ya que involucran multiples componentes de stock.
+    const esBundleViejo = db.prepare('SELECT id FROM bundle_componentes WHERE bundle_variante_id = ? LIMIT 1').get(item.variante_id)
+    const esBundleNuevo = db.prepare('SELECT id FROM bundle_componentes WHERE bundle_variante_id = ? LIMIT 1').get(varianteNuevaId)
+    if (esBundleViejo || esBundleNuevo) {
+      return { error: 'Los cambios de productos tipo paquete no estan soportados todavia. Anula la venta y registra una nueva.' }
+    }
+
+    const varianteVieja = db.prepare('SELECT v.*, p.nombre FROM producto_variantes v JOIN productos p ON v.producto_id = p.id WHERE v.id = ?').get(item.variante_id)
+    const varianteNueva = db.prepare('SELECT v.*, p.nombre FROM producto_variantes v JOIN productos p ON v.producto_id = p.id WHERE v.id = ?').get(varianteNuevaId)
+    if (!varianteNueva) return { error: 'El producto nuevo no existe' }
+
+    if (varianteNueva.cantidad < item.cantidad) {
+      return { error: `Solo hay ${varianteNueva.cantidad} unidad${varianteNueva.cantidad === 1 ? '' : 'es'} disponible${varianteNueva.cantidad === 1 ? '' : 's'} de "${varianteNueva.nombre} T${varianteNueva.talla}".` }
+    }
+
+    const numFactura = venta.numero_factura || ventaId
+    const notaBase    = `Cambio venta #${numFactura}${motivo ? ' - ' + motivo : ''}`
+
+    // Devolver stock de la variante vieja al inventario
+    db.prepare('UPDATE producto_variantes SET cantidad = cantidad + ? WHERE id = ?').run(item.cantidad, item.variante_id)
+    db.prepare(`INSERT INTO movimientos (variante_id, usuario_id, tipo, cantidad, nota) VALUES (?, ?, 'entrada', ?, ?)`)
+      .run(item.variante_id, usuarioId, item.cantidad, notaBase + ' (devolucion)')
+
+    // Descontar stock de la variante nueva
+    db.prepare('UPDATE producto_variantes SET cantidad = cantidad - ? WHERE id = ?').run(item.cantidad, varianteNuevaId)
+    db.prepare(`INSERT INTO movimientos (variante_id, usuario_id, tipo, cantidad, nota) VALUES (?, ?, 'venta', ?, ?)`)
+      .run(varianteNuevaId, usuarioId, item.cantidad, notaBase + ' (nueva talla)')
+
+    // Actualizar el item de la venta con el nuevo producto y precio
+    db.prepare('UPDATE venta_items SET variante_id = ?, precio_unitario = ? WHERE id = ?')
+      .run(varianteNuevaId, varianteNueva.precio, itemId)
+
+    // Recalcular el total de la venta segun la diferencia de precio
+    const diferencia = (varianteNueva.precio - item.precio_unitario) * item.cantidad
+    const nuevoTotal = venta.total + diferencia
+    db.prepare('UPDATE ventas SET total = ? WHERE id = ?').run(nuevoTotal, ventaId)
 
     actualizarExcelVentas(db)
     actualizarExcelInventario(db)
     actualizarExcelMovimientos(db)
 
-    return { ok: true }
+    return {
+      ok:            true,
+      diferencia,
+      nuevoTotal,
+      productoViejo: varianteVieja ? `${varianteVieja.nombre} T${varianteVieja.talla}` : '',
+      productoNuevo: `${varianteNueva.nombre} T${varianteNueva.talla}`
+    }
   })
+
+  // NOTA: la anulacion/eliminacion de ventas fue retirada a proposito para
+  // mantener un control rigido: una venta registrada no se puede borrar ni
+  // anular. Si un cliente necesita corregir una venta (ej. cambio de talla),
+  // se usa el handler 'cambiar-item-venta', que ajusta el stock y el total
+  // sin borrar el registro de la venta original.
 
   // ── REIMPRIMIR RECIBO ─────────────────────────────
   ipcMain.handle('reimprimir-recibo', async (e, ventaId) => {
@@ -1469,6 +1691,60 @@ app.whenReady().then(() => {
       return { ok: true }
     } catch (err) {
       escribirLog('Error impresora apartado: ' + err.message)
+      return { error: err.message }
+    }
+  })
+
+  // ── IMPRESORA TERMICA: COTIZACION (no afecta ventas ni inventario) ──
+  ipcMain.handle('imprimir-cotizacion', async (e, datos) => {
+    const { items, subtotal, cliente, vendedor } = datos
+    try {
+      if (process.platform === 'win32') {
+        const buffer = construirBufferCotizacion(datos)
+        return await imprimirWindowsRaw(buffer)
+      }
+      const printer   = crearImpresora()
+      const conectada = await printer.isPrinterConnected()
+      if (!conectada) return { error: 'No se pudo conectar con la impresora. Verifica la configuracion en Ajustes.' }
+      const fecha = new Date().toLocaleString('es-CO')
+      printer.alignCenter()
+      printer.bold(true)
+      printer.println('Casacas Colegial')
+      printer.bold(false)
+      printer.println('San Gil - Calle 11 No. 10-66')
+      printer.println('Piso 2, Local 201')
+      printer.println('Tel: 313 849 5210')
+      printer.drawLine()
+      printer.bold(true)
+      printer.println('COTIZACION')
+      printer.bold(false)
+      printer.println('(no es factura de venta)')
+      printer.println(fecha)
+      if (cliente) printer.println('Cliente: ' + cliente)
+      printer.alignLeft()
+      printer.drawLine()
+      items.forEach(i => {
+        const sub = (i.precio_unitario * i.cantidad).toLocaleString('es-CO')
+        printer.println(i.nombre + ' T' + i.talla)
+        printer.println('  ' + i.cantidad + ' x $' + parseFloat(i.precio_unitario).toLocaleString('es-CO') + ' = $' + sub)
+      })
+      printer.drawLine()
+      printer.alignRight()
+      printer.bold(true)
+      printer.println('TOTAL:     $' + subtotal.toLocaleString('es-CO'))
+      printer.bold(false)
+      printer.alignLeft()
+      printer.drawLine()
+      printer.alignCenter()
+      printer.println('Precios sujetos a cambio sin previo aviso.')
+      printer.println('Este documento no reserva stock.')
+      printer.println('Vendedor: ' + vendedor)
+      printer.cut()
+      await printer.execute()
+      printer.clear()
+      return { ok: true }
+    } catch (err) {
+      escribirLog('Error impresora cotizacion: ' + err.message)
       return { error: err.message }
     }
   })

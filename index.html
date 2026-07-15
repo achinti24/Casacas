@@ -50,7 +50,7 @@
         <span class="valor" id="agotados">0</span>
         <span class="etiqueta">Agotados</span>
       </div>
-      <div class="card morado">
+      <div class="card morado" id="card-valor-inventario" style="display:none;">
         <span class="icono">💰</span>
         <span class="valor" id="valor-total">$0</span>
         <span class="etiqueta">Valor del inventario</span>
@@ -160,6 +160,9 @@
 
     cargarMenu('index.html').then(s => {
       sesion = s
+      if (sesion && sesion.rol === 'admin') {
+        document.getElementById('card-valor-inventario').style.display = ''
+      }
       cargarDashboard()
     })
 
@@ -170,15 +173,18 @@
       const total      = productos.length
       const enStock    = productos.filter(p => p.variantes && p.variantes.some(v => v.cantidad > 0)).length
       const agotados   = productos.filter(p => p.variantes && p.variantes.every(v => v.cantidad <= 0)).length
-      const valorTotal = productos.reduce((acc, p) => {
-        if (!p.variantes) return acc
-        return acc + p.variantes.reduce((sum, v) => sum + (v.cantidad * v.precio), 0)
-      }, 0)
 
       document.getElementById('total-productos').textContent = total
       document.getElementById('en-stock').textContent        = enStock
       document.getElementById('agotados').textContent        = agotados
-      document.getElementById('valor-total').textContent     = '$' + valorTotal.toLocaleString('es-CO')
+
+      if (sesion && sesion.rol === 'admin') {
+        const valorTotal = productos.reduce((acc, p) => {
+          if (!p.variantes) return acc
+          return acc + p.variantes.reduce((sum, v) => sum + (v.cantidad * v.precio), 0)
+        }, 0)
+        document.getElementById('valor-total').textContent = '$' + valorTotal.toLocaleString('es-CO')
+      }
 
       const stockBajo    = []
       const agotadosList = []

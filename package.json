@@ -1,6 +1,6 @@
 {
   "name": "casacas",
-  "version": "1.0.0",
+  "version": "v1.5.7",
   "description": "Sistema de inventario para tienda de ropa",
   "main": "main.js",
   "type": "commonjs",
@@ -21,6 +21,7 @@
   "dependencies": {
     "better-sqlite3": "^12.9.0",
     "chart.js": "^4.5.1",
+    "docx": "^9.7.1",
     "escpos": "^3.0.0-alpha.6",
     "escpos-usb": "^3.0.0-alpha.4",
     "jsbarcode": "^3.12.3",

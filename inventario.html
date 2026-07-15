@@ -308,6 +308,7 @@
     let varianteEditandoId = null
     let preciosProductoId  = null
     let preciosVariantes   = []
+    const productosAbiertos = new Set()
 
     // ── BUNDLES ───────────────────────────────────────
     let bundleProductoId   = null   // producto al que pertenece el bundle
@@ -325,6 +326,8 @@
     })
 
     async function cargarDatos() {
+      const scrollY = window.scrollY
+
       categorias = await ipcRenderer.invoke('obtener-categorias-producto')
       colegios   = await ipcRenderer.invoke('obtener-colegios')
       tallas     = await ipcRenderer.invoke('obtener-tallas')
@@ -346,6 +349,7 @@
       reconstruirTodasLasVariantes()
 
       aplicarFiltros()
+      requestAnimationFrame(() => window.scrollTo(0, scrollY))
     }
 
     function reconstruirTodasLasVariantes() {
@@ -448,10 +452,10 @@
                   Eliminar
                 </button>
               ` : ''}
-              <span class="chevron" id="chevron-${p.id}">▼</span>
+              <span class="chevron" id="chevron-${p.id}">${productosAbiertos.has(p.id) ? '▲' : '▼'}</span>
             </div>
           </div>
-          <div class="variantes-tabla" id="variantes-${p.id}" style="display:none;">
+          <div class="variantes-tabla" id="variantes-${p.id}" style="display:${productosAbiertos.has(p.id) ? 'block' : 'none'};">
             <table>
               <thead>
                 <tr>
@@ -511,6 +515,8 @@
       const visible = tabla.style.display !== 'none'
       tabla.style.display = visible ? 'none' : 'block'
       chevron.textContent = visible ? '▼' : '▲'
+      if (visible) productosAbiertos.delete(productoId)
+      else productosAbiertos.add(productoId)
     }
 
     // ── MODAL PRODUCTO ────────────────────────────────

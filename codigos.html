@@ -336,49 +336,51 @@
       descargarImagen(v)
     }
 
-    function imprimirTodos() {
-      if (filtradas.length === 0) { alert('No hay codigos para imprimir'); return }
-      if (filtradas.length > 50) {
-        if (!confirm(`Vas a imprimir ${filtradas.length} codigos. Continuar?`)) return
+    // Genera un dataURL de barcode en buena resolucion para el documento Word (independiente del canvas chico de la grilla)
+    function generarDataUrlCodigo(v) {
+      if (!esCodigoValido(v.codigo)) return null
+      const canvas = document.createElement('canvas')
+      try {
+        JsBarcode(canvas, v.codigo, {
+          format:       'EAN13',
+          lineColor:    '#000000',
+          width:        2,
+          height:       70,
+          displayValue: true,
+          fontSize:     14,
+          margin:       8
+        })
+        return canvas.toDataURL('image/png')
+      } catch (e) {
+        return null
       }
+    }
 
-      const ventana = window.open('', '_blank', 'width=800,height=600')
-      const items   = filtradas.map(v => {
-        const canvas = document.getElementById(`canvas-${v.variante_id}`)
-        const imagen = canvas ? canvas.toDataURL('image/png') : ''
-        return `
-          <div class="codigo-item">
-            <strong>${v.nombre}</strong>
-            <span>${v.colegio} · T${v.talla}</span>
-            <img src="${imagen}">
-            <span class="numero">${v.codigo}</span>
-          </div>
-        `
-      }).join('')
+    async function imprimirTodos() {
+      if (filtradas.length === 0) { alert('No hay codigos para imprimir'); return }
 
-      ventana.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Codigos de Barras</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 10px; }
-            .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-            .codigo-item { text-align: center; border: 1px solid #ddd; padding: 8px; border-radius: 6px; }
-            .codigo-item strong { display: block; font-size: 12px; margin-bottom: 2px; }
-            .codigo-item span { display: block; font-size: 10px; color: #666; }
-            .codigo-item img { max-width: 100%; margin: 4px 0; }
-            .codigo-item .numero { font-size: 11px; letter-spacing: 1px; font-weight: bold; color: #333; }
-            @media print { @page { margin: 10mm; } }
-          </style>
-        </head>
-        <body>
-          <div class="grid">${items}</div>
-          <script>window.onload = () => { window.print(); window.close(); }<\/script>
-        </body>
-        </html>
-      `)
-      ventana.document.close()
+      const validos   = filtradas.filter(v => esCodigoValido(v.codigo))
+      const sinCodigo = filtradas.length - validos.length
+
+      if (validos.length === 0) { alert('Ninguno de los productos filtrados tiene un codigo de barras valido'); return }
+
+      let mensaje = `Se generara un documento Word con ${validos.length} codigo(s), 10 por pagina.`
+      if (sinCodigo > 0) mensaje += ` ${sinCodigo} producto(s) sin codigo valido no se incluiran.`
+      if (!confirm(mensaje + ' Continuar?')) return
+
+      const items = validos.map(v => {
+        const dataUrl = generarDataUrlCodigo(v)
+        return {
+          nombre:       v.nombre,
+          detalle:      `${v.categoria} · ${v.colegio} · Talla ${v.talla} · ${v.genero}`,
+          precio:       parseFloat(v.precio).toLocaleString('es-CO'),
+          imagenBase64: dataUrl ? dataUrl.split(',')[1] : null
+        }
+      })
+
+      const res = await ipcRenderer.invoke('generar-word-codigos', items)
+      if (res.error) { alert(res.error); return }
+      alert(`Documento generado con ${res.total} codigos en ${res.paginas} pagina(s):\n${res.ruta}`)
     }
   </script>
 
