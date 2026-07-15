@@ -89,6 +89,13 @@
           </select>
         </div>
       </div>
+      <div class="fila-doble">
+        <div class="campo">
+          <label>Grupo de tallas</label>
+          <select id="p-grupo-talla" onchange="cambiarGrupoTallaProducto()"></select>
+        </div>
+        <div class="campo"></div>
+      </div>
       <div id="variantes-container">
         <div style="display:flex; justify-content:space-between; align-items:center; margin:16px 0 10px;">
           <h4 style="color:#555;">Tallas y precios</h4>
@@ -175,6 +182,9 @@
         <div class="campo">
           <label>Cantidad</label>
           <input type="number" id="ev-cantidad" min="0" value="0">
+          <small id="ev-cantidad-nota" style="display:none; color:var(--text-muted);">
+            Se calcula automaticamente desde las piezas del bundle vinculadas.
+          </small>
         </div>
       </div>
       <div class="fila-doble">
@@ -301,7 +311,8 @@
     let productos          = []
     let categorias         = []
     let colegios           = []
-    let tallas              = []
+    let gruposTalla        = []
+    let tallasPorGrupo     = {}   // { grupoId: [ {id, nombre, ...}, ... ] }
     let filasVariantes     = []
     let productoEditandoId = null
     let varianteProdId     = null
@@ -328,9 +339,12 @@
     async function cargarDatos() {
       const scrollY = window.scrollY
 
-      categorias = await ipcRenderer.invoke('obtener-categorias-producto')
-      colegios   = await ipcRenderer.invoke('obtener-colegios')
-      tallas     = await ipcRenderer.invoke('obtener-tallas')
+      categorias  = await ipcRenderer.invoke('obtener-categorias-producto')
+      colegios    = await ipcRenderer.invoke('obtener-colegios')
+      gruposTalla = await ipcRenderer.invoke('obtener-grupos-talla')
+      const todasTallas = await ipcRenderer.invoke('obtener-tallas') // todas, con grupo_id
+      tallasPorGrupo = {}
+      gruposTalla.forEach(g => { tallasPorGrupo[g.id] = todasTallas.filter(t => t.grupo_id === g.id) })
       productos  = await ipcRenderer.invoke('obtener-productos')
 
       const optsCat = categorias.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('')
@@ -341,15 +355,28 @@
       document.getElementById('filtro-colegio').innerHTML = '<option value="">Todos los colegios</option>' + optsCol
       document.getElementById('p-colegio').innerHTML = optsCol
 
-      const optsTalla = tallas.map(t => `<option>${t.nombre}</option>`).join('')
-      document.getElementById('v-talla').innerHTML  = optsTalla
-      document.getElementById('ev-talla').innerHTML = optsTalla
+      const optsGrupo = gruposTalla.map(g => `<option value="${g.id}">${g.nombre}</option>`).join('')
+      document.getElementById('p-grupo-talla').innerHTML = optsGrupo
 
       // Reconstruir lista plana de variantes para el selector de bundles
       reconstruirTodasLasVariantes()
 
       aplicarFiltros()
       requestAnimationFrame(() => window.scrollTo(0, scrollY))
+    }
+
+    // Tallas configuradas para un grupo (por id). Si se pasa una talla
+    // "extra" que ya esta en uso pero no pertenece formalmente al grupo
+    // (ej. datos antiguos), se incluye igual para no perderla al editar.
+    function tallasDeGrupo(grupoId, tallaExtra) {
+      const lista = (tallasPorGrupo[grupoId] || []).map(t => t.nombre)
+      if (tallaExtra && !lista.includes(tallaExtra)) lista.push(tallaExtra)
+      return lista
+    }
+
+    function nombreGrupoTalla(grupoId) {
+      const g = gruposTalla.find(x => x.id === grupoId)
+      return g ? g.nombre : 'Sin grupo'
     }
 
     function reconstruirTodasLasVariantes() {
@@ -425,7 +452,7 @@
           <div class="producto-header" onclick="toggleVariantes(${p.id})">
             <div class="producto-info">
               <strong style="font-size:16px; color:var(--text);">${p.nombre}</strong>
-              <span style="color:var(--text-muted); font-size:13px; margin-left:12px;">${p.categoria} — ${p.colegio} — ${p.genero}</span>
+              <span style="color:var(--text-muted); font-size:13px; margin-left:12px;">${p.categoria} — ${p.colegio} — ${p.genero} — ${nombreGrupoTalla(p.grupo_talla_id)}</span>
             </div>
             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
               <span style="font-size:13px; color:#888;">${p.variantes.length} talla(s)</span>
@@ -475,7 +502,7 @@
                     <td><strong>${v.talla}</strong></td>
                     <td style="color:var(--text-muted);">$${parseFloat(v.precio_costo || 0).toLocaleString('es-CO')}</td>
                     <td>$${parseFloat(v.precio).toLocaleString('es-CO')}</td>
-                    <td>${v.cantidad}</td>
+                    <td>${v.cantidad}${v.es_bundle ? ' <span style="color:var(--text-muted); font-size:11px;">(auto)</span>' : ''}</td>
                     <td>${v.stock_minimo}</td>
                     <td>${stockBadge(v)}</td>
                     <td>
@@ -487,13 +514,14 @@
                     ${esAdmin ? `
                       <td style="display:flex; gap:4px; flex-wrap:wrap;">
                         <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
-                          onclick="abrirModalEditarVariante(${v.id}, '${v.talla}', ${v.precio_costo || 0}, ${v.precio}, ${v.cantidad}, ${v.stock_minimo})">
+                          onclick="abrirModalEditarVariante(${v.id}, ${p.id}, '${v.talla}', ${v.precio_costo || 0}, ${v.precio}, ${v.cantidad}, ${v.stock_minimo}, ${!!v.es_bundle})">
                           Editar
                         </button>
+                        ${!v.es_bundle ? `
                         <button class="btn btn-gris" style="padding:4px 10px; font-size:12px; color:#2ecc71; border-color:#2ecc71;"
                           onclick="abrirEntradaRapida(${v.id}, '${p.nombre}', '${v.talla}')">
                           + Stock
-                        </button>
+                        </button>` : ''}
                         <button class="btn btn-rojo" style="padding:4px 10px; font-size:12px;"
                           onclick="eliminarVariante(${v.id}, ${p.id})">
                           Eliminar
@@ -526,8 +554,9 @@
       document.getElementById('modal-producto-titulo').textContent = 'Agregar Producto'
       document.getElementById('p-nombre').value  = ''
       document.getElementById('p-genero').value  = 'Unisex'
-      if (categorias.length) document.getElementById('p-categoria').value = categorias[0].nombre
-      if (colegios.length)   document.getElementById('p-colegio').value   = colegios[0].nombre
+      if (categorias.length)  document.getElementById('p-categoria').value   = categorias[0].nombre
+      if (colegios.length)    document.getElementById('p-colegio').value     = colegios[0].nombre
+      if (gruposTalla.length) document.getElementById('p-grupo-talla').value = gruposTalla[0].id
       document.getElementById('variantes-container').style.display = 'block'
       renderFilasVariantes()
       document.getElementById('modal-producto').classList.add('activo')
@@ -542,6 +571,7 @@
       document.getElementById('p-categoria').value = p.categoria
       document.getElementById('p-colegio').value   = p.colegio
       document.getElementById('p-genero').value    = p.genero
+      document.getElementById('p-grupo-talla').value = p.grupo_talla_id || (gruposTalla.length ? gruposTalla[0].id : '')
       filasVariantes = []
       document.getElementById('variantes-container').style.display = 'none'
       document.getElementById('modal-producto').classList.add('activo')
@@ -553,14 +583,25 @@
     }
 
     function agregarFilaVariante() {
-      if (tallas.length === 0) { alert('No hay tallas configuradas. Ve a Configuracion y agrega al menos una.'); return }
-      filasVariantes.push({ talla: tallas[0].nombre, precio_costo: 0, precio: 0, cantidad: 0, stock_minimo: 3 })
+      const grupoId = parseInt(document.getElementById('p-grupo-talla').value)
+      const opciones = tallasDeGrupo(grupoId)
+      if (opciones.length === 0) { alert('No hay tallas configuradas para este grupo. Ve a Configuracion y agrega al menos una.'); return }
+      filasVariantes.push({ talla: opciones[0], precio_costo: 0, precio: 0, cantidad: 0, stock_minimo: 3 })
+      renderFilasVariantes()
+    }
+
+    function cambiarGrupoTallaProducto() {
+      // Al crear un producto nuevo, si cambia el grupo se reinician las
+      // filas de tallas porque pertenecian al grupo anterior.
+      if (productoEditandoId) return
+      filasVariantes = []
       renderFilasVariantes()
     }
 
     function renderFilasVariantes() {
       const tbody  = document.getElementById('variantes-body')
-      const opcionesTalla = tallas.map(t => t.nombre)
+      const grupoId = parseInt(document.getElementById('p-grupo-talla').value)
+      const opcionesTalla = tallasDeGrupo(grupoId)
 
       tbody.innerHTML = filasVariantes.map((v, i) => `
         <tr>
@@ -605,21 +646,22 @@
     }
 
     async function guardarProducto() {
-      const nombre    = document.getElementById('p-nombre').value.trim()
-      const categoria = document.getElementById('p-categoria').value
-      const colegio   = document.getElementById('p-colegio').value
-      const genero    = document.getElementById('p-genero').value
+      const nombre        = document.getElementById('p-nombre').value.trim()
+      const categoria     = document.getElementById('p-categoria').value
+      const colegio       = document.getElementById('p-colegio').value
+      const genero        = document.getElementById('p-genero').value
+      const grupoTallaId  = parseInt(document.getElementById('p-grupo-talla').value)
 
       if (!nombre) { alert('El nombre es obligatorio'); return }
 
       if (productoEditandoId) {
         await ipcRenderer.invoke('editar-producto', {
-          producto: { id: productoEditandoId, nombre, categoria, colegio, genero }
+          producto: { id: productoEditandoId, nombre, categoria, colegio, genero, grupo_talla_id: grupoTallaId }
         })
       } else {
         if (filasVariantes.length === 0) { alert('Agrega al menos una talla'); return }
         await ipcRenderer.invoke('agregar-producto', {
-          producto:  { nombre, categoria, colegio, genero },
+          producto:  { nombre, categoria, colegio, genero, grupo_talla_id: grupoTallaId },
           variantes: filasVariantes
         })
       }
@@ -700,6 +742,10 @@
     // ── MODAL VARIANTE ────────────────────────────────
     function abrirModalVariante(productoId) {
       varianteProdId = productoId
+      const p = productos.find(x => x.id === productoId)
+      const opciones = tallasDeGrupo(p ? p.grupo_talla_id : null)
+      if (opciones.length === 0) { alert('No hay tallas configuradas para el grupo de este producto. Ve a Configuracion y agrega al menos una.'); return }
+      document.getElementById('v-talla').innerHTML = opciones.map(t => `<option>${t}</option>`).join('')
       document.getElementById('v-talla').selectedIndex = 0
       document.getElementById('v-precio-costo').value = 0
       document.getElementById('v-precio').value       = 0
@@ -725,13 +771,18 @@
     }
 
     // ── MODAL EDITAR VARIANTE ─────────────────────────
-    function abrirModalEditarVariante(id, talla, precioCosto, precio, cantidad, stockMinimo) {
+    function abrirModalEditarVariante(id, productoId, talla, precioCosto, precio, cantidad, stockMinimo, esBundle) {
       varianteEditandoId = id
+      const p = productos.find(x => x.id === productoId)
+      const opciones = tallasDeGrupo(p ? p.grupo_talla_id : null, talla)
+      document.getElementById('ev-talla').innerHTML = opciones.map(t => `<option>${t}</option>`).join('')
       document.getElementById('ev-talla').value        = talla
       document.getElementById('ev-precio-costo').value = precioCosto
       document.getElementById('ev-precio').value       = precio
       document.getElementById('ev-cantidad').value     = cantidad
       document.getElementById('ev-stock-minimo').value = stockMinimo
+      document.getElementById('ev-cantidad').disabled  = !!esBundle
+      document.getElementById('ev-cantidad-nota').style.display = esBundle ? 'block' : 'none'
       document.getElementById('modal-editar-variante').classList.add('activo')
     }
 

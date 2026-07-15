@@ -263,11 +263,29 @@
           <tbody id="detalle-body"></tbody>
         </table>
       </div>
+
+      <div id="anular-seccion" style="display:none; margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+        <div class="campo">
+          <label>Motivo de la anulacion (opcional)</label>
+          <input type="text" id="anular-motivo" placeholder="Ej: el cliente se arrepintio, error al registrar...">
+        </div>
+        <div style="background:#fde8ec; border-radius:8px; padding:10px 14px; margin-top:8px; font-size:13px; color:#c0392b;">
+          Esto devolvera el stock vendido al inventario. La venta quedara marcada como anulada y no se puede deshacer.
+        </div>
+        <div class="modal-botones" style="justify-content:flex-end; margin-top:12px;">
+          <button class="btn btn-gris" onclick="cerrarSeccionAnular()">Cancelar</button>
+          <button class="btn btn-rojo" onclick="confirmarAnularVenta()">Confirmar Anulacion</button>
+        </div>
+      </div>
+
       <div class="modal-botones" style="justify-content:space-between;">
         <button class="btn btn-gris" onclick="cerrarDetalle()">Cerrar</button>
         <div style="display:flex; gap:8px;">
           <button class="btn btn-gris" id="btn-reimprimir" onclick="reimprimirRecibo()" style="display:none;">
             Reimprimir
+          </button>
+          <button class="btn btn-rojo" id="btn-anular-venta" onclick="mostrarSeccionAnular()" style="display:none;">
+            Anular Venta
           </button>
         </div>
       </div>
@@ -755,19 +773,22 @@
     async function generarCotizacion() {
       if (carrito.length === 0) { alert('El carrito esta vacio. Agrega los productos que el cliente quiere cotizar.'); return }
 
-      const nombreCliente = (prompt('Nombre del cliente (opcional):') || '').trim()
-      const subtotal = carrito.reduce((acc, i) => acc + i.precio_unitario * i.cantidad, 0)
+      try {
+        const subtotal = carrito.reduce((acc, i) => acc + i.precio_unitario * i.cantidad, 0)
 
-      const datos = {
-        items:     carrito,
-        subtotal,
-        cliente:   nombreCliente,
-        vendedor:  sesion ? sesion.nombre : ''
+        const datos = {
+          items:     carrito,
+          subtotal,
+          cliente:   '',
+          vendedor:  sesion ? sesion.nombre : ''
+        }
+
+        const res = await ipcRenderer.invoke('imprimir-cotizacion', datos)
+        if (res && res.error) alert('No se pudo imprimir la cotizacion: ' + res.error)
+        else alert('Cotizacion impresa. No se registro como venta ni afecto el inventario.')
+      } catch (err) {
+        alert('Error generando la cotizacion: ' + err.message)
       }
-
-      const res = await ipcRenderer.invoke('imprimir-cotizacion', datos)
-      if (res.error) alert('No se pudo imprimir la cotizacion: ' + res.error)
-      else alert('Cotizacion impresa. No se registro como venta ni afecto el inventario.')
     }
 
     function abrirModalPago() {
@@ -973,8 +994,35 @@
       `).join('')
 
       document.getElementById('btn-reimprimir').style.display = 'inline-block'
+      document.getElementById('btn-anular-venta').style.display =
+        (sesion && sesion.rol === 'admin' && !ventaDetalleAnulada) ? 'inline-block' : 'none'
+      document.getElementById('anular-seccion').style.display = 'none'
 
       document.getElementById('modal-detalle').classList.add('activo')
+    }
+
+    function mostrarSeccionAnular() {
+      document.getElementById('anular-seccion').style.display = 'block'
+      document.getElementById('anular-motivo').value = ''
+    }
+
+    function cerrarSeccionAnular() {
+      document.getElementById('anular-seccion').style.display = 'none'
+    }
+
+    async function confirmarAnularVenta() {
+      if (!confirm('Seguro que quieres anular esta venta? Se devolvera el stock vendido al inventario y no se puede deshacer.')) return
+
+      const motivo = document.getElementById('anular-motivo').value.trim()
+      const res = await ipcRenderer.invoke('anular-venta', { ventaId: ventaDetalleId, usuarioId: sesion.id, motivo })
+
+      if (res.error) { alert(res.error); return }
+
+      alert('Venta anulada. El stock fue devuelto al inventario.')
+      cerrarSeccionAnular()
+      productos = await ipcRenderer.invoke('obtener-productos')
+      await cargarDatos()
+      cerrarDetalle()
     }
 
     function cerrarDetalle() {

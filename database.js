@@ -1,8 +1,27 @@
 const Database = require('better-sqlite3')
 const path = require('path')
+const fs = require('fs')
 const { app } = require('electron')
 
 const dbPath = path.join(app.getPath('userData'), 'casacas.db')
+
+// ── Backup de seguridad antes de tocar nada ───────────────────────────────────
+// Si ya existia una base de datos (cliente con datos reales), se guarda una
+// copia completa antes de correr el esquema/migraciones. Si algo saliera mal,
+// el archivo original queda disponible en la carpeta "backups".
+if (fs.existsSync(dbPath)) {
+  try {
+    const backupDir = path.join(app.getPath('userData'), 'backups')
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true })
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const backupPath = path.join(backupDir, `casacas_pre_migracion_${timestamp}.db`)
+    fs.copyFileSync(dbPath, backupPath)
+    console.log('Backup pre-migracion creado en:', backupPath)
+  } catch (e) {
+    console.error('No se pudo crear el backup pre-migracion (se continua de todos modos):', e.message)
+  }
+}
+
 const db = new Database(dbPath)
 
 db.exec(`
@@ -33,10 +52,18 @@ db.exec(`
     orden INTEGER DEFAULT 0
   );
 
-  CREATE TABLE IF NOT EXISTS tallas (
+  CREATE TABLE IF NOT EXISTS grupos_talla (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre TEXT UNIQUE NOT NULL,
     orden INTEGER DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS tallas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    grupo_id INTEGER REFERENCES grupos_talla(id),
+    orden INTEGER DEFAULT 0,
+    UNIQUE(nombre, grupo_id)
   );
 
   CREATE TABLE IF NOT EXISTS productos (
@@ -45,6 +72,7 @@ db.exec(`
     categoria TEXT,
     colegio TEXT,
     genero TEXT,
+    grupo_talla_id INTEGER REFERENCES grupos_talla(id),
     fecha_creacion TEXT DEFAULT (datetime('now', 'localtime'))
   );
 
@@ -70,6 +98,7 @@ db.exec(`
     abono REAL DEFAULT 0,
     total REAL DEFAULT 0,
     estado TEXT DEFAULT 'pendiente',
+    tipo TEXT DEFAULT 'apartado',
     usuario_id INTEGER,
     fecha_creacion TEXT DEFAULT (datetime('now', 'localtime')),
     fecha_entrega TEXT,
@@ -82,6 +111,8 @@ db.exec(`
     variante_id INTEGER,
     cantidad INTEGER,
     precio_unitario REAL,
+    descripcion_libre TEXT,
+    talla_libre TEXT,
     FOREIGN KEY (apartado_id) REFERENCES apartados(id),
     FOREIGN KEY (variante_id) REFERENCES producto_variantes(id)
   );
@@ -107,6 +138,7 @@ db.exec(`
     variante_id INTEGER,
     cantidad INTEGER,
     precio_unitario REAL,
+    descripcion_libre TEXT,
     FOREIGN KEY (venta_id) REFERENCES ventas(id),
     FOREIGN KEY (variante_id) REFERENCES producto_variantes(id)
   );
@@ -206,12 +238,25 @@ db.exec(`
   );
 `)
 
-// ── Migrations para BD existente ──────────────────────────────────────────────
-const migrations = [
-  `ALTER TABLE ventas ADD COLUMN numero_factura INTEGER UNIQUE`,
-  `ALTER TABLE ventas ADD COLUMN anulada INTEGER DEFAULT 0`,
-  `ALTER TABLE ventas ADD COLUMN motivo_anulacion TEXT`,
-  `ALTER TABLE producto_variantes ADD COLUMN precio_costo REAL DEFAULT 0`,
+function columnaExiste(tabla, columna) {
+  const cols = db.prepare(`PRAGMA table_info(${tabla})`).all()
+  return cols.some(c => c.name === columna)
+}
+
+// Detecta bases de datos antiguas donde "tallas" tenia UNIQUE solo sobre
+// "nombre" (de antes de que existieran los grupos de talla). Ese indice
+// heredado impide guardar la misma talla (ej. "6") en mas de un grupo,
+// aunque ya se le haya agregado la columna grupo_id via ALTER TABLE.
+function tieneUniqueSoloEnNombre(tabla) {
+  const indices = db.prepare(`PRAGMA index_list(${tabla})`).all()
+  return indices.some(idx => {
+    if (!idx.unique) return false
+    const cols = db.prepare(`PRAGMA index_info(${idx.name})`).all()
+    return cols.length === 1 && cols[0].name === 'nombre'
+  })
+}
+
+const createMigrations = [
   `CREATE TABLE IF NOT EXISTS bundle_componentes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     bundle_variante_id INTEGER NOT NULL,
@@ -248,14 +293,74 @@ const migrations = [
   )`,
   `CREATE TABLE IF NOT EXISTS tallas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    grupo_id INTEGER REFERENCES grupos_talla(id),
+    orden INTEGER DEFAULT 0,
+    UNIQUE(nombre, grupo_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS grupos_talla (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre TEXT UNIQUE NOT NULL,
     orden INTEGER DEFAULT 0
   )`,
 ]
 
-migrations.forEach(sql => {
-  try { db.exec(sql) } catch(e) { /* ya existe, ignorar */ }
+const alterMigrations = [
+  { tabla: 'ventas', columna: 'anulada', sql: `ALTER TABLE ventas ADD COLUMN anulada INTEGER DEFAULT 0` },
+  { tabla: 'ventas', columna: 'motivo_anulacion', sql: `ALTER TABLE ventas ADD COLUMN motivo_anulacion TEXT` },
+  { tabla: 'producto_variantes', columna: 'precio_costo', sql: `ALTER TABLE producto_variantes ADD COLUMN precio_costo REAL DEFAULT 0` },
+  { tabla: 'tallas', columna: 'grupo_id', sql: `ALTER TABLE tallas ADD COLUMN grupo_id INTEGER REFERENCES grupos_talla(id)` },
+  { tabla: 'productos', columna: 'grupo_talla_id', sql: `ALTER TABLE productos ADD COLUMN grupo_talla_id INTEGER REFERENCES grupos_talla(id)` },
+  { tabla: 'apartado_items', columna: 'descripcion_libre', sql: `ALTER TABLE apartado_items ADD COLUMN descripcion_libre TEXT` },
+  { tabla: 'apartado_items', columna: 'talla_libre', sql: `ALTER TABLE apartado_items ADD COLUMN talla_libre TEXT` },
+  { tabla: 'apartados', columna: 'tipo', sql: `ALTER TABLE apartados ADD COLUMN tipo TEXT DEFAULT 'apartado'` },
+  { tabla: 'venta_items', columna: 'descripcion_libre', sql: `ALTER TABLE venta_items ADD COLUMN descripcion_libre TEXT` },
+  { tabla: 'venta_items', columna: 'talla_libre', sql: `ALTER TABLE venta_items ADD COLUMN talla_libre TEXT` },
+]
+
+// Todo corre dentro de una transaccion: si algo falla a mitad de camino,
+// SQLite revierte automaticamente y la base de datos queda como estaba antes
+// de intentar migrar (no se queda a medias).
+const ejecutarMigraciones = db.transaction(() => {
+  createMigrations.forEach(sql => db.exec(sql))
+  alterMigrations.forEach(({ tabla, columna, sql }) => {
+    if (!columnaExiste(tabla, columna)) db.exec(sql)
+  })
+
+  // Caso especial: numero_factura necesita ser UNIQUE, pero SQLite no
+  // permite agregar una columna UNIQUE con ALTER TABLE ADD COLUMN. Se agrega
+  // la columna simple y la unicidad se garantiza con un indice aparte.
+  if (!columnaExiste('ventas', 'numero_factura')) {
+    db.exec(`ALTER TABLE ventas ADD COLUMN numero_factura INTEGER`)
+  }
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ventas_numero_factura ON ventas(numero_factura)`)
+
+  // Reconstruccion segura de "tallas" si viene de una version anterior con
+  // UNIQUE solo en nombre. Se copian todos los datos existentes (id, nombre,
+  // grupo_id, orden) a una tabla nueva con la restriccion correcta
+  // UNIQUE(nombre, grupo_id), y se reemplaza la tabla vieja por la nueva.
+  if (tieneUniqueSoloEnNombre('tallas')) {
+    db.exec(`
+      CREATE TABLE tallas_nueva (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        grupo_id INTEGER REFERENCES grupos_talla(id),
+        orden INTEGER DEFAULT 0,
+        UNIQUE(nombre, grupo_id)
+      );
+      INSERT INTO tallas_nueva (id, nombre, grupo_id, orden)
+        SELECT id, nombre, grupo_id, orden FROM tallas;
+      DROP TABLE tallas;
+      ALTER TABLE tallas_nueva RENAME TO tallas;
+    `)
+  }
 })
+
+try {
+  ejecutarMigraciones()
+} catch (e) {
+  console.error('Error durante las migraciones (se revirtio todo, la BD quedo intacta):', e.message)
+}
 
 // Inicializar contador de facturas
 const contadorExiste = db.prepare('SELECT id FROM contador_facturas WHERE id = 1').get()
@@ -306,11 +411,24 @@ catInsumo.forEach((nombre, i) => {
   if (!existe) db.prepare('INSERT INTO categorias_insumo (nombre, orden) VALUES (?, ?)').run(nombre, i)
 })
 
-// Tallas por defecto
+// Grupo de tallas "General"
+let grupoGeneral = db.prepare("SELECT id FROM grupos_talla WHERE nombre = 'General'").get()
+if (!grupoGeneral) {
+  db.prepare("INSERT INTO grupos_talla (nombre, orden) VALUES ('General', 0)").run()
+  grupoGeneral = db.prepare("SELECT id FROM grupos_talla WHERE nombre = 'General'").get()
+}
+
+// Tallas huerfanas de instalaciones previas (sin grupo_id, de antes de que
+// existieran los grupos): se adoptan primero en "General", ANTES de insertar
+// las tallas por defecto, para no crear filas duplicadas que luego choquen
+// con estas al asignarles el grupo.
+db.prepare('UPDATE tallas SET grupo_id = ? WHERE grupo_id IS NULL').run(grupoGeneral.id)
+
+// Tallas por defecto (solo las que todavia no existan en "General")
 const tallasDefault = ['6','8','10','12','14','16','S','M','L','XL']
 tallasDefault.forEach((nombre, i) => {
-  const existe = db.prepare('SELECT id FROM tallas WHERE nombre = ?').get(nombre)
-  if (!existe) db.prepare('INSERT INTO tallas (nombre, orden) VALUES (?, ?)').run(nombre, i)
+  const existe = db.prepare('SELECT id FROM tallas WHERE nombre = ? AND grupo_id = ?').get(nombre, grupoGeneral.id)
+  if (!existe) db.prepare('INSERT INTO tallas (nombre, grupo_id, orden) VALUES (?, ?, ?)').run(nombre, grupoGeneral.id, i)
 })
 
 // Metas por defecto

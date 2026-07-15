@@ -33,6 +33,7 @@
           <span id="lector-dot" style="width:8px;height:8px;border-radius:50%;background:#2ecc71;display:inline-block;"></span>
           <span id="lector-texto">Lector listo</span>
         </div>
+        <button class="btn btn-gris" onclick="imprimirArqueo()">🖨️ Arqueo del dia</button>
         <button class="btn btn-rojo" onclick="abrirModalEntrada()">+ Entrada de Stock</button>
       </div>
     </div>
@@ -219,6 +220,21 @@
           <td>${m.nota || '—'}</td>
         </tr>
       `).join('')
+    }
+
+    async function imprimirArqueo() {
+      if (!confirm('Se va a imprimir el arqueo de caja de hoy. Continuar?')) return
+      mostrarLectorStatus('Imprimiendo arqueo...', '#f39c12')
+      const res = await ipcRenderer.invoke('imprimir-arqueo-diario', {
+        cerradoPor: sesion?.nombre || ''
+      })
+      if (res?.error) {
+        mostrarLectorStatus('Error al imprimir', '#e94560')
+        alert('No se pudo imprimir el arqueo: ' + res.error)
+      } else {
+        mostrarLectorStatus('Arqueo impreso', '#2ecc71')
+      }
+      setTimeout(() => mostrarLectorStatus('Lector listo', '#2ecc71'), 2000)
     }
 
     function abrirModalEntrada() {

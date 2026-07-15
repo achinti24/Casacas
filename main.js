@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Menu } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, Menu, globalShortcut } = require('electron')
 const path = require('path')
 const fs   = require('fs')
 const XLSX = require('xlsx')
@@ -148,7 +148,6 @@ function construirBufferEscpos({ items, subtotal, abonoAplicado, totalCobrar, da
   r += CENTER + linea + LF
   r += CENTER + 'Factura No. ' + (numeroFactura || Date.now().toString().slice(-6)) + LF
   r += CENTER + fecha + LF
-  r += CENTER + 'Vendedor: ' + vendedor + LF
   if (cliente) r += CENTER + 'Cliente: ' + cliente + LF
   r += LEFT + linea + LF
   items.forEach(i => {
@@ -217,7 +216,6 @@ function construirBufferApartado({ nombre, telefono, colegio, notas, abono, item
   r += RIGHT + BOLD + 'SALDO:          $' + saldo.toLocaleString('es-CO') + LF + UNBOLD
   r += LEFT + linea + LF
   if (notas) { r += LEFT + 'Notas: ' + notas + LF; r += LEFT + linea + LF }
-  r += CENTER + 'Vendedor: ' + vendedor + LF
   r += CENTER + 'Conserva este papel' + LF
   r += CENTER + 'para reclamar tu pedido' + LF
   r += LF + LF + LF + CUT
@@ -264,7 +262,54 @@ function construirBufferCotizacion({ items, subtotal, cliente, vendedor }) {
   r += LEFT + linea + LF
   r += CENTER + 'Precios sujetos a cambio sin previo aviso.' + LF
   r += CENTER + 'Este documento no reserva stock.' + LF
-  r += CENTER + 'Vendedor: ' + vendedor + LF
+  r += LF + LF + LF + CUT
+  return Buffer.from(limpiar(r), 'latin1')
+}
+
+// ── ARQUEO DE CAJA (ruta Windows) ─────────────────
+function construirBufferArqueo({ fechaTexto, cantidadEfectivo, totalEfectivo, cantidadTransferencia, totalTransferencia, totalEgresos, cerradoPor }) {
+  const ESC    = '\x1B'
+  const INIT   = ESC + '@'
+  const BOLD   = ESC + 'E\x01'
+  const UNBOLD = ESC + 'E\x00'
+  const CENTER = ESC + 'a\x01'
+  const LEFT   = ESC + 'a\x00'
+  const RIGHT  = ESC + 'a\x02'
+  const CUT    = '\x1D' + 'V\x41\x00'
+  const LF     = '\n'
+  const linea  = '--------------------------------'
+  const totalVentas    = (totalEfectivo || 0) + (totalTransferencia || 0)
+  const efectivoEnCaja = (totalEfectivo || 0) - (totalEgresos || 0)
+
+  const limpiar = s => s
+    .replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i')
+    .replace(/ó/g,'o').replace(/ú/g,'u').replace(/ü/g,'u')
+    .replace(/Á/g,'A').replace(/É/g,'E').replace(/Í/g,'I')
+    .replace(/Ó/g,'O').replace(/Ú/g,'U').replace(/ñ/g,'n').replace(/Ñ/g,'N')
+
+  let r = INIT
+  r += CENTER + BOLD + 'Casacas Colegial' + LF + UNBOLD
+  r += CENTER + 'San Gil - Calle 11 No. 10-66' + LF
+  r += CENTER + 'Piso 2, Local 201' + LF
+  r += CENTER + linea + LF
+  r += CENTER + BOLD + 'ARQUEO DE CAJA' + LF + UNBOLD
+  r += CENTER + fechaTexto + LF
+  r += CENTER + linea + LF
+  r += LEFT + 'Ventas en efectivo (' + cantidadEfectivo + ')' + LF
+  r += RIGHT + '$' + (totalEfectivo || 0).toLocaleString('es-CO') + LF
+  r += LEFT + 'Ventas por transferencia (' + cantidadTransferencia + ')' + LF
+  r += RIGHT + '$' + (totalTransferencia || 0).toLocaleString('es-CO') + LF
+  r += LEFT + linea + LF
+  r += RIGHT + BOLD + 'Total ventas:  $' + totalVentas.toLocaleString('es-CO') + LF + UNBOLD
+  r += LEFT + linea + LF
+  r += RIGHT + 'Egresos del dia: -$' + (totalEgresos || 0).toLocaleString('es-CO') + LF
+  r += LEFT + linea + LF
+  r += RIGHT + BOLD + 'Efectivo esperado' + LF
+  r += RIGHT + 'en caja: $' + efectivoEnCaja.toLocaleString('es-CO') + LF + UNBOLD
+  r += LEFT + linea + LF
+  if (cerradoPor) r += CENTER + 'Cerrado por: ' + cerradoPor + LF
+  r += LF
+  r += CENTER + 'Firma: ________________________' + LF
   r += LF + LF + LF + CUT
   return Buffer.from(limpiar(r), 'latin1')
 }
@@ -517,6 +562,14 @@ function escribirLog(mensaje) {
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null)
 
+  // El atajo Ctrl+Shift+I normalmente viene del menu por defecto de Electron.
+  // Como el menu esta deshabilitado (linea de arriba), se registra a mano
+  // para poder seguir abriendo las herramientas de desarrollador.
+  globalShortcut.register('CommandOrControl+Shift+I', () => {
+    const ventanaActiva = BrowserWindow.getFocusedWindow()
+    if (ventanaActiva) ventanaActiva.webContents.toggleDevTools()
+  })
+
   win = new BrowserWindow({
     width: 1200, height: 800, minWidth: 900, minHeight: 600,
     title: 'Casacas - Inventario',
@@ -603,6 +656,89 @@ app.whenReady().then(() => {
     }
   } catch (err) {
     escribirLog('Error agregando columna metodo_pago: ' + err.message)
+  }
+
+  // ── FIX: CREAR grupos_talla Y MIGRAR TALLAS/PRODUCTOS ──
+  // Introduce grupos de tallas (ej: General, Pantalon, Medias) para que
+  // cada grupo tenga su propio rango de tallas. Todo lo existente se
+  // migra automaticamente al grupo "General" sin perder datos.
+  try {
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS grupos_talla (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT UNIQUE NOT NULL,
+        orden INTEGER DEFAULT 0
+      )
+    `).run()
+
+    let general = db.prepare("SELECT id FROM grupos_talla WHERE nombre = 'General'").get()
+    if (!general) {
+      db.prepare("INSERT INTO grupos_talla (nombre, orden) VALUES ('General', 0)").run()
+      general = db.prepare("SELECT id FROM grupos_talla WHERE nombre = 'General'").get()
+      escribirLog('Grupo de tallas "General" creado')
+    }
+
+    const columnasTallas = db.prepare("PRAGMA table_info(tallas)").all()
+    if (!columnasTallas.some(c => c.name === 'grupo_id')) {
+      db.prepare('ALTER TABLE tallas ADD COLUMN grupo_id INTEGER').run()
+      escribirLog('Columna grupo_id agregada a tallas')
+    }
+    db.prepare('UPDATE tallas SET grupo_id = ? WHERE grupo_id IS NULL').run(general.id)
+
+    // ── FIX CRITICO: la tabla tallas original tenia "nombre TEXT UNIQUE",
+    // es decir el nombre debia ser unico en TODA la tabla, no por grupo.
+    // Eso rompe el sistema de grupos (ej: no se puede tener talla "6" en
+    // Pantalon si ya existe "6" en General). SQLite no permite quitar un
+    // UNIQUE con ALTER TABLE, asi que se recrea la tabla conservando datos.
+    const schemaTallas = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='tallas'").get()
+    if (schemaTallas && /nombre\s+TEXT\s+UNIQUE/i.test(schemaTallas.sql)) {
+      db.exec(`
+        CREATE TABLE tallas_nueva (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          nombre TEXT NOT NULL,
+          grupo_id INTEGER REFERENCES grupos_talla(id),
+          orden INTEGER DEFAULT 0,
+          UNIQUE(nombre, grupo_id)
+        )
+      `)
+      db.exec('INSERT INTO tallas_nueva (id, nombre, grupo_id, orden) SELECT id, nombre, grupo_id, orden FROM tallas')
+      db.exec('DROP TABLE tallas')
+      db.exec('ALTER TABLE tallas_nueva RENAME TO tallas')
+      escribirLog('Tabla tallas migrada: nombre ahora es unico por grupo, no global')
+    }
+
+    const columnasProductos = db.prepare("PRAGMA table_info(productos)").all()
+    if (!columnasProductos.some(c => c.name === 'grupo_talla_id')) {
+      db.prepare('ALTER TABLE productos ADD COLUMN grupo_talla_id INTEGER').run()
+      escribirLog('Columna grupo_talla_id agregada a productos')
+    }
+    db.prepare('UPDATE productos SET grupo_talla_id = ? WHERE grupo_talla_id IS NULL').run(general.id)
+  } catch (err) {
+    escribirLog('Error creando/migrando grupos_talla: ' + err.message)
+  }
+
+  // ── SEED: GRUPOS DE EJEMPLO "Pantalon" Y "Medias" ──
+  // Solo se crean si no existen (no pisan nada si ya los tienes configurados).
+  // El rango de Pantalon usa el mismo salto que ya reconoce claveTalla():
+  // tallas de nino (4-16) y luego tallas de cintura (28-40).
+  try {
+    let pantalon = db.prepare("SELECT id FROM grupos_talla WHERE nombre = 'Pantalon'").get()
+    if (!pantalon) {
+      db.prepare("INSERT INTO grupos_talla (nombre, orden) VALUES ('Pantalon', 1)").run()
+      pantalon = db.prepare("SELECT id FROM grupos_talla WHERE nombre = 'Pantalon'").get()
+      const tallasPantalon = ['4','6','8','10','12','14','16','28','30','32','34','36','38','40']
+      const insertTalla = db.prepare('INSERT INTO tallas (nombre, grupo_id) VALUES (?, ?)')
+      tallasPantalon.forEach(t => insertTalla.run(t, pantalon.id))
+      escribirLog('Grupo de tallas "Pantalon" creado con tallas de ejemplo (4-16, 28-40)')
+    }
+
+    const medias = db.prepare("SELECT id FROM grupos_talla WHERE nombre = 'Medias'").get()
+    if (!medias) {
+      db.prepare("INSERT INTO grupos_talla (nombre, orden) VALUES ('Medias', 2)").run()
+      escribirLog('Grupo de tallas "Medias" creado (sin tallas, agregalas desde Configuracion)')
+    }
+  } catch (err) {
+    escribirLog('Error creando grupos de tallas de ejemplo: ' + err.message)
   }
 
   function hacerBackup() {
@@ -758,12 +894,43 @@ app.whenReady().then(() => {
     return { ok: true }
   })
 
+  // ── GRUPOS DE TALLA ────────────────────────────────
+  // Cada grupo (General, Pantalon, Medias, etc.) tiene su propio set de
+  // tallas. Un producto elige un grupo y solo ve las tallas de ese grupo.
+  ipcMain.handle('obtener-grupos-talla', () => db.prepare('SELECT * FROM grupos_talla ORDER BY orden, nombre').all())
+
+  ipcMain.handle('agregar-grupo-talla', (e, nombre) => {
+    const existe = db.prepare('SELECT id FROM grupos_talla WHERE nombre = ?').get(nombre)
+    if (existe) return { error: 'Ya existe ese grupo de tallas' }
+    const result = db.prepare('INSERT INTO grupos_talla (nombre) VALUES (?)').run(nombre)
+    return { ok: true, id: result.lastInsertRowid }
+  })
+
+  ipcMain.handle('editar-grupo-talla', (e, { id, nombre }) => {
+    db.prepare('UPDATE grupos_talla SET nombre = ? WHERE id = ?').run(nombre, id)
+    return { ok: true }
+  })
+
+  ipcMain.handle('eliminar-grupo-talla', (e, id) => {
+    const totalGrupos = db.prepare('SELECT COUNT(*) as n FROM grupos_talla').get().n
+    if (totalGrupos <= 1) return { error: 'Debe existir al menos un grupo de tallas' }
+    const enUso = db.prepare('SELECT COUNT(*) as n FROM productos WHERE grupo_talla_id = ?').get(id).n
+    if (enUso > 0) return { error: `Hay ${enUso} producto(s) usando este grupo. Cambia su grupo de tallas antes de eliminarlo.` }
+    db.prepare('DELETE FROM tallas WHERE grupo_id = ?').run(id)
+    db.prepare('DELETE FROM grupos_talla WHERE id = ?').run(id)
+    return { ok: true }
+  })
+
   // ── TALLAS ─────────────────────────────────────────
-  ipcMain.handle('obtener-tallas', () => db.prepare('SELECT * FROM tallas ORDER BY orden, nombre').all())
-  ipcMain.handle('agregar-talla', (e, nombre) => {
-    const existe = db.prepare('SELECT id FROM tallas WHERE nombre = ?').get(nombre)
-    if (existe) return { error: 'Ya existe esa talla' }
-    db.prepare('INSERT INTO tallas (nombre) VALUES (?)').run(nombre)
+  // Sin grupoId devuelve todas (compatibilidad); con grupoId, solo las de ese grupo.
+  ipcMain.handle('obtener-tallas', (e, grupoId) => {
+    if (grupoId) return db.prepare('SELECT * FROM tallas WHERE grupo_id = ? ORDER BY orden, nombre').all(grupoId)
+    return db.prepare('SELECT * FROM tallas ORDER BY grupo_id, orden, nombre').all()
+  })
+  ipcMain.handle('agregar-talla', (e, { nombre, grupoId }) => {
+    const existe = db.prepare('SELECT id FROM tallas WHERE nombre = ? AND grupo_id = ?').get(nombre, grupoId)
+    if (existe) return { error: 'Ya existe esa talla en este grupo' }
+    db.prepare('INSERT INTO tallas (nombre, grupo_id) VALUES (?, ?)').run(nombre, grupoId)
     return { ok: true }
   })
   ipcMain.handle('editar-talla', (e, { id, nombre }) => {
@@ -782,14 +949,32 @@ app.whenReady().then(() => {
       ...p,
       variantes: db.prepare('SELECT * FROM producto_variantes WHERE producto_id = ?')
         .all(p.id)
+        .map(v => {
+          const componentes = db.prepare(
+            'SELECT componente_variante_id, cantidad FROM bundle_componentes WHERE bundle_variante_id = ?'
+          ).all(v.id)
+          if (componentes.length === 0) return { ...v, es_bundle: false }
+
+          // El stock "real" de un bundle es el minimo de piezas completas que
+          // se pueden armar con lo que hay disponible de cada componente
+          // (no la cantidad cruda de su propia fila, que no se usa como
+          // inventario fisico independiente).
+          const stockDisponible = Math.min(...componentes.map(c => {
+            const comp = db.prepare('SELECT cantidad FROM producto_variantes WHERE id = ?').get(c.componente_variante_id)
+            if (!comp) return 0
+            return Math.floor(comp.cantidad / (c.cantidad || 1))
+          }))
+
+          return { ...v, cantidad: stockDisponible, es_bundle: true }
+        })
         .sort((a, b) => compararTallas(a.talla, b.talla))
     }))
   })
 
   ipcMain.handle('agregar-producto', (e, { producto, variantes }) => {
     const result = db.prepare(`
-      INSERT INTO productos (nombre, categoria, colegio, genero)
-      VALUES (@nombre, @categoria, @colegio, @genero)
+      INSERT INTO productos (nombre, categoria, colegio, genero, grupo_talla_id)
+      VALUES (@nombre, @categoria, @colegio, @genero, @grupo_talla_id)
     `).run(producto)
 
     const productoId = result.lastInsertRowid
@@ -811,7 +996,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('editar-producto', (e, { producto }) => {
     db.prepare(`
-      UPDATE productos SET nombre=@nombre, categoria=@categoria, colegio=@colegio, genero=@genero WHERE id=@id
+      UPDATE productos SET nombre=@nombre, categoria=@categoria, colegio=@colegio, genero=@genero, grupo_talla_id=@grupo_talla_id WHERE id=@id
     `).run(producto)
     actualizarExcelInventario(db)
     return { ok: true }
@@ -869,12 +1054,28 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('buscar-por-codigo', (e, codigo) => {
-    return db.prepare(`
+    const v = db.prepare(`
       SELECT v.*, p.nombre, p.categoria, p.colegio, p.genero
       FROM producto_variantes v
       JOIN productos p ON v.producto_id = p.id
       WHERE v.codigo_barras = ?
-    `).get(codigo) || null
+    `).get(codigo)
+    if (!v) return null
+
+    // Igual que en obtener-productos: si es un bundle, su stock real depende
+    // de sus componentes, no de la cantidad cruda de su propia fila.
+    const componentes = db.prepare(
+      'SELECT componente_variante_id, cantidad FROM bundle_componentes WHERE bundle_variante_id = ?'
+    ).all(v.id)
+    if (componentes.length === 0) return v
+
+    const stockDisponible = Math.min(...componentes.map(c => {
+      const comp = db.prepare('SELECT cantidad FROM producto_variantes WHERE id = ?').get(c.componente_variante_id)
+      if (!comp) return 0
+      return Math.floor(comp.cantidad / (c.cantidad || 1))
+    }))
+
+    return { ...v, cantidad: stockDisponible }
   })
 
   ipcMain.handle('actualizar-precios-producto', (e, { productoId, variantes }) => {
@@ -1014,11 +1215,15 @@ app.whenReady().then(() => {
 
   ipcMain.handle('obtener-apartado-detalle', (e, apartadoId) => {
     return db.prepare(`
-      SELECT ai.*, v.talla, v.codigo_barras,
-             p.nombre as producto, p.colegio, p.categoria
+      SELECT ai.*,
+             COALESCE(v.talla, ai.talla_libre)          as talla,
+             v.codigo_barras,
+             COALESCE(p.nombre, ai.descripcion_libre)   as producto,
+             COALESCE(p.colegio, '')                    as colegio,
+             COALESCE(p.categoria, 'Confeccion')        as categoria
       FROM apartado_items ai
-      JOIN producto_variantes v ON ai.variante_id = v.id
-      JOIN productos p ON v.producto_id = p.id
+      LEFT JOIN producto_variantes v ON ai.variante_id = v.id
+      LEFT JOIN productos p ON v.producto_id = p.id
       WHERE ai.apartado_id = ?
     `).all(apartadoId)
   })
@@ -1026,16 +1231,23 @@ app.whenReady().then(() => {
   ipcMain.handle('agregar-apartado', (e, { apartado, items }) => {
     const total  = items.reduce((acc, i) => acc + (i.cantidad * i.precio_unitario), 0)
     const result = db.prepare(`
-      INSERT INTO apartados (nombre, telefono, colegio, notas, abono, total, estado, usuario_id)
-      VALUES (@nombre, @telefono, @colegio, @notas, @abono, @total, 'pendiente', @usuario_id)
-    `).run({ ...apartado, total })
+      INSERT INTO apartados (nombre, telefono, colegio, notas, abono, total, estado, tipo, usuario_id)
+      VALUES (@nombre, @telefono, @colegio, @notas, @abono, @total, 'pendiente', @tipo, @usuario_id)
+    `).run({ ...apartado, total, tipo: apartado.tipo || 'apartado' })
 
     const insertItem = db.prepare(`
-      INSERT INTO apartado_items (apartado_id, variante_id, cantidad, precio_unitario)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO apartado_items (apartado_id, variante_id, cantidad, precio_unitario, descripcion_libre, talla_libre)
+      VALUES (?, ?, ?, ?, ?, ?)
     `)
     for (const item of items) {
-      insertItem.run(result.lastInsertRowid, item.variante_id, item.cantidad, item.precio_unitario)
+      insertItem.run(
+        result.lastInsertRowid,
+        item.variante_id || null,
+        item.cantidad,
+        item.precio_unitario,
+        item.descripcion_libre || null,
+        item.talla_libre || null
+      )
     }
     return { ok: true }
   })
@@ -1056,27 +1268,29 @@ app.whenReady().then(() => {
   // ── VENTAS ────────────────────────────────────────
   ipcMain.handle('registrar-venta', (e, { usuarioId, apartadoId, items, abonoAplicado, metodoPago }) => {
 
-    const bundlesEnCarrito = new Set(
-      items
-        .filter(item => db.prepare('SELECT id FROM bundle_componentes WHERE bundle_variante_id = ? LIMIT 1').get(item.variante_id))
-        .map(item => item.variante_id)
-    )
-
     const itemsParaStock    = []
     const itemsParaRegistro = []
 
     for (const item of items) {
+      // Items de confeccion (por encargo, sin producto de inventario detras)
+      // no tienen variante_id: no afectan ni requieren stock, solo quedan
+      // registrados en la venta con su descripcion y talla libres.
+      if (!item.variante_id) {
+        itemsParaRegistro.push({ ...item })
+        continue
+      }
+
       const componentes = db.prepare(
         'SELECT * FROM bundle_componentes WHERE bundle_variante_id = ?'
       ).all(item.variante_id)
 
       if (componentes.length > 0) {
         itemsParaRegistro.push({ ...item })
-        itemsParaStock.push({
-          variante_id: item.variante_id,
-          cantidad:    item.cantidad,
-          nota:        'Venta bundle'
-        })
+        // OJO: el bundle (ej. "3 piezas") es una variante virtual que no tiene
+        // stock fisico propio - su disponibilidad depende 100% de sus
+        // componentes. Por eso NO se valida ni se descuenta la cantidad de la
+        // propia fila del bundle (antes esto bloqueaba la venta si esa fila
+        // tenia 0, aunque las piezas sueltas si tuvieran stock).
         for (const c of componentes) {
           itemsParaStock.push({
             variante_id: c.componente_variante_id,
@@ -1087,19 +1301,13 @@ app.whenReady().then(() => {
       } else {
         itemsParaRegistro.push({ ...item })
         itemsParaStock.push({ ...item, nota: 'Venta registrada' })
-
-        const bundlesQueUsan = db.prepare(
-          'SELECT DISTINCT bundle_variante_id FROM bundle_componentes WHERE componente_variante_id = ?'
-        ).all(item.variante_id)
-
-        for (const b of bundlesQueUsan) {
-          if (bundlesEnCarrito.has(b.bundle_variante_id)) continue
-          itemsParaStock.push({
-            variante_id: b.bundle_variante_id,
-            cantidad:    item.cantidad,
-            nota:        `Pieza suelta vendida - bundle descompletado`
-          })
-        }
+        // OJO: antes, al vender una pieza suelta se intentaba descontar/validar
+        // el stock propio de cada bundle que la usa (para "marcarlo como
+        // descompletado"). Como esa fila del bundle ya no es un stock fisico
+        // real (se calcula desde sus componentes), esa validacion bloqueaba
+        // la venta de la pieza suelta con un falso "stock insuficiente".
+        // Se quita por completo: el bundle simplemente se recalcula solo la
+        // proxima vez que se consulte, sin necesidad de tocar su fila.
       }
     }
 
@@ -1139,12 +1347,22 @@ app.whenReady().then(() => {
       VALUES (?, ?, ?, ?, 'entregado', ?, ?)
     `).run(usuarioId, apartadoId || null, total, abonoAplicado || 0, nuevoNumero, metodo)
 
-    const insertItem = db.prepare(`INSERT INTO venta_items (venta_id, variante_id, cantidad, precio_unitario) VALUES (?, ?, ?, ?)`)
+    const insertItem = db.prepare(`
+      INSERT INTO venta_items (venta_id, variante_id, cantidad, precio_unitario, descripcion_libre, talla_libre)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `)
     const descontar  = db.prepare(`UPDATE producto_variantes SET cantidad = cantidad - ? WHERE id = ?`)
     const insertMov  = db.prepare(`INSERT INTO movimientos (variante_id, usuario_id, tipo, cantidad, nota) VALUES (?, ?, 'venta', ?, ?)`)
 
     for (const item of itemsParaRegistro) {
-      insertItem.run(venta.lastInsertRowid, item.variante_id, item.cantidad, item.precio_unitario)
+      insertItem.run(
+        venta.lastInsertRowid,
+        item.variante_id || null,
+        item.cantidad,
+        item.precio_unitario,
+        item.descripcion_libre || null,
+        item.talla_libre || null
+      )
     }
 
     for (const item of itemsParaStock) {
@@ -1285,11 +1503,51 @@ app.whenReady().then(() => {
     }
   })
 
-  // NOTA: la anulacion/eliminacion de ventas fue retirada a proposito para
-  // mantener un control rigido: una venta registrada no se puede borrar ni
-  // anular. Si un cliente necesita corregir una venta (ej. cambio de talla),
-  // se usa el handler 'cambiar-item-venta', que ajusta el stock y el total
-  // sin borrar el registro de la venta original.
+  // ── ANULAR VENTA (solo administradores) ───────────
+  // No borra el registro de la venta (queda marcada como anulada, para que
+  // no se pierda el historial/contabilidad), pero devuelve el stock vendido
+  // al inventario. Los bundles no estan soportados todavia (igual que en
+  // 'cambiar-item-venta'), ya que involucran multiples componentes de stock.
+  ipcMain.handle('anular-venta', (e, { ventaId, usuarioId, motivo }) => {
+    const usuario = db.prepare('SELECT rol FROM usuarios WHERE id = ?').get(usuarioId)
+    if (!usuario || usuario.rol !== 'admin') {
+      return { error: 'Solo un administrador puede anular una venta.' }
+    }
+
+    const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(ventaId)
+    if (!venta) return { error: 'Venta no encontrada' }
+    if (venta.anulada) return { error: 'Esta venta ya esta anulada' }
+
+    const items = db.prepare('SELECT * FROM venta_items WHERE venta_id = ?').all(ventaId)
+    if (items.length === 0) return { error: 'Esta venta no tiene productos asociados' }
+
+    const tieneBundle = items.some(i =>
+      db.prepare('SELECT id FROM bundle_componentes WHERE bundle_variante_id = ? LIMIT 1').get(i.variante_id)
+    )
+    if (tieneBundle) {
+      return { error: 'Esta venta incluye un producto tipo paquete. La anulacion de paquetes no esta soportada todavia.' }
+    }
+
+    const numFactura = venta.numero_factura || ventaId
+    const notaMov    = `Anulacion venta #${numFactura}` + (motivo ? ' - ' + motivo : '')
+
+    const restaurar = db.prepare('UPDATE producto_variantes SET cantidad = cantidad + ? WHERE id = ?')
+    const insertMov = db.prepare(`INSERT INTO movimientos (variante_id, usuario_id, tipo, cantidad, nota) VALUES (?, ?, 'entrada', ?, ?)`)
+
+    for (const item of items) {
+      restaurar.run(item.cantidad, item.variante_id)
+      insertMov.run(item.variante_id, usuarioId, item.cantidad, notaMov)
+    }
+
+    db.prepare('UPDATE ventas SET anulada = 1, motivo_anulacion = ? WHERE id = ?')
+      .run(motivo || 'Sin motivo especificado', ventaId)
+
+    actualizarExcelVentas(db)
+    actualizarExcelInventario(db)
+    actualizarExcelMovimientos(db)
+
+    return { ok: true }
+  })
 
   // ── REIMPRIMIR RECIBO ─────────────────────────────
   ipcMain.handle('reimprimir-recibo', async (e, ventaId) => {
@@ -1568,6 +1826,106 @@ app.whenReady().then(() => {
 
   ipcMain.handle('obtener-ruta-excel', () => getRutaExcel())
 
+  // ── ARQUEO DE CAJA ─────────────────────────────────
+  function resumenCajaDelDia(fecha) {
+    const ventas = db.prepare(`
+      SELECT total, metodo_pago FROM ventas
+      WHERE date(fecha) = date(?) AND (anulada IS NULL OR anulada = 0)
+    `).all(fecha)
+
+    const ventasEfectivo      = ventas.filter(v => v.metodo_pago !== 'transferencia')
+    const ventasTransferencia = ventas.filter(v => v.metodo_pago === 'transferencia')
+
+    const egresos = db.prepare(`
+      SELECT COALESCE(SUM(monto), 0) as total FROM egresos WHERE date(fecha) = date(?)
+    `).get(fecha)
+
+    return {
+      cantidadEfectivo:      ventasEfectivo.length,
+      totalEfectivo:         ventasEfectivo.reduce((acc, v) => acc + v.total, 0),
+      cantidadTransferencia: ventasTransferencia.length,
+      totalTransferencia:    ventasTransferencia.reduce((acc, v) => acc + v.total, 0),
+      totalEgresos:          egresos.total || 0
+    }
+  }
+
+  ipcMain.handle('obtener-resumen-caja-dia', (e, fecha) => {
+    return resumenCajaDelDia(fecha || new Date().toISOString().slice(0, 10))
+  })
+
+  ipcMain.handle('imprimir-arqueo-diario', async (e, { fecha, cerradoPor } = {}) => {
+    const fechaConsulta = fecha || new Date().toISOString().slice(0, 10)
+    const resumen        = resumenCajaDelDia(fechaConsulta)
+    const fechaTexto      = new Date(fechaConsulta + 'T00:00:00').toLocaleDateString('es-CO', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    })
+    const datos = { ...resumen, fechaTexto, cerradoPor }
+
+    try {
+      if (process.platform === 'win32') {
+        const buffer = construirBufferArqueo(datos)
+        return await imprimirWindowsRaw(buffer)
+      }
+      const printer   = crearImpresora()
+      const conectada = await printer.isPrinterConnected()
+      if (!conectada) return { error: 'No se pudo conectar con la impresora. Verifica la configuracion en Ajustes.' }
+
+      const totalVentas    = resumen.totalEfectivo + resumen.totalTransferencia
+      const efectivoEnCaja = resumen.totalEfectivo - resumen.totalEgresos
+
+      printer.alignCenter()
+      printer.bold(true)
+      printer.println('Casacas Colegial')
+      printer.bold(false)
+      printer.println('San Gil - Calle 11 No. 10-66')
+      printer.println('Piso 2, Local 201')
+      printer.drawLine()
+      printer.bold(true)
+      printer.println('ARQUEO DE CAJA')
+      printer.bold(false)
+      printer.println(fechaTexto)
+      printer.drawLine()
+      printer.alignLeft()
+      printer.println('Ventas en efectivo (' + resumen.cantidadEfectivo + ')')
+      printer.alignRight()
+      printer.println('$' + resumen.totalEfectivo.toLocaleString('es-CO'))
+      printer.alignLeft()
+      printer.println('Ventas por transferencia (' + resumen.cantidadTransferencia + ')')
+      printer.alignRight()
+      printer.println('$' + resumen.totalTransferencia.toLocaleString('es-CO'))
+      printer.alignLeft()
+      printer.drawLine()
+      printer.alignRight()
+      printer.bold(true)
+      printer.println('Total ventas:  $' + totalVentas.toLocaleString('es-CO'))
+      printer.bold(false)
+      printer.alignLeft()
+      printer.drawLine()
+      printer.alignRight()
+      printer.println('Egresos del dia: -$' + resumen.totalEgresos.toLocaleString('es-CO'))
+      printer.alignLeft()
+      printer.drawLine()
+      printer.alignRight()
+      printer.bold(true)
+      printer.println('Efectivo esperado')
+      printer.println('en caja: $' + efectivoEnCaja.toLocaleString('es-CO'))
+      printer.bold(false)
+      printer.alignLeft()
+      printer.drawLine()
+      printer.alignCenter()
+      if (cerradoPor) printer.println('Cerrado por: ' + cerradoPor)
+      printer.println('')
+      printer.println('Firma: ________________________')
+      printer.cut()
+      await printer.execute()
+      printer.clear()
+      return { ok: true }
+    } catch (err) {
+      escribirLog('Error impresora arqueo: ' + err.message)
+      return { error: err.message }
+    }
+  })
+
   // ── IMPRESORA TERMICA: funcion compartida ─────────
   async function imprimirRecibo(datos) {
     try {
@@ -1592,7 +1950,6 @@ app.whenReady().then(() => {
       printer.drawLine()
       printer.println('Factura No. ' + (numeroFactura || Date.now().toString().slice(-6)))
       printer.println(fecha)
-      printer.println('Vendedor: ' + vendedor)
       if (cliente) printer.println('Cliente: ' + cliente)
       printer.alignLeft()
       printer.drawLine()
@@ -1682,7 +2039,6 @@ app.whenReady().then(() => {
       printer.drawLine()
       if (notas) { printer.println('Notas: ' + notas); printer.drawLine() }
       printer.alignCenter()
-      printer.println('Vendedor: ' + vendedor)
       printer.println('Conserva este papel')
       printer.println('para reclamar tu pedido')
       printer.cut()
@@ -1738,7 +2094,6 @@ app.whenReady().then(() => {
       printer.alignCenter()
       printer.println('Precios sujetos a cambio sin previo aviso.')
       printer.println('Este documento no reserva stock.')
-      printer.println('Vendedor: ' + vendedor)
       printer.cut()
       await printer.execute()
       printer.clear()
@@ -1758,5 +2113,6 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  globalShortcut.unregisterAll()
   if (process.platform !== 'darwin') app.quit()
 })

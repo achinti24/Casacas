@@ -47,7 +47,7 @@
     </div>
 
     <!-- CATEGORIAS -->
-    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:20px;">
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; margin-bottom:20px;">
 
       <div class="panel">
         <h3 style="margin-bottom:16px;">Categorias de Productos</h3>
@@ -70,16 +70,6 @@
       </div>
 
       <div class="panel">
-        <h3 style="margin-bottom:16px;">Tallas</h3>
-        <div style="display:flex; gap:8px; margin-bottom:16px;">
-          <input type="text" id="nueva-talla" placeholder="Nueva talla..."
-            style="flex:1; padding:10px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);">
-          <button class="btn btn-rojo" onclick="agregarTalla()">+</button>
-        </div>
-        <div id="lista-tallas"></div>
-      </div>
-
-      <div class="panel">
         <h3 style="margin-bottom:16px;">Categorias de Egresos</h3>
         <div style="display:flex; gap:8px; margin-bottom:16px;">
           <input type="text" id="nueva-cat-egreso" placeholder="Nueva categoria..."
@@ -89,6 +79,41 @@
         <div id="lista-cat-egreso"></div>
       </div>
 
+    </div>
+
+    <!-- GRUPOS DE TALLAS -->
+    <div class="panel">
+      <h3 style="margin-bottom:4px;">Tallas</h3>
+      <p style="margin-bottom:16px; color:var(--text-muted); font-size:13px;">
+        Organiza las tallas por grupos (ej: General, Pantalon, Medias). Cada producto elige un grupo y solo vera esas tallas.
+      </p>
+      <div style="display:grid; grid-template-columns:260px 1fr; gap:24px;">
+
+        <!-- Lista de grupos -->
+        <div>
+          <h4 style="margin-bottom:10px; color:var(--text-muted); font-size:13px; text-transform:uppercase;">Grupos</h4>
+          <div style="display:flex; gap:8px; margin-bottom:12px;">
+            <input type="text" id="nuevo-grupo-talla" placeholder="Nuevo grupo..."
+              style="flex:1; padding:10px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);">
+            <button class="btn btn-rojo" onclick="agregarGrupoTalla()">+</button>
+          </div>
+          <div id="lista-grupos-talla"></div>
+        </div>
+
+        <!-- Tallas del grupo seleccionado -->
+        <div>
+          <h4 id="titulo-tallas-grupo" style="margin-bottom:10px; color:var(--text-muted); font-size:13px; text-transform:uppercase;">
+            Tallas
+          </h4>
+          <div style="display:flex; gap:8px; margin-bottom:12px;">
+            <input type="text" id="nueva-talla" placeholder="Nueva talla... (o varias: 6, 8, 10)"
+              style="flex:1; padding:10px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);">
+            <button class="btn btn-rojo" onclick="agregarTalla()">+</button>
+          </div>
+          <div id="lista-tallas" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;"></div>
+        </div>
+
+      </div>
     </div>
   </div>
 
@@ -109,13 +134,15 @@
 
   <script src="nav.js"></script>
   <script>
-    let sesion       = null
-    let catProductos = []
-    let colegios     = []
-    let catEgresos   = []
-    let tallas       = []
-    let editandoTipo = null
-    let editandoId   = null
+    let sesion         = null
+    let catProductos   = []
+    let colegios       = []
+    let catEgresos     = []
+    let gruposTalla    = []
+    let tallas         = []          // tallas del grupo seleccionado
+    let grupoSeleccionado = null
+    let editandoTipo   = null
+    let editandoId     = null
 
     cargarMenu('configuracion.html').then(s => {
       sesion = s
@@ -142,15 +169,107 @@
       catProductos = await ipcRenderer.invoke('obtener-categorias-producto')
       colegios     = await ipcRenderer.invoke('obtener-colegios')
       catEgresos   = await ipcRenderer.invoke('obtener-categorias-egreso')
-      tallas       = await ipcRenderer.invoke('obtener-tallas')
+      gruposTalla  = await ipcRenderer.invoke('obtener-grupos-talla')
+
+      // Si el grupo seleccionado ya no existe (fue borrado), o no hay ninguno
+      // seleccionado todavia, selecciona el primero (normalmente "General").
+      if (!grupoSeleccionado || !gruposTalla.some(g => g.id === grupoSeleccionado)) {
+        grupoSeleccionado = gruposTalla.length ? gruposTalla[0].id : null
+      }
+
+      tallas = grupoSeleccionado ? await ipcRenderer.invoke('obtener-tallas', grupoSeleccionado) : []
+
       renderListas()
     }
 
     function renderListas() {
       renderLista('lista-cat-producto', catProductos, 'producto')
       renderLista('lista-colegios',     colegios,     'colegio')
-      renderLista('lista-tallas',       tallas,       'talla')
       renderLista('lista-cat-egreso',   catEgresos,   'egreso')
+      renderGruposTalla()
+      renderTallasGrupo()
+    }
+
+    function renderGruposTalla() {
+      const contenedor = document.getElementById('lista-grupos-talla')
+      if (gruposTalla.length === 0) {
+        contenedor.innerHTML = '<p style="color:var(--text-muted); font-size:14px; text-align:center; padding:10px;">Sin grupos</p>'
+        return
+      }
+      contenedor.innerHTML = gruposTalla.map(g => {
+        const activo = g.id === grupoSeleccionado
+        return `
+        <div style="display:flex; align-items:center; justify-content:space-between;
+             padding:10px 12px; background:${activo ? 'var(--rojo, #e94560)' : 'var(--bg)'}; border-radius:8px; margin-bottom:8px; cursor:pointer;"
+             onclick="seleccionarGrupoTalla(${g.id})">
+          <span style="font-size:14px; color:${activo ? '#fff' : 'var(--text)'}; font-weight:${activo ? '600' : '400'};">${g.nombre}</span>
+          <div style="display:flex; gap:6px;" onclick="event.stopPropagation()">
+            <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
+              onclick="abrirEditar('grupo', ${g.id}, '${g.nombre.replace(/'/g, "\\'")}')">
+              Editar
+            </button>
+            <button class="btn btn-rojo" style="padding:4px 10px; font-size:12px;"
+              onclick="eliminarGrupoTalla(${g.id})">
+              Eliminar
+            </button>
+          </div>
+        </div>
+      `}).join('')
+    }
+
+    function renderTallasGrupo() {
+      const grupo = gruposTalla.find(g => g.id === grupoSeleccionado)
+      document.getElementById('titulo-tallas-grupo').textContent = grupo ? `Tallas — ${grupo.nombre}` : 'Tallas'
+      const contenedor = document.getElementById('lista-tallas')
+      if (!grupoSeleccionado) {
+        contenedor.innerHTML = '<p style="color:var(--text-muted); font-size:14px; padding:10px;">Crea un grupo primero.</p>'
+        return
+      }
+      if (tallas.length === 0) {
+        contenedor.innerHTML = '<p style="color:var(--text-muted); font-size:14px; padding:10px;">Sin tallas en este grupo</p>'
+        return
+      }
+      contenedor.innerHTML = tallas.map(item => `
+        <div style="display:flex; align-items:center; justify-content:space-between;
+             padding:8px 10px; background:var(--bg); border-radius:8px;">
+          <span style="font-size:14px; color:var(--text);">${item.nombre}</span>
+          <div style="display:flex; gap:4px;">
+            <button class="btn btn-gris" style="padding:3px 8px; font-size:11px;"
+              onclick="abrirEditar('talla', ${item.id}, '${item.nombre.replace(/'/g, "\\'")}')">
+              Editar
+            </button>
+            <button class="btn btn-rojo" style="padding:3px 8px; font-size:11px;"
+              onclick="eliminar('talla', ${item.id})">
+              Eliminar
+            </button>
+          </div>
+        </div>
+      `).join('')
+    }
+
+    async function seleccionarGrupoTalla(id) {
+      grupoSeleccionado = id
+      tallas = await ipcRenderer.invoke('obtener-tallas', grupoSeleccionado)
+      renderGruposTalla()
+      renderTallasGrupo()
+    }
+
+    async function agregarGrupoTalla() {
+      const nombre = document.getElementById('nuevo-grupo-talla').value.trim()
+      if (!nombre) { alert('Escribe un nombre'); return }
+      const res = await ipcRenderer.invoke('agregar-grupo-talla', nombre)
+      if (res.error) { alert(res.error); return }
+      document.getElementById('nuevo-grupo-talla').value = ''
+      grupoSeleccionado = res.id
+      cargarDatos()
+    }
+
+    async function eliminarGrupoTalla(id) {
+      if (!confirm('Seguro que quieres eliminar este grupo y todas sus tallas?')) return
+      const res = await ipcRenderer.invoke('eliminar-grupo-talla', id)
+      if (res.error) { alert(res.error); return }
+      if (grupoSeleccionado === id) grupoSeleccionado = null
+      cargarDatos()
     }
 
     function renderLista(contenedorId, lista, tipo) {
@@ -199,18 +318,28 @@
     }
 
     async function agregarTalla() {
-      const nombre = document.getElementById('nueva-talla').value.trim()
-      if (!nombre) { alert('Escribe un nombre'); return }
-      const res = await ipcRenderer.invoke('agregar-talla', nombre)
-      if (res.error) { alert(res.error); return }
+      if (!grupoSeleccionado) { alert('Crea o selecciona un grupo de tallas primero'); return }
+      const crudo = document.getElementById('nueva-talla').value.trim()
+      if (!crudo) { alert('Escribe un nombre'); return }
+
+      // Permite agregar varias de un tiro separadas por coma (ej: "4, 6, 8, 10")
+      const nombres = crudo.split(',').map(n => n.trim()).filter(n => n.length > 0)
+
+      const errores = []
+      for (const nombre of nombres) {
+        const res = await ipcRenderer.invoke('agregar-talla', { nombre, grupoId: grupoSeleccionado })
+        if (res.error) errores.push(`${nombre}: ${res.error}`)
+      }
+
       document.getElementById('nueva-talla').value = ''
+      if (errores.length) alert('Algunas tallas no se pudieron agregar:\n' + errores.join('\n'))
       cargarDatos()
     }
 
     function abrirEditar(tipo, id, nombre) {
       editandoTipo = tipo
       editandoId   = id
-      const titulos = { producto: 'Editar Categoria de Producto', colegio: 'Editar Colegio', talla: 'Editar Talla', egreso: 'Editar Categoria de Egreso' }
+      const titulos = { producto: 'Editar Categoria de Producto', colegio: 'Editar Colegio', talla: 'Editar Talla', egreso: 'Editar Categoria de Egreso', grupo: 'Editar Grupo de Tallas' }
       document.getElementById('modal-editar-titulo').textContent = titulos[tipo]
       document.getElementById('editar-nombre').value = nombre
       document.getElementById('modal-editar').classList.add('activo')
@@ -229,6 +358,7 @@
       if (editandoTipo === 'producto') res = await ipcRenderer.invoke('editar-categoria-producto', { id: editandoId, nombre })
       else if (editandoTipo === 'colegio') res = await ipcRenderer.invoke('editar-colegio', { id: editandoId, nombre })
       else if (editandoTipo === 'talla') res = await ipcRenderer.invoke('editar-talla', { id: editandoId, nombre })
+      else if (editandoTipo === 'grupo') res = await ipcRenderer.invoke('editar-grupo-talla', { id: editandoId, nombre })
       else res = await ipcRenderer.invoke('editar-categoria-egreso', { id: editandoId, nombre })
       if (res.error) { alert(res.error); return }
       cerrarModalEditar()

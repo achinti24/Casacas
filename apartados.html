@@ -32,7 +32,8 @@
             onchange="aplicarFiltros()">
           <span>dias</span>
         </div>
-        <button class="btn btn-rojo" onclick="abrirModal()">+ Nuevo Apartado</button>
+        <button class="btn btn-gris" onclick="abrirModal('confeccion')">+ Nueva Confeccion</button>
+        <button class="btn btn-rojo" onclick="abrirModal('apartado')">+ Nuevo Apartado</button>
       </div>
     </div>
 
@@ -59,6 +60,7 @@
       <thead>
         <tr>
           <th>Cliente</th>
+          <th>Tipo</th>
           <th>Telefono</th>
           <th>Colegio</th>
           <th>Total</th>
@@ -70,7 +72,7 @@
         </tr>
       </thead>
       <tbody id="tabla-body">
-        <tr><td colspan="9" class="vacio">Cargando...</td></tr>
+        <tr><td colspan="10" class="vacio">Cargando...</td></tr>
       </tbody>
     </table>
   </div>
@@ -80,13 +82,42 @@
     <div class="modal" style="width:560px; max-height:90vh; overflow-y:auto;">
       <h2 id="modal-titulo">Nuevo Apartado</h2>
 
-      <!-- 1. PRODUCTOS PRIMERO -->
+      <!-- 1. PRODUCTOS PRIMERO (solo apartado normal) -->
       <div class="campo" id="campo-productos-apartado">
         <label>Productos apartados</label>
         <input type="text" id="ap-buscar" placeholder="Buscar producto por nombre, categoria o talla..."
           oninput="buscarProductoApartado(this.value)"
           style="width:100%; padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; margin-bottom:6px; background:var(--input-bg); color:var(--text);">
         <div id="ap-sugerencias" class="sugerencias"></div>
+      </div>
+
+      <!-- 1b. CONFECCION (uniforme a la medida, no depende de inventario) -->
+      <div class="campo" id="campo-confeccion-apartado" style="display:none; background:var(--card-bg); border:1px solid var(--border); border-radius:10px; padding:14px;">
+        <label style="margin-bottom:6px; display:block;">Prenda de confeccion</label>
+        <small style="color:var(--text-muted); display:block; margin-bottom:10px;">
+          Para uniformes mandados a hacer a la medida. No se descuenta ni requiere stock de inventario.
+        </small>
+        <div class="fila-doble">
+          <div class="campo">
+            <label>Talla / medida</label>
+            <input type="text" id="cf-talla" placeholder="Ej: 3XL o medidas especificas">
+          </div>
+          <div class="campo">
+            <label>Precio ($)</label>
+            <input type="number" id="cf-precio" min="0" placeholder="0">
+          </div>
+        </div>
+        <div class="campo">
+          <label>Detalles de la prenda</label>
+          <input type="text" id="cf-detalles" placeholder="Ej: Chaqueta colegio San Jose, tela X, bordado nombre">
+        </div>
+        <div class="fila-doble" style="align-items:flex-end;">
+          <div class="campo">
+            <label>Cantidad</label>
+            <input type="number" id="cf-cantidad" min="1" value="1">
+          </div>
+          <button type="button" class="btn btn-rojo" style="height:42px;" onclick="agregarConfeccionAlCarrito()">Agregar prenda</button>
+        </div>
       </div>
 
       <div id="ap-carrito-vacio" style="color:var(--text-muted); font-size:14px; text-align:center; padding:15px;">
@@ -210,6 +241,7 @@
     let colegios = []
     let carritoApartado = []
     let editandoId = null
+    let tipoModalActual = 'apartado'
     let datosPendientesImpresionApartado = null
 
     cargarMenu('apartados.html').then(s => {
@@ -281,7 +313,7 @@
     function renderTabla(lista, diasMax) {
       const tbody = document.getElementById('tabla-body')
       if (lista.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="vacio">No se encontraron apartados.</td></tr>'
+        tbody.innerHTML = '<tr><td colspan="10" class="vacio">No se encontraron apartados.</td></tr>'
         return
       }
       tbody.innerHTML = lista.map(a => {
@@ -293,6 +325,11 @@
             <td>
               <strong>${a.nombre}</strong>
               ${a.telefono ? `<br><small style="color:var(--text-muted);">${a.telefono}</small>` : ''}
+            </td>
+            <td>
+              <span class="badge" style="background:${a.tipo === 'confeccion' ? '#f3e8ff' : '#e8f0fe'}; color:${a.tipo === 'confeccion' ? '#7c3aed' : '#2c5282'};">
+                ${a.tipo === 'confeccion' ? 'Confeccion' : 'Apartado'}
+              </span>
             </td>
             <td>${a.telefono || '—'}</td>
             <td>${a.colegio || '—'}</td>
@@ -322,10 +359,12 @@
       }).join('')
     }
 
-    function abrirModal() {
+    function abrirModal(tipo) {
+      tipoModalActual = tipo || 'apartado'
       editandoId = null
       carritoApartado = []
-      document.getElementById('modal-titulo').textContent = 'Nuevo Apartado'
+      document.getElementById('modal-titulo').textContent =
+        tipoModalActual === 'confeccion' ? 'Nueva Confeccion' : 'Nuevo Apartado'
       document.getElementById('f-nombre').value    = ''
       document.getElementById('f-telefono').value  = ''
       document.getElementById('f-colegio').value   = ''
@@ -333,9 +372,45 @@
       document.getElementById('f-notas').value     = ''
       document.getElementById('ap-buscar').value   = ''
       document.getElementById('ap-sugerencias').innerHTML = ''
-      document.getElementById('campo-productos-apartado').style.display = 'block'
+      document.getElementById('cf-talla').value    = ''
+      document.getElementById('cf-precio').value   = ''
+      document.getElementById('cf-detalles').value = ''
+      document.getElementById('cf-cantidad').value = 1
+      document.getElementById('campo-productos-apartado').style.display  = tipoModalActual === 'confeccion' ? 'none' : 'block'
+      document.getElementById('campo-confeccion-apartado').style.display = tipoModalActual === 'confeccion' ? 'block' : 'none'
+      document.getElementById('ap-carrito-vacio').textContent =
+        tipoModalActual === 'confeccion' ? 'Agrega las prendas de la confeccion' : 'Agrega productos al apartado'
       renderCarritoApartado()
       document.getElementById('modal').classList.add('activo')
+    }
+
+    function agregarConfeccionAlCarrito() {
+      const talla    = document.getElementById('cf-talla').value.trim()
+      const precio   = parseFloat(document.getElementById('cf-precio').value)
+      const detalles = document.getElementById('cf-detalles').value.trim()
+      const cantidad = parseInt(document.getElementById('cf-cantidad').value) || 1
+
+      if (!detalles) { alert('Describe la prenda (detalles)'); return }
+      if (!precio || precio <= 0) { alert('Ingresa el precio de la prenda'); return }
+
+      carritoApartado.push({
+        variante_id:       null,
+        nombre:            detalles,
+        talla:             talla || '—',
+        talla_libre:       talla,
+        descripcion_libre: detalles,
+        categoria:         'Confeccion',
+        colegio:           '',
+        precio_unitario:   precio,
+        cantidad
+      })
+
+      document.getElementById('cf-talla').value    = ''
+      document.getElementById('cf-precio').value   = ''
+      document.getElementById('cf-detalles').value = ''
+      document.getElementById('cf-cantidad').value = 1
+
+      renderCarritoApartado()
     }
 
     function cerrarModal() {
@@ -353,6 +428,7 @@
       document.getElementById('f-abono').value    = a.abono
       document.getElementById('f-notas').value    = a.notas   || ''
       document.getElementById('campo-productos-apartado').style.display = 'none'
+      document.getElementById('campo-confeccion-apartado').style.display = 'none'
       document.getElementById('modal').classList.add('activo')
     }
 
@@ -523,7 +599,10 @@
         return
       }
 
-      if (carritoApartado.length === 0) { alert('Agrega al menos un producto al apartado'); return }
+      if (carritoApartado.length === 0) {
+        alert(tipoModalActual === 'confeccion' ? 'Agrega al menos una prenda de confeccion' : 'Agrega al menos un producto al apartado')
+        return
+      }
 
       const apartado = {
         nombre,
@@ -531,6 +610,7 @@
         colegio:    document.getElementById('f-colegio').value,
         notas:      document.getElementById('f-notas').value.trim(),
         abono:      parseFloat(document.getElementById('f-abono').value),
+        tipo:       tipoModalActual,
         usuario_id: sesion.id
       }
 
