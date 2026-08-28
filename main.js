@@ -119,7 +119,7 @@ $w=0; [WP]::WritePrinter($h,$bytes,$bytes.Length,[ref]$w)|Out-Null
   }
 }
 
-function construirBufferEscpos({ items, subtotal, abonoAplicado, totalCobrar, dado, vueltos, vendedor, cliente, numeroFactura, metodoPago }) {
+function construirBufferEscpos({ items, subtotal, abonoAplicado, totalCobrar, dado, vueltos, vendedor, cliente, numeroFactura, metodoPago, montoEfectivo, montoTransferencia, nombreFactura, cedulaFactura }) {
   const ESC    = '\x1B'
   const INIT   = ESC + '@'
   const BOLD   = ESC + 'E\x01'
@@ -131,7 +131,7 @@ function construirBufferEscpos({ items, subtotal, abonoAplicado, totalCobrar, da
   const LF     = '\n'
   const linea  = '--------------------------------'
   const fecha  = new Date().toLocaleString('es-CO')
-  const labelMetodo = metodoPago === 'transferencia' ? 'Transferencia' : 'Efectivo'
+  const labelMetodo = metodoPago === 'transferencia' ? 'Transferencia' : metodoPago === 'mixto' ? 'Efectivo + Transferencia' : 'Efectivo'
 
   const limpiar = s => s
     .replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i')
@@ -149,6 +149,8 @@ function construirBufferEscpos({ items, subtotal, abonoAplicado, totalCobrar, da
   r += CENTER + 'Factura No. ' + (numeroFactura || Date.now().toString().slice(-6)) + LF
   r += CENTER + fecha + LF
   if (cliente) r += CENTER + 'Cliente: ' + cliente + LF
+  if (nombreFactura) r += CENTER + 'Facturado a: ' + nombreFactura + LF
+  if (cedulaFactura) r += CENTER + 'C.C./NIT: ' + cedulaFactura + LF
   r += LEFT + linea + LF
   items.forEach(i => {
     const sub = (i.precio_unitario * i.cantidad).toLocaleString('es-CO')
@@ -160,7 +162,12 @@ function construirBufferEscpos({ items, subtotal, abonoAplicado, totalCobrar, da
   if (abonoAplicado > 0) r += RIGHT + 'Abono:    -$' + abonoAplicado.toLocaleString('es-CO') + LF
   r += RIGHT + BOLD + 'TOTAL:     $' + totalCobrar.toLocaleString('es-CO') + LF + UNBOLD
   r += RIGHT + 'Pago:      ' + labelMetodo + LF
-  if (metodoPago !== 'transferencia') {
+  if (metodoPago === 'mixto') {
+    r += RIGHT + 'Efectivo:      $' + (montoEfectivo || 0).toLocaleString('es-CO') + LF
+    r += RIGHT + 'Transferencia: $' + (montoTransferencia || 0).toLocaleString('es-CO') + LF
+    r += RIGHT + 'Recibido:  $' + dado.toLocaleString('es-CO') + LF
+    r += RIGHT + 'Vueltos:   $' + vueltos.toLocaleString('es-CO') + LF
+  } else if (metodoPago !== 'transferencia') {
     r += RIGHT + 'Recibido:  $' + dado.toLocaleString('es-CO') + LF
     r += RIGHT + 'Vueltos:   $' + vueltos.toLocaleString('es-CO') + LF
   }
@@ -267,7 +274,7 @@ function construirBufferCotizacion({ items, subtotal, cliente, vendedor }) {
 }
 
 // ── ARQUEO DE CAJA (ruta Windows) ─────────────────
-function construirBufferArqueo({ fechaTexto, cantidadEfectivo, totalEfectivo, cantidadTransferencia, totalTransferencia, totalEgresos, cerradoPor }) {
+function construirBufferArqueo({ fechaTexto, cantidadEfectivo, totalEfectivo, cantidadTransferencia, totalTransferencia, totalEgresos, cerradoPor, desglose }) {
   const ESC    = '\x1B'
   const INIT   = ESC + '@'
   const BOLD   = ESC + 'E\x01'
@@ -295,12 +302,26 @@ function construirBufferArqueo({ fechaTexto, cantidadEfectivo, totalEfectivo, ca
   r += CENTER + BOLD + 'ARQUEO DE CAJA' + LF + UNBOLD
   r += CENTER + fechaTexto + LF
   r += CENTER + linea + LF
-  r += LEFT + 'Ventas en efectivo (' + cantidadEfectivo + ')' + LF
+
+  // Desglose por concepto: sin esto, un total que no cuadra contra el cajon no
+  // dice de donde viene la diferencia. Aqui se ve cuanto fue venta de
+  // mostrador, cuanto abono, cuanto saldo de apartado y cuanto devolucion.
+  if (Array.isArray(desglose) && desglose.length > 0) {
+    r += LEFT + BOLD + 'DETALLE DEL DIA' + LF + UNBOLD
+    for (const d of desglose) {
+      r += LEFT + d.concepto + ' (' + d.cantidad + ')' + LF
+      r += RIGHT + (d.total < 0 ? '-$' : '$') + Math.abs(d.total).toLocaleString('es-CO') + LF
+    }
+    r += LEFT + linea + LF
+  }
+
+  // "Movimientos", no "ventas": el dia tambien incluye abonos y devoluciones.
+  r += LEFT + 'En efectivo (' + cantidadEfectivo + ' movs.)' + LF
   r += RIGHT + '$' + (totalEfectivo || 0).toLocaleString('es-CO') + LF
-  r += LEFT + 'Ventas por transferencia (' + cantidadTransferencia + ')' + LF
+  r += LEFT + 'Por transferencia (' + cantidadTransferencia + ' movs.)' + LF
   r += RIGHT + '$' + (totalTransferencia || 0).toLocaleString('es-CO') + LF
   r += LEFT + linea + LF
-  r += RIGHT + BOLD + 'Total ventas:  $' + totalVentas.toLocaleString('es-CO') + LF + UNBOLD
+  r += RIGHT + BOLD + 'Total recibido:  $' + totalVentas.toLocaleString('es-CO') + LF + UNBOLD
   r += LEFT + linea + LF
   r += RIGHT + 'Egresos del dia: -$' + (totalEgresos || 0).toLocaleString('es-CO') + LF
   r += LEFT + linea + LF
@@ -656,6 +677,26 @@ app.whenReady().then(() => {
     }
   } catch (err) {
     escribirLog('Error agregando columna metodo_pago: ' + err.message)
+  }
+
+  // ── FIX: COLUMNAS DE PAGO MIXTO Y DATOS DE FACTURACION ──
+  try {
+    const columnasVentas = db.prepare("PRAGMA table_info(ventas)").all()
+    const nombresCols    = columnasVentas.map(c => c.name)
+    const nuevasCols = [
+      ['monto_efectivo',          "ALTER TABLE ventas ADD COLUMN monto_efectivo REAL DEFAULT 0"],
+      ['monto_transferencia',     "ALTER TABLE ventas ADD COLUMN monto_transferencia REAL DEFAULT 0"],
+      ['cliente_factura_nombre',  "ALTER TABLE ventas ADD COLUMN cliente_factura_nombre TEXT"],
+      ['cliente_factura_cedula',  "ALTER TABLE ventas ADD COLUMN cliente_factura_cedula TEXT"],
+    ]
+    for (const [col, sql] of nuevasCols) {
+      if (!nombresCols.includes(col)) {
+        db.prepare(sql).run()
+        escribirLog('Columna ' + col + ' agregada a ventas')
+      }
+    }
+  } catch (err) {
+    escribirLog('Error agregando columnas de pago mixto/facturacion: ' + err.message)
   }
 
   // ── FIX: CREAR grupos_talla Y MIGRAR TALLAS/PRODUCTOS ──
@@ -1204,6 +1245,62 @@ app.whenReady().then(() => {
     return { ok: true }
   })
 
+  // ── LIBRO DE CAJA ─────────────────────────────────
+  // Toda entrada o salida de dinero real pasa por aqui. La regla es una sola:
+  // se escribe un asiento en el momento en que la plata cambia de manos, no
+  // cuando se entrega la mercancia. Por eso un apartado genera un asiento el
+  // dia del abono y otro el dia de la entrega (solo por el saldo), y un cambio
+  // de talla genera uno por la diferencia aunque no exista una venta nueva.
+  //
+  // El arqueo del dia suma este libro, asi que si un flujo mueve plata y no
+  // escribe su asiento, la caja no cuadra contra el cajon. Cualquier flujo
+  // nuevo que cobre o devuelva dinero tiene que llamar a registrarCaja().
+
+  const insertMovCaja = db.prepare(`
+    INSERT INTO movimientos_caja
+      (tipo, concepto, monto, monto_efectivo, monto_transferencia, apartado_id, venta_id, usuario_id)
+    VALUES (@tipo, @concepto, @monto, @monto_efectivo, @monto_transferencia, @apartado_id, @venta_id, @usuario_id)
+  `)
+
+  // Reparte un monto entre efectivo y transferencia segun el metodo de pago.
+  // Se usa tanto en ventas como en abonos y diferencias de cambio, para que
+  // todos los flujos partan la plata igual y el arqueo sea comparable.
+  function repartirPago(monto, metodoPago, montoTransferencia) {
+    const metodo = ['transferencia', 'mixto'].includes(metodoPago) ? metodoPago : 'efectivo'
+    if (metodo === 'transferencia') {
+      return { metodo, efectivo: 0, transferencia: monto }
+    }
+    if (metodo === 'mixto') {
+      // El signo importa: en una devolucion el monto es negativo y el reparto
+      // tiene que respetarlo, por eso se trabaja sobre el valor absoluto y se
+      // le devuelve el signo al final.
+      const signo       = monto < 0 ? -1 : 1
+      const absoluto    = Math.abs(monto)
+      const transferido = Math.min(absoluto, Math.max(0, parseFloat(montoTransferencia) || 0))
+      return {
+        metodo,
+        efectivo:      signo * (absoluto - transferido),
+        transferencia: signo * transferido
+      }
+    }
+    return { metodo, efectivo: monto, transferencia: 0 }
+  }
+
+  function registrarCaja({ tipo, concepto, monto, metodoPago, montoTransferencia, apartadoId, ventaId, usuarioId }) {
+    if (!monto) return null
+    const { efectivo, transferencia } = repartirPago(monto, metodoPago, montoTransferencia)
+    return insertMovCaja.run({
+      tipo,
+      concepto:            concepto || null,
+      monto,
+      monto_efectivo:      efectivo,
+      monto_transferencia: transferencia,
+      apartado_id:         apartadoId || null,
+      venta_id:            ventaId    || null,
+      usuario_id:          usuarioId  || null
+    })
+  }
+
   // ── APARTADOS ─────────────────────────────────────
   ipcMain.handle('obtener-apartados', () => {
     return db.prepare(`
@@ -1228,12 +1325,16 @@ app.whenReady().then(() => {
     `).all(apartadoId)
   })
 
-  ipcMain.handle('agregar-apartado', (e, { apartado, items }) => {
-    const total  = items.reduce((acc, i) => acc + (i.cantidad * i.precio_unitario), 0)
+  // El abono inicial es plata que entra HOY, aunque la mercancia se entregue
+  // semanas despues: por eso se le escribe su asiento de caja aqui mismo.
+  const crearApartado = db.transaction(({ apartado, items, metodoPago, montoTransferencia }) => {
+    const total = items.reduce((acc, i) => acc + (i.cantidad * i.precio_unitario), 0)
+    const abono = Math.max(0, Math.min(parseFloat(apartado.abono) || 0, total))
+
     const result = db.prepare(`
       INSERT INTO apartados (nombre, telefono, colegio, notas, abono, total, estado, tipo, usuario_id)
       VALUES (@nombre, @telefono, @colegio, @notas, @abono, @total, 'pendiente', @tipo, @usuario_id)
-    `).run({ ...apartado, total, tipo: apartado.tipo || 'apartado' })
+    `).run({ ...apartado, abono, total, tipo: apartado.tipo || 'apartado' })
 
     const insertItem = db.prepare(`
       INSERT INTO apartado_items (apartado_id, variante_id, cantidad, precio_unitario, descripcion_libre, talla_libre)
@@ -1249,24 +1350,138 @@ app.whenReady().then(() => {
         item.talla_libre || null
       )
     }
+
+    if (abono > 0) {
+      registrarCaja({
+        tipo:       'abono_apartado',
+        concepto:   `Abono inicial de apartado de ${apartado.nombre}`,
+        monto:      abono,
+        metodoPago, montoTransferencia,
+        apartadoId: result.lastInsertRowid,
+        usuarioId:  apartado.usuario_id
+      })
+    }
+
+    return { ok: true, apartadoId: result.lastInsertRowid, total, abono }
+  })
+
+  ipcMain.handle('agregar-apartado', (e, { apartado, items, metodoPago, montoTransferencia }) => {
+    try {
+      return crearApartado({ apartado, items, metodoPago, montoTransferencia })
+    } catch (err) {
+      escribirLog('Error creando apartado: ' + err.message)
+      return { error: 'No se pudo guardar el apartado: ' + err.message }
+    }
+  })
+
+  // Abono posterior: el cliente vuelve y deja mas plata antes de la entrega.
+  // Antes esto se hacia con un UPDATE directo sobre "abono" desde el formulario
+  // de edicion, lo que pisaba el valor anterior y no dejaba rastro de cuanto ni
+  // que dia habia entrado. Ahora suma sobre el acumulado y deja su asiento.
+  const abonarApartado = db.transaction(({ apartadoId, monto, metodoPago, montoTransferencia, usuarioId }) => {
+    const apartado = db.prepare('SELECT * FROM apartados WHERE id = ?').get(apartadoId)
+    if (!apartado) return { error: 'Apartado no encontrado' }
+    if (apartado.estado !== 'pendiente') {
+      return { error: 'Este apartado ya fue entregado. No se le pueden registrar mas abonos.' }
+    }
+
+    const cantidad = parseFloat(monto) || 0
+    if (cantidad <= 0) return { error: 'El abono debe ser mayor a cero.' }
+
+    const saldo = apartado.total - apartado.abono
+    if (cantidad > saldo) {
+      return { error: `El abono no puede superar el saldo pendiente ($${saldo.toLocaleString('es-CO')}).` }
+    }
+
+    db.prepare('UPDATE apartados SET abono = abono + ? WHERE id = ?').run(cantidad, apartadoId)
+
+    registrarCaja({
+      tipo:       'abono_apartado',
+      concepto:   `Abono de apartado de ${apartado.nombre}`,
+      monto:      cantidad,
+      metodoPago, montoTransferencia,
+      apartadoId, usuarioId
+    })
+
+    const nuevoAbono = apartado.abono + cantidad
+    return { ok: true, abono: nuevoAbono, saldo: apartado.total - nuevoAbono }
+  })
+
+  ipcMain.handle('agregar-abono-apartado', (e, datos) => {
+    try {
+      return abonarApartado(datos)
+    } catch (err) {
+      escribirLog('Error registrando abono: ' + err.message)
+      return { error: 'No se pudo registrar el abono: ' + err.message }
+    }
+  })
+
+  ipcMain.handle('obtener-abonos-apartado', (e, apartadoId) => {
+    return db.prepare(`
+      SELECT mc.id, mc.tipo, mc.monto, mc.monto_efectivo, mc.monto_transferencia,
+             mc.fecha, u.nombre as usuario
+      FROM movimientos_caja mc
+      LEFT JOIN usuarios u ON mc.usuario_id = u.id
+      WHERE mc.apartado_id = ? AND mc.tipo IN ('abono_apartado', 'abono_apartado_migrado')
+      ORDER BY mc.fecha ASC
+    `).all(apartadoId)
+  })
+
+  // Nota: "abono" ya NO se toca desde aqui. Cambiarlo a mano desataria el
+  // descuadre que este modulo existe para evitar (plata en el apartado sin
+  // asiento en caja). Los abonos entran unicamente por 'agregar-abono-apartado'.
+  ipcMain.handle('editar-apartado', (e, apartado) => {
+    db.prepare(`
+      UPDATE apartados SET nombre=@nombre, telefono=@telefono, colegio=@colegio, notas=@notas WHERE id=@id
+    `).run({
+      id:       apartado.id,
+      nombre:   apartado.nombre,
+      telefono: apartado.telefono,
+      colegio:  apartado.colegio,
+      notas:    apartado.notas
+    })
     return { ok: true }
   })
 
-  ipcMain.handle('editar-apartado', (e, apartado) => {
-    db.prepare(`
-      UPDATE apartados SET nombre=@nombre, telefono=@telefono, colegio=@colegio, notas=@notas, abono=@abono WHERE id=@id
-    `).run(apartado)
-    return { ok: true }
+  // Al borrar un apartado tambien se borran sus asientos de caja: esa plata se
+  // le devuelve al cliente, asi que no puede seguir contando como ingreso.
+  const borrarApartado = db.transaction(id => {
+    const apartado = db.prepare('SELECT * FROM apartados WHERE id = ?').get(id)
+    if (!apartado) return { error: 'Apartado no encontrado' }
+
+    // Un apartado ya entregado tiene una venta detras. Borrarlo se llevaria
+    // por delante el asiento del saldo cobrado y dejaria la venta huerfana,
+    // descuadrando el dia de la entrega. Para deshacer una entrega esta la
+    // anulacion de la venta, que si devuelve el stock y la plata como toca.
+    if (apartado.estado === 'entregado') {
+      return { error: 'Este apartado ya fue entregado. Para deshacerlo, anula la venta desde Historial.' }
+    }
+
+    db.prepare('DELETE FROM movimientos_caja WHERE apartado_id = ?').run(id)
+    db.prepare('DELETE FROM apartado_items WHERE apartado_id = ?').run(id)
+    db.prepare('DELETE FROM apartados WHERE id = ?').run(id)
+    return { ok: true, abonoDevuelto: apartado.abono }
   })
 
   ipcMain.handle('eliminar-apartado', (e, id) => {
-    db.prepare('DELETE FROM apartado_items WHERE apartado_id = ?').run(id)
-    db.prepare('DELETE FROM apartados WHERE id = ?').run(id)
-    return { ok: true }
+    try {
+      return borrarApartado(id)
+    } catch (err) {
+      escribirLog('Error eliminando apartado: ' + err.message)
+      return { error: 'No se pudo eliminar el apartado: ' + err.message }
+    }
   })
 
   // ── VENTAS ────────────────────────────────────────
-  ipcMain.handle('registrar-venta', (e, { usuarioId, apartadoId, items, abonoAplicado, metodoPago }) => {
+  // Toda la venta ocurre dentro de una unica transaccion: si algo falla a
+  // mitad de camino, SQLite revierte y no queda ni media venta registrada ni
+  // stock descontado de mas. Las validaciones van ANTES de cualquier
+  // escritura, para que devolver un error no deje nada a medias.
+  const guardarVenta = db.transaction(({
+    usuarioId, apartadoId, items, abonoAplicado, metodoPago,
+    montoEfectivo, montoTransferencia,
+    nombreFactura, cedulaFactura
+  }) => {
 
     const itemsParaStock    = []
     const itemsParaRegistro = []
@@ -1340,12 +1555,29 @@ app.whenReady().then(() => {
     const nuevoNumero = (contador?.ultimo_numero || 0) + 1
     db.prepare('UPDATE contador_facturas SET ultimo_numero = ? WHERE id = 1').run(nuevoNumero)
 
-    const metodo = metodoPago === 'transferencia' ? 'transferencia' : 'efectivo'
+    const metodo = ['transferencia', 'mixto'].includes(metodoPago) ? metodoPago : 'efectivo'
+
+    let montoEfectivoFinal = total
+    let montoTransferenciaFinal = 0
+    if (metodo === 'transferencia') {
+      montoEfectivoFinal = 0
+      montoTransferenciaFinal = total
+    } else if (metodo === 'mixto') {
+      montoTransferenciaFinal = Math.min(total, Math.max(0, parseFloat(montoTransferencia) || 0))
+      montoEfectivoFinal      = Math.max(0, total - montoTransferenciaFinal)
+    }
 
     const venta = db.prepare(`
-      INSERT INTO ventas (usuario_id, apartado_id, total, abono_aplicado, estado, numero_factura, metodo_pago)
-      VALUES (?, ?, ?, ?, 'entregado', ?, ?)
-    `).run(usuarioId, apartadoId || null, total, abonoAplicado || 0, nuevoNumero, metodo)
+      INSERT INTO ventas (
+        usuario_id, apartado_id, total, abono_aplicado, estado, numero_factura, metodo_pago,
+        monto_efectivo, monto_transferencia, cliente_factura_nombre, cliente_factura_cedula
+      )
+      VALUES (?, ?, ?, ?, 'entregado', ?, ?, ?, ?, ?, ?)
+    `).run(
+      usuarioId, apartadoId || null, total, abonoAplicado || 0, nuevoNumero, metodo,
+      montoEfectivoFinal, montoTransferenciaFinal,
+      (nombreFactura || '').trim() || null, (cedulaFactura || '').trim() || null
+    )
 
     const insertItem = db.prepare(`
       INSERT INTO venta_items (venta_id, variante_id, cantidad, precio_unitario, descripcion_libre, talla_libre)
@@ -1374,9 +1606,23 @@ app.whenReady().then(() => {
       db.prepare("UPDATE apartados SET estado='entregado', fecha_entrega=datetime('now','localtime') WHERE id=?").run(apartadoId)
     }
 
-    actualizarExcelVentas(db)
-    actualizarExcelInventario(db)
-    actualizarExcelMovimientos(db)
+    // Lo que entra a caja hoy es SOLO lo que el cliente paga ahora. Si la
+    // venta viene de un apartado, su abono ya genero su propio asiento el dia
+    // en que lo dejo, y "total" es unicamente el saldo. Registrar aqui el
+    // precio completo haria aparecer en el arqueo plata que hoy no entro al
+    // cajon, que es exactamente el descuadre que este libro corrige.
+    registrarCaja({
+      tipo:     apartadoId ? 'saldo_apartado' : 'venta',
+      concepto: apartadoId
+        ? `Saldo de apartado al entregar (factura #${nuevoNumero})`
+        : `Venta #${nuevoNumero}`,
+      monto:              total,
+      metodoPago:         metodo,
+      montoTransferencia: montoTransferenciaFinal,
+      apartadoId:         apartadoId || null,
+      ventaId:            venta.lastInsertRowid,
+      usuarioId
+    })
 
     const alertasStockBajo = db.prepare(`
       SELECT p.nombre, v.talla, v.cantidad, v.stock_minimo, p.colegio
@@ -1393,10 +1639,36 @@ app.whenReady().then(() => {
     return { ok: true, ventaId: venta.lastInsertRowid, numeroFactura: nuevoNumero, alertasStockBajo, alertasAgotados }
   })
 
+  ipcMain.handle('registrar-venta', (e, datos) => {
+    let resultado
+    try {
+      resultado = guardarVenta(datos)
+    } catch (err) {
+      escribirLog('Error registrando venta: ' + err.stack)
+      return { error: 'No se pudo registrar la venta: ' + err.message }
+    }
+
+    // Los Excel se refrescan DESPUES de confirmar la transaccion, nunca dentro:
+    // si el archivo esta abierto en otra ventana la escritura falla, y adentro
+    // ese fallo revertiria una venta que ya se cobro.
+    if (resultado && resultado.ok) {
+      try {
+        actualizarExcelVentas(db)
+        actualizarExcelInventario(db)
+        actualizarExcelMovimientos(db)
+      } catch (err) {
+        escribirLog('Venta guardada, pero fallo la actualizacion de los Excel: ' + err.message)
+      }
+    }
+    return resultado
+  })
+
   ipcMain.handle('obtener-ventas', () => {
     return db.prepare(`
       SELECT v.id, v.total, v.fecha, v.estado, v.abono_aplicado, v.anulada,
              v.numero_factura, v.motivo_anulacion, v.metodo_pago,
+             v.monto_efectivo, v.monto_transferencia,
+             v.cliente_factura_nombre, v.cliente_factura_cedula,
              u.nombre as vendedor, a.nombre as cliente,
              (
                SELECT GROUP_CONCAT(
@@ -1440,7 +1712,7 @@ app.whenReady().then(() => {
   // Reemplaza un item de una venta ya registrada por otro (ej: talla S por talla M).
   // Devuelve al stock la variante vieja, descuenta la variante nueva, y ajusta el
   // total de la venta segun la diferencia de precio entre ambas variantes.
-  ipcMain.handle('cambiar-item-venta', (e, { ventaId, itemId, varianteNuevaId, usuarioId, motivo }) => {
+  const cambiarItemVenta = db.transaction(({ ventaId, itemId, varianteNuevaId, usuarioId, motivo, metodoPago, montoTransferencia }) => {
     const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(ventaId)
     if (!venta) return { error: 'Venta no encontrada' }
     if (venta.anulada) return { error: 'No se puede cambiar un producto de una venta anulada' }
@@ -1490,9 +1762,34 @@ app.whenReady().then(() => {
     const nuevoTotal = venta.total + diferencia
     db.prepare('UPDATE ventas SET total = ? WHERE id = ?').run(nuevoTotal, ventaId)
 
-    actualizarExcelVentas(db)
-    actualizarExcelInventario(db)
-    actualizarExcelMovimientos(db)
+    // La diferencia es plata que se cobra o se devuelve HOY, aunque la venta
+    // original sea de otro dia. Va al libro de caja con su propio asiento (y
+    // con la fecha de hoy), porque el cajon la siente hoy. Ademas se reparte
+    // sobre los montos de la venta para que la factura siga cuadrando consigo
+    // misma: antes solo se movia "total" y el arqueo, que suma efectivo y
+    // transferencia, nunca se enteraba de este dinero.
+    if (diferencia !== 0) {
+      const reparto = repartirPago(diferencia, metodoPago, montoTransferencia)
+
+      db.prepare(`
+        UPDATE ventas
+        SET monto_efectivo      = COALESCE(monto_efectivo, 0) + ?,
+            monto_transferencia = COALESCE(monto_transferencia, 0) + ?
+        WHERE id = ?
+      `).run(reparto.efectivo, reparto.transferencia, ventaId)
+
+      registrarCaja({
+        tipo:     diferencia > 0 ? 'diferencia_cambio' : 'devolucion_cambio',
+        concepto: diferencia > 0
+          ? `Diferencia cobrada por cambio en venta #${numFactura}`
+          : `Diferencia devuelta por cambio en venta #${numFactura}`,
+        monto:              diferencia,
+        metodoPago,
+        montoTransferencia,
+        ventaId,
+        usuarioId
+      })
+    }
 
     return {
       ok:            true,
@@ -1503,12 +1800,33 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('cambiar-item-venta', (e, datos) => {
+    let resultado
+    try {
+      resultado = cambiarItemVenta(datos)
+    } catch (err) {
+      escribirLog('Error cambiando item de venta: ' + err.stack)
+      return { error: 'No se pudo hacer el cambio: ' + err.message }
+    }
+
+    if (resultado && resultado.ok) {
+      try {
+        actualizarExcelVentas(db)
+        actualizarExcelInventario(db)
+        actualizarExcelMovimientos(db)
+      } catch (err) {
+        escribirLog('Cambio guardado, pero fallo la actualizacion de los Excel: ' + err.message)
+      }
+    }
+    return resultado
+  })
+
   // ── ANULAR VENTA (solo administradores) ───────────
   // No borra el registro de la venta (queda marcada como anulada, para que
   // no se pierda el historial/contabilidad), pero devuelve el stock vendido
   // al inventario. Los bundles no estan soportados todavia (igual que en
   // 'cambiar-item-venta'), ya que involucran multiples componentes de stock.
-  ipcMain.handle('anular-venta', (e, { ventaId, usuarioId, motivo }) => {
+  const anularVenta = db.transaction(({ ventaId, usuarioId, motivo }) => {
     const usuario = db.prepare('SELECT rol FROM usuarios WHERE id = ?').get(usuarioId)
     if (!usuario || usuario.rol !== 'admin') {
       return { error: 'Solo un administrador puede anular una venta.' }
@@ -1542,11 +1860,60 @@ app.whenReady().then(() => {
     db.prepare('UPDATE ventas SET anulada = 1, motivo_anulacion = ? WHERE id = ?')
       .run(motivo || 'Sin motivo especificado', ventaId)
 
-    actualizarExcelVentas(db)
-    actualizarExcelInventario(db)
-    actualizarExcelMovimientos(db)
+    // La plata se devuelve HOY, no el dia de la venta. Por eso el asiento
+    // original se queda intacto en su fecha y aqui se escribe uno negativo con
+    // la fecha de hoy: asi el arqueo de aquel dia sigue cuadrando con lo que
+    // se conto ese dia, y la salida aparece en la caja de hoy, que es cuando
+    // el dinero sale del cajon de verdad.
+    //
+    // Se devuelve unicamente lo que se cobro en ESTA venta (el saldo del dia
+    // de la entrega mas las diferencias de cambios). Si la venta venia de un
+    // apartado, el abono se cobro otro dia y NO se devuelve automaticamente:
+    // se informa en "abonoAplicado" para que se decida a mano, porque
+    // devolverlo o no es una decision del negocio, no del sistema.
+    const cobradoEfectivo      = venta.monto_efectivo      || 0
+    const cobradoTransferencia = venta.monto_transferencia || 0
+    const totalDevuelto        = cobradoEfectivo + cobradoTransferencia
 
-    return { ok: true }
+    if (totalDevuelto !== 0) {
+      insertMovCaja.run({
+        tipo:                'devolucion_anulacion',
+        concepto:            `Devolucion por anulacion de venta #${numFactura}` + (motivo ? ' - ' + motivo : ''),
+        monto:               -totalDevuelto,
+        monto_efectivo:      -cobradoEfectivo,
+        monto_transferencia: -cobradoTransferencia,
+        apartado_id:         venta.apartado_id || null,
+        venta_id:            ventaId,
+        usuario_id:          usuarioId
+      })
+    }
+
+    return {
+      ok:             true,
+      totalDevuelto,
+      abonoAplicado:  venta.abono_aplicado || 0
+    }
+  })
+
+  ipcMain.handle('anular-venta', (e, datos) => {
+    let resultado
+    try {
+      resultado = anularVenta(datos)
+    } catch (err) {
+      escribirLog('Error anulando venta: ' + err.stack)
+      return { error: 'No se pudo anular la venta: ' + err.message }
+    }
+
+    if (resultado && resultado.ok) {
+      try {
+        actualizarExcelVentas(db)
+        actualizarExcelInventario(db)
+        actualizarExcelMovimientos(db)
+      } catch (err) {
+        escribirLog('Anulacion guardada, pero fallo la actualizacion de los Excel: ' + err.message)
+      }
+    }
+    return resultado
   })
 
   // ── REIMPRIMIR RECIBO ─────────────────────────────
@@ -1582,7 +1949,11 @@ app.whenReady().then(() => {
         vendedor:      vendedor?.nombre || 'Desconocido',
         cliente:       cliente?.nombre || null,
         numeroFactura: venta.numero_factura || ventaId,
-        metodoPago:    venta.metodo_pago || 'efectivo'
+        metodoPago:    venta.metodo_pago || 'efectivo',
+        montoEfectivo:       venta.monto_efectivo,
+        montoTransferencia:  venta.monto_transferencia,
+        nombreFactura:       venta.cliente_factura_nombre,
+        cedulaFactura:       venta.cliente_factura_cedula
       })
     } catch (err) {
       return { error: err.message }
@@ -1648,23 +2019,31 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('obtener-estadisticas', () => {
+    // Estas series miden DINERO QUE ENTRO, no mercancia facturada, y por eso
+    // salen del libro de caja. Un apartado aporta a su dia de abono y a su dia
+    // de entrega por separado, que es como el negocio siente la plata. Antes
+    // salian de SUM(ventas.total), donde los abonos no aparecian nunca.
     const ventasPorDia = db.prepare(`
-      SELECT date(fecha) as dia, COUNT(*) as cantidad, SUM(total) as total
-      FROM ventas WHERE anulada = 0 AND date(fecha) >= date('now', '-7 days', 'localtime')
+      SELECT date(fecha) as dia,
+             SUM(CASE WHEN tipo IN ('venta', 'saldo_apartado') THEN 1 ELSE 0 END) as cantidad,
+             COALESCE(SUM(monto), 0) as total
+      FROM movimientos_caja WHERE date(fecha) >= date('now', '-7 days', 'localtime')
       GROUP BY date(fecha) ORDER BY dia ASC
     `).all()
 
     const ventasPorSemana = db.prepare(`
       SELECT strftime('%W', fecha) as semana, strftime('%Y', fecha) as anio,
-             COUNT(*) as cantidad, SUM(total) as total
-      FROM ventas WHERE anulada = 0 AND date(fecha) >= date('now', '-28 days', 'localtime')
+             SUM(CASE WHEN tipo IN ('venta', 'saldo_apartado') THEN 1 ELSE 0 END) as cantidad,
+             COALESCE(SUM(monto), 0) as total
+      FROM movimientos_caja WHERE date(fecha) >= date('now', '-28 days', 'localtime')
       GROUP BY strftime('%W', fecha) ORDER BY anio ASC, semana ASC
     `).all()
 
     const ventasPorMes = db.prepare(`
       SELECT strftime('%m', fecha) as mes, strftime('%Y', fecha) as anio,
-             COUNT(*) as cantidad, SUM(total) as total
-      FROM ventas WHERE anulada = 0 AND date(fecha) >= date('now', '-180 days', 'localtime')
+             SUM(CASE WHEN tipo IN ('venta', 'saldo_apartado') THEN 1 ELSE 0 END) as cantidad,
+             COALESCE(SUM(monto), 0) as total
+      FROM movimientos_caja WHERE date(fecha) >= date('now', '-180 days', 'localtime')
       GROUP BY strftime('%Y-%m', fecha) ORDER BY anio ASC, mes ASC
     `).all()
 
@@ -1720,8 +2099,9 @@ app.whenReady().then(() => {
     const resumenMeses = db.prepare(`
       SELECT strftime('%Y-%m', fecha) as periodo,
              strftime('%m', fecha) as mes, strftime('%Y', fecha) as anio,
-             SUM(total) as ingresos, COUNT(*) as ventas
-      FROM ventas WHERE anulada = 0 AND date(fecha) >= date('now', '-180 days', 'localtime')
+             COALESCE(SUM(monto), 0) as ingresos,
+             SUM(CASE WHEN tipo IN ('venta', 'saldo_apartado') THEN 1 ELSE 0 END) as ventas
+      FROM movimientos_caja WHERE date(fecha) >= date('now', '-180 days', 'localtime')
       GROUP BY strftime('%Y-%m', fecha) ORDER BY periodo ASC
     `).all()
 
@@ -1738,10 +2118,53 @@ app.whenReady().then(() => {
     }
   })
 
+  // Ingresos reales de hoy / esta semana / este mes, para las metas. Se miden
+  // contra el libro de caja porque una meta de ventas se cumple con la plata
+  // que efectivamente entro, no con el precio de la mercancia entregada.
+  // Los limites del periodo los manda la pantalla, que ya sabe donde empieza
+  // su semana.
+  ipcMain.handle('obtener-ingresos-resumen', (e, { dia, desdeSemana, mes } = {}) => {
+    const hoy = dia || new Date().toISOString().slice(0, 10)
+
+    const contarVentas = `SUM(CASE WHEN tipo IN ('venta', 'saldo_apartado') THEN 1 ELSE 0 END)`
+
+    const delDia = db.prepare(`
+      SELECT COALESCE(SUM(monto), 0) as total, ${contarVentas} as transacciones
+      FROM movimientos_caja WHERE date(fecha) = date(?)
+    `).get(hoy)
+
+    const deLaSemana = db.prepare(`
+      SELECT COALESCE(SUM(monto), 0) as total, ${contarVentas} as transacciones
+      FROM movimientos_caja WHERE date(fecha) >= date(?)
+    `).get(desdeSemana || hoy)
+
+    const delMes = db.prepare(`
+      SELECT COALESCE(SUM(monto), 0) as total, ${contarVentas} as transacciones
+      FROM movimientos_caja WHERE strftime('%Y-%m', fecha) = ?
+    `).get(mes || hoy.slice(0, 7))
+
+    // Ingreso total de cada dia del ultimo año, para la racha y el "mejor dia
+    // de la semana". Se calculan sobre la misma fuente que las metas para que
+    // no se contradigan entre si en la misma pantalla.
+    const porDia = db.prepare(`
+      SELECT date(fecha) as dia, COALESCE(SUM(monto), 0) as total
+      FROM movimientos_caja WHERE date(fecha) >= date('now', '-365 days', 'localtime')
+      GROUP BY date(fecha) ORDER BY dia ASC
+    `).all()
+
+    return {
+      dia:    { total: delDia.total     || 0, transacciones: delDia.transacciones     || 0 },
+      semana: { total: deLaSemana.total || 0, transacciones: deLaSemana.transacciones || 0 },
+      mes:    { total: delMes.total     || 0, transacciones: delMes.transacciones     || 0 },
+      porDia
+    }
+  })
+
   // ── REPORTES ──────────────────────────────────────
   ipcMain.handle('obtener-reporte', (e, { fechaInicio, fechaFin }) => {
     const ventas = db.prepare(`
       SELECT v.id, v.total, v.fecha, v.estado, v.abono_aplicado, v.metodo_pago,
+             v.monto_efectivo, v.monto_transferencia,
              u.nombre as vendedor, a.nombre as cliente
       FROM ventas v
       LEFT JOIN usuarios u ON v.usuario_id = u.id
@@ -1751,11 +2174,21 @@ app.whenReady().then(() => {
       ORDER BY v.fecha DESC
     `).all(fechaInicio, fechaFin)
 
-    const totalVendido        = ventas.reduce((acc, v) => acc + v.total, 0)
-    const ventasEfectivo      = ventas.filter(v => v.metodo_pago !== 'transferencia')
-    const ventasTransferencia = ventas.filter(v => v.metodo_pago === 'transferencia')
-    const totalEfectivo       = ventasEfectivo.reduce((acc, v) => acc + v.total, 0)
-    const totalTransferencia  = ventasTransferencia.reduce((acc, v) => acc + v.total, 0)
+    // Los totales de dinero del reporte salen del libro de caja, igual que el
+    // arqueo, para que ambos digan siempre lo mismo. La lista "ventas" de
+    // arriba sigue siendo el detalle de facturas del periodo; el dinero puede
+    // no coincidir con esa lista, porque un abono de un apartado que todavia
+    // no se entrega es plata cobrada sin factura asociada.
+    const movimientosPeriodo = db.prepare(`
+      SELECT tipo, monto, monto_efectivo, monto_transferencia
+      FROM movimientos_caja WHERE date(fecha) BETWEEN date(?) AND date(?)
+    `).all(fechaInicio, fechaFin)
+
+    const totalVendido       = movimientosPeriodo.reduce((acc, m) => acc + (m.monto || 0), 0)
+    const totalEfectivo      = movimientosPeriodo.reduce((acc, m) => acc + (m.monto_efectivo || 0), 0)
+    const totalTransferencia = movimientosPeriodo.reduce((acc, m) => acc + (m.monto_transferencia || 0), 0)
+    const cantidadEfectivo      = movimientosPeriodo.filter(m => (m.monto_efectivo      || 0) !== 0).length
+    const cantidadTransferencia = movimientosPeriodo.filter(m => (m.monto_transferencia || 0) !== 0).length
 
     const masVendidos = db.prepare(`
       SELECT p.nombre, p.colegio, pv.talla, p.categoria,
@@ -1781,11 +2214,12 @@ app.whenReady().then(() => {
     `).get(fechaInicio, fechaFin)
 
     const porDia = db.prepare(`
-      SELECT date(v.fecha) as dia, COUNT(*) as cantidad_ventas, SUM(v.total) as total
-      FROM ventas v
-      WHERE date(v.fecha) BETWEEN date(?) AND date(?)
-        AND (v.anulada IS NULL OR v.anulada = 0)
-      GROUP BY date(v.fecha) ORDER BY dia DESC
+      SELECT date(fecha) as dia,
+             SUM(CASE WHEN tipo IN ('venta', 'saldo_apartado') THEN 1 ELSE 0 END) as cantidad_ventas,
+             COALESCE(SUM(monto), 0) as total
+      FROM movimientos_caja
+      WHERE date(fecha) BETWEEN date(?) AND date(?)
+      GROUP BY date(fecha) ORDER BY dia DESC
     `).all(fechaInicio, fechaFin)
 
     const totalEgresos = db.prepare(`
@@ -1810,9 +2244,9 @@ app.whenReady().then(() => {
       totalVendido,
       cantidadVentas:        ventas.length,
       totalEfectivo,
-      cantidadEfectivo:      ventasEfectivo.length,
+      cantidadEfectivo,
       totalTransferencia,
-      cantidadTransferencia: ventasTransferencia.length,
+      cantidadTransferencia,
       masVendidos,
       entradas:              entradas.total || 0,
       salidas:               salidas.total  || 0,
@@ -1827,27 +2261,95 @@ app.whenReady().then(() => {
   ipcMain.handle('obtener-ruta-excel', () => getRutaExcel())
 
   // ── ARQUEO DE CAJA ─────────────────────────────────
-  function resumenCajaDelDia(fecha) {
-    const ventas = db.prepare(`
-      SELECT total, metodo_pago FROM ventas
-      WHERE date(fecha) = date(?) AND (anulada IS NULL OR anulada = 0)
-    `).all(fecha)
+  // Etiquetas legibles para el desglose impreso del arqueo.
+  const ETIQUETAS_CAJA = {
+    venta:                   'Ventas de mostrador',
+    abono_apartado:          'Abonos de apartados',
+    abono_apartado_migrado:  'Abonos de apartados',
+    saldo_apartado:          'Saldos de apartados entregados',
+    diferencia_cambio:       'Diferencias cobradas por cambios',
+    devolucion_cambio:       'Diferencias devueltas por cambios',
+    devolucion_anulacion:    'Devoluciones por anulaciones'
+  }
 
-    const ventasEfectivo      = ventas.filter(v => v.metodo_pago !== 'transferencia')
-    const ventasTransferencia = ventas.filter(v => v.metodo_pago === 'transferencia')
+  // El resumen sale del libro de caja, no de la tabla "ventas". Es la unica
+  // forma de que cuadre contra el cajon: el dinero de un apartado entra en dos
+  // dias distintos, y un cambio o una anulacion mueven plata sin que haya una
+  // venta nueva ese dia.
+  //
+  // Los asientos anulados NO se excluyen: una venta anulada deja su asiento
+  // original en su fecha y genera uno negativo el dia de la anulacion. Filtrar
+  // por "anulada = 0" (como se hacia antes) cambiaba retroactivamente el
+  // arqueo de un dia ya cerrado y contado.
+  function resumenCajaDelDia(fecha) {
+    const movimientos = db.prepare(`
+      SELECT tipo, monto, monto_efectivo, monto_transferencia
+      FROM movimientos_caja WHERE date(fecha) = date(?)
+    `).all(fecha)
 
     const egresos = db.prepare(`
       SELECT COALESCE(SUM(monto), 0) as total FROM egresos WHERE date(fecha) = date(?)
     `).get(fecha)
 
+    const suma = (campo) => movimientos.reduce((acc, m) => acc + (m[campo] || 0), 0)
+
+    // Desglose por concepto, para que al cerrar se pueda ver de donde salio
+    // cada peso y encontrar rapido de donde viene una diferencia.
+    const porTipo = {}
+    for (const m of movimientos) {
+      const etiqueta = ETIQUETAS_CAJA[m.tipo] || m.tipo
+      if (!porTipo[etiqueta]) porTipo[etiqueta] = { concepto: etiqueta, cantidad: 0, total: 0 }
+      porTipo[etiqueta].cantidad += 1
+      porTipo[etiqueta].total    += m.monto || 0
+    }
+
     return {
-      cantidadEfectivo:      ventasEfectivo.length,
-      totalEfectivo:         ventasEfectivo.reduce((acc, v) => acc + v.total, 0),
-      cantidadTransferencia: ventasTransferencia.length,
-      totalTransferencia:    ventasTransferencia.reduce((acc, v) => acc + v.total, 0),
-      totalEgresos:          egresos.total || 0
+      cantidadEfectivo:      movimientos.filter(m => (m.monto_efectivo      || 0) !== 0).length,
+      totalEfectivo:         suma('monto_efectivo'),
+      cantidadTransferencia: movimientos.filter(m => (m.monto_transferencia || 0) !== 0).length,
+      totalTransferencia:    suma('monto_transferencia'),
+      totalEgresos:          egresos.total || 0,
+      desglose:              Object.values(porTipo).sort((a, b) => b.total - a.total)
     }
   }
+
+  // Movimientos de dinero recientes, con los nombres ya resueltos, para poder
+  // mostrarlos en las pantallas junto a las ventas. Sin esto el dinero de un
+  // abono queda registrado pero invisible: no crea una venta, asi que no
+  // aparece en ninguna lista que solo consulte la tabla "ventas".
+  ipcMain.handle('obtener-movimientos-caja', (e, { limite } = {}) => {
+    return db.prepare(`
+      SELECT mc.id, mc.tipo, mc.concepto, mc.monto, mc.monto_efectivo,
+             mc.monto_transferencia, mc.fecha, mc.venta_id, mc.apartado_id,
+             v.numero_factura,
+             u.nombre as usuario,
+             a.nombre as cliente,
+             a.total  as apartado_total,
+             a.abono  as apartado_abono
+      FROM movimientos_caja mc
+      LEFT JOIN usuarios  u ON mc.usuario_id  = u.id
+      LEFT JOIN ventas    v ON mc.venta_id    = v.id
+      LEFT JOIN apartados a ON mc.apartado_id = a.id
+      ORDER BY mc.fecha DESC, mc.id DESC
+      LIMIT ?
+    `).all(limite || 500)
+  })
+
+  // Detalle movimiento por movimiento del dia, para cuadrar la caja cuando el
+  // total no coincide con lo contado a mano.
+  ipcMain.handle('obtener-movimientos-caja-dia', (e, fecha) => {
+    const dia = fecha || new Date().toISOString().slice(0, 10)
+    return db.prepare(`
+      SELECT mc.id, mc.tipo, mc.concepto, mc.monto, mc.monto_efectivo,
+             mc.monto_transferencia, mc.fecha, mc.venta_id, mc.apartado_id,
+             u.nombre as usuario, v.numero_factura
+      FROM movimientos_caja mc
+      LEFT JOIN usuarios u ON mc.usuario_id = u.id
+      LEFT JOIN ventas   v ON mc.venta_id   = v.id
+      WHERE date(mc.fecha) = date(?)
+      ORDER BY mc.fecha ASC, mc.id ASC
+    `).all(dia)
+  })
 
   ipcMain.handle('obtener-resumen-caja-dia', (e, fecha) => {
     return resumenCajaDelDia(fecha || new Date().toISOString().slice(0, 10))
@@ -1886,18 +2388,35 @@ app.whenReady().then(() => {
       printer.println(fechaTexto)
       printer.drawLine()
       printer.alignLeft()
-      printer.println('Ventas en efectivo (' + resumen.cantidadEfectivo + ')')
+
+      // Mismo desglose que en la version de Windows: permite rastrear de donde
+      // sale una diferencia sin tener que abrir la aplicacion.
+      if (Array.isArray(resumen.desglose) && resumen.desglose.length > 0) {
+        printer.bold(true)
+        printer.println('DETALLE DEL DIA')
+        printer.bold(false)
+        for (const d of resumen.desglose) {
+          printer.alignLeft()
+          printer.println(d.concepto + ' (' + d.cantidad + ')')
+          printer.alignRight()
+          printer.println((d.total < 0 ? '-$' : '$') + Math.abs(d.total).toLocaleString('es-CO'))
+        }
+        printer.alignLeft()
+        printer.drawLine()
+      }
+
+      printer.println('En efectivo (' + resumen.cantidadEfectivo + ' movs.)')
       printer.alignRight()
       printer.println('$' + resumen.totalEfectivo.toLocaleString('es-CO'))
       printer.alignLeft()
-      printer.println('Ventas por transferencia (' + resumen.cantidadTransferencia + ')')
+      printer.println('Por transferencia (' + resumen.cantidadTransferencia + ' movs.)')
       printer.alignRight()
       printer.println('$' + resumen.totalTransferencia.toLocaleString('es-CO'))
       printer.alignLeft()
       printer.drawLine()
       printer.alignRight()
       printer.bold(true)
-      printer.println('Total ventas:  $' + totalVentas.toLocaleString('es-CO'))
+      printer.println('Total recibido:  $' + totalVentas.toLocaleString('es-CO'))
       printer.bold(false)
       printer.alignLeft()
       printer.drawLine()
@@ -1936,9 +2455,9 @@ app.whenReady().then(() => {
       const printer   = crearImpresora()
       const conectada = await printer.isPrinterConnected()
       if (!conectada) return { error: 'No se pudo conectar con la impresora. Verifica la configuracion en Ajustes.' }
-      const { items, subtotal, abonoAplicado, totalCobrar, dado, vueltos, vendedor, cliente, numeroFactura, metodoPago } = datos
+      const { items, subtotal, abonoAplicado, totalCobrar, dado, vueltos, vendedor, cliente, numeroFactura, metodoPago, montoEfectivo, montoTransferencia, nombreFactura, cedulaFactura } = datos
       const fecha       = new Date().toLocaleString('es-CO')
-      const labelMetodo = metodoPago === 'transferencia' ? 'Transferencia' : 'Efectivo'
+      const labelMetodo = metodoPago === 'transferencia' ? 'Transferencia' : metodoPago === 'mixto' ? 'Efectivo + Transferencia' : 'Efectivo'
       printer.alignCenter()
       printer.bold(true)
       printer.println('Casacas Colegial')
@@ -1951,6 +2470,8 @@ app.whenReady().then(() => {
       printer.println('Factura No. ' + (numeroFactura || Date.now().toString().slice(-6)))
       printer.println(fecha)
       if (cliente) printer.println('Cliente: ' + cliente)
+      if (nombreFactura) printer.println('Facturado a: ' + nombreFactura)
+      if (cedulaFactura) printer.println('C.C./NIT: ' + cedulaFactura)
       printer.alignLeft()
       printer.drawLine()
       items.forEach(i => {
@@ -1966,7 +2487,12 @@ app.whenReady().then(() => {
       printer.println('TOTAL:     $' + totalCobrar.toLocaleString('es-CO'))
       printer.bold(false)
       printer.println('Pago:      ' + labelMetodo)
-      if (metodoPago !== 'transferencia') {
+      if (metodoPago === 'mixto') {
+        printer.println('Efectivo:      $' + (montoEfectivo || 0).toLocaleString('es-CO'))
+        printer.println('Transferencia: $' + (montoTransferencia || 0).toLocaleString('es-CO'))
+        printer.println('Recibido:  $' + dado.toLocaleString('es-CO'))
+        printer.println('Vueltos:   $' + vueltos.toLocaleString('es-CO'))
+      } else if (metodoPago !== 'transferencia') {
         printer.println('Recibido:  $' + dado.toLocaleString('es-CO'))
         printer.println('Vueltos:   $' + vueltos.toLocaleString('es-CO'))
       }
@@ -1986,6 +2512,14 @@ app.whenReady().then(() => {
   }
 
   ipcMain.handle('imprimir-recibo', async (e, datos) => {
+    if (datos.ventaId && ((datos.nombreFactura || '').trim() || (datos.cedulaFactura || '').trim())) {
+      try {
+        db.prepare('UPDATE ventas SET cliente_factura_nombre = ?, cliente_factura_cedula = ? WHERE id = ?')
+          .run((datos.nombreFactura || '').trim() || null, (datos.cedulaFactura || '').trim() || null, datos.ventaId)
+      } catch (err) {
+        escribirLog('Error guardando datos de facturacion: ' + err.message)
+      }
+    }
     return await imprimirRecibo(datos)
   })
 

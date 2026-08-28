@@ -1,6 +1,6 @@
 {
   "name": "casacas",
-  "version": "1.5.7",
+  "version": "2.0.1",
   "description": "Sistema de inventario para tienda de ropa",
   "main": "main.js",
   "type": "commonjs",

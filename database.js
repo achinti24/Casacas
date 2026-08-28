@@ -127,6 +127,11 @@ db.exec(`
     estado TEXT DEFAULT 'entregado',
     anulada INTEGER DEFAULT 0,
     motivo_anulacion TEXT,
+    metodo_pago TEXT DEFAULT 'efectivo',
+    monto_efectivo REAL DEFAULT 0,
+    monto_transferencia REAL DEFAULT 0,
+    cliente_factura_nombre TEXT,
+    cliente_factura_cedula TEXT,
     fecha TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
     FOREIGN KEY (apartado_id) REFERENCES apartados(id)
@@ -236,6 +241,32 @@ db.exec(`
     FOREIGN KEY (insumo_id) REFERENCES insumos(id),
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
   );
+
+  -- ── LIBRO DE CAJA ───────────────────────────────────────────────────────
+  -- Registro de TODO el dinero que entra o sale del negocio, en el momento
+  -- exacto en que ocurre. Existe porque "venta" y "dinero" no son lo mismo:
+  -- un apartado cobra plata el dia del abono y el resto el dia de la entrega,
+  -- y un cambio de talla mueve plata sin que haya una venta nueva. Antes el
+  -- arqueo se deducia de la tabla "ventas", asi que todo ese dinero era
+  -- invisible y la caja nunca cuadraba contra el cajon.
+  --
+  -- Convencion de signos: monto > 0 entra plata, monto < 0 sale plata.
+  -- monto_efectivo + monto_transferencia siempre suman monto (con su signo).
+  CREATE TABLE IF NOT EXISTS movimientos_caja (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT NOT NULL,
+    concepto TEXT,
+    monto REAL NOT NULL,
+    monto_efectivo REAL DEFAULT 0,
+    monto_transferencia REAL DEFAULT 0,
+    apartado_id INTEGER,
+    venta_id INTEGER,
+    usuario_id INTEGER,
+    fecha TEXT DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (apartado_id) REFERENCES apartados(id),
+    FOREIGN KEY (venta_id) REFERENCES ventas(id),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+  );
 `)
 
 function columnaExiste(tabla, columna) {
@@ -303,11 +334,31 @@ const createMigrations = [
     nombre TEXT UNIQUE NOT NULL,
     orden INTEGER DEFAULT 0
   )`,
+  `CREATE TABLE IF NOT EXISTS movimientos_caja (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT NOT NULL,
+    concepto TEXT,
+    monto REAL NOT NULL,
+    monto_efectivo REAL DEFAULT 0,
+    monto_transferencia REAL DEFAULT 0,
+    apartado_id INTEGER,
+    venta_id INTEGER,
+    usuario_id INTEGER,
+    fecha TEXT DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (apartado_id) REFERENCES apartados(id),
+    FOREIGN KEY (venta_id) REFERENCES ventas(id),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+  )`,
 ]
 
 const alterMigrations = [
   { tabla: 'ventas', columna: 'anulada', sql: `ALTER TABLE ventas ADD COLUMN anulada INTEGER DEFAULT 0` },
   { tabla: 'ventas', columna: 'motivo_anulacion', sql: `ALTER TABLE ventas ADD COLUMN motivo_anulacion TEXT` },
+  { tabla: 'ventas', columna: 'monto_efectivo', sql: `ALTER TABLE ventas ADD COLUMN monto_efectivo REAL DEFAULT 0` },
+  { tabla: 'ventas', columna: 'monto_transferencia', sql: `ALTER TABLE ventas ADD COLUMN monto_transferencia REAL DEFAULT 0` },
+  { tabla: 'ventas', columna: 'cliente_factura_nombre', sql: `ALTER TABLE ventas ADD COLUMN cliente_factura_nombre TEXT` },
+  { tabla: 'ventas', columna: 'cliente_factura_cedula', sql: `ALTER TABLE ventas ADD COLUMN cliente_factura_cedula TEXT` },
+  { tabla: 'ventas', columna: 'metodo_pago', sql: `ALTER TABLE ventas ADD COLUMN metodo_pago TEXT DEFAULT 'efectivo'` },
   { tabla: 'producto_variantes', columna: 'precio_costo', sql: `ALTER TABLE producto_variantes ADD COLUMN precio_costo REAL DEFAULT 0` },
   { tabla: 'tallas', columna: 'grupo_id', sql: `ALTER TABLE tallas ADD COLUMN grupo_id INTEGER REFERENCES grupos_talla(id)` },
   { tabla: 'productos', columna: 'grupo_talla_id', sql: `ALTER TABLE productos ADD COLUMN grupo_talla_id INTEGER REFERENCES grupos_talla(id)` },
@@ -335,6 +386,9 @@ const ejecutarMigraciones = db.transaction(() => {
   }
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ventas_numero_factura ON ventas(numero_factura)`)
 
+  // El arqueo consulta el libro de caja siempre filtrando por dia.
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_movimientos_caja_fecha ON movimientos_caja(fecha)`)
+
   // Reconstruccion segura de "tallas" si viene de una version anterior con
   // UNIQUE solo en nombre. Se copian todos los datos existentes (id, nombre,
   // grupo_id, orden) a una tabla nueva con la restriccion correcta
@@ -360,6 +414,56 @@ try {
   ejecutarMigraciones()
 } catch (e) {
   console.error('Error durante las migraciones (se revirtio todo, la BD quedo intacta):', e.message)
+}
+
+// ── Backfill: abonos cobrados antes de que existiera el libro de caja ────────
+// Los apartados que ya estaban en la base traen su abono acumulado en la
+// columna "abono", pero sin ningun asiento de caja detras (ese dinero se
+// recibio cuando la app todavia no lo registraba). Se les crea un asiento
+// fechado el dia en que se creo el apartado, para que los arqueos viejos
+// queden consistentes.
+//
+// No se sabe si aquellos abonos fueron en efectivo o transferencia, asi que se
+// asumen en efectivo y quedan marcados con tipo 'abono_apartado_migrado' para
+// poder distinguirlos de los que registre la app de ahora en adelante.
+//
+// Es idempotente: solo toca apartados que todavia no tengan ningun asiento,
+// por lo que correrlo en cada arranque no duplica nada.
+const backfillAbonos = db.transaction(() => {
+  const sinAsiento = db.prepare(`
+    SELECT a.id, a.nombre, a.abono, a.fecha_creacion, a.usuario_id
+    FROM apartados a
+    WHERE a.abono > 0
+      AND NOT EXISTS (
+        SELECT 1 FROM movimientos_caja mc
+        WHERE mc.apartado_id = a.id
+          AND mc.tipo IN ('abono_apartado', 'abono_apartado_migrado')
+      )
+  `).all()
+
+  const insertar = db.prepare(`
+    INSERT INTO movimientos_caja
+      (tipo, concepto, monto, monto_efectivo, monto_transferencia, apartado_id, usuario_id, fecha)
+    VALUES ('abono_apartado_migrado', ?, ?, ?, 0, ?, ?, ?)
+  `)
+
+  for (const a of sinAsiento) {
+    insertar.run(
+      `Abono de apartado de ${a.nombre} (registrado antes del libro de caja)`,
+      a.abono, a.abono, a.id, a.usuario_id,
+      a.fecha_creacion || new Date().toISOString().slice(0, 19).replace('T', ' ')
+    )
+  }
+
+  if (sinAsiento.length > 0) {
+    console.log(`Libro de caja: se migraron ${sinAsiento.length} abono(s) de apartados anteriores.`)
+  }
+})
+
+try {
+  backfillAbonos()
+} catch (e) {
+  console.error('Error migrando abonos al libro de caja (no se aplico nada):', e.message)
 }
 
 // Inicializar contador de facturas

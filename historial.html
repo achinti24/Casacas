@@ -38,6 +38,34 @@
       </div>
     </div>
 
+    <!-- Movimientos de DINERO del dia. La tabla de abajo es de inventario
+         (entradas y salidas de prendas); este panel muestra la plata, que es
+         lo que hay que cuadrar contra el cajon al cerrar. Aqui aparecen los
+         abonos de apartados, que no crean una venta y por eso no salen en
+         ninguna lista de ventas. -->
+    <div class="panel" style="margin-bottom:20px;">
+      <h3 style="margin-bottom:4px;">Caja de hoy</h3>
+      <p style="color:var(--text-muted); font-size:13px; margin-bottom:12px;">
+        Todo el dinero que entro o salio hoy, incluidos los abonos de apartados.
+      </p>
+      <div id="caja-totales" style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom:12px;"></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Hora</th>
+            <th>Concepto</th>
+            <th>Cliente / Factura</th>
+            <th>Usuario</th>
+            <th>Pago</th>
+            <th style="text-align:right;">Monto</th>
+          </tr>
+        </thead>
+        <tbody id="caja-body">
+          <tr><td colspan="6" class="vacio">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
     <div class="filtros">
       <select id="filtro-tipo" onchange="aplicarFiltros()">
         <option value="">Todos los movimientos</option>
@@ -185,6 +213,65 @@
       })
 
       aplicarFiltros()
+      cargarCajaHoy()
+    }
+
+    const ETIQUETAS_CAJA = {
+      venta:                  'Venta de mostrador',
+      abono_apartado:         'Abono de apartado',
+      abono_apartado_migrado: 'Abono de apartado',
+      saldo_apartado:         'Saldo de apartado entregado',
+      diferencia_cambio:      'Diferencia cobrada por cambio',
+      devolucion_cambio:      'Diferencia devuelta por cambio',
+      devolucion_anulacion:   'Devolucion por anulacion'
+    }
+
+    async function cargarCajaHoy() {
+      const hoy = new Date().toISOString().slice(0, 10)
+      const movs = await ipcRenderer.invoke('obtener-movimientos-caja-dia', hoy)
+
+      const efectivo      = movs.reduce((a, m) => a + (m.monto_efectivo      || 0), 0)
+      const transferencia = movs.reduce((a, m) => a + (m.monto_transferencia || 0), 0)
+      const cop = n => '$' + parseFloat(n || 0).toLocaleString('es-CO')
+
+      document.getElementById('caja-totales').innerHTML = `
+        <div><span style="color:var(--text-muted); font-size:13px;">Efectivo</span><br>
+          <strong style="font-size:20px; color:#1a7a4a;">${cop(efectivo)}</strong></div>
+        <div><span style="color:var(--text-muted); font-size:13px;">Transferencia</span><br>
+          <strong style="font-size:20px; color:#2c5282;">${cop(transferencia)}</strong></div>
+        <div><span style="color:var(--text-muted); font-size:13px;">Total del dia</span><br>
+          <strong style="font-size:20px;">${cop(efectivo + transferencia)}</strong></div>
+      `
+
+      const tbody = document.getElementById('caja-body')
+      if (movs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="vacio">Todavia no ha entrado dinero hoy.</td></tr>'
+        return
+      }
+
+      tbody.innerHTML = movs.map(m => {
+        const esAbono = m.tipo === 'abono_apartado' || m.tipo === 'abono_apartado_migrado'
+        const negativo = (m.monto || 0) < 0
+        const referencia = m.numero_factura
+          ? '#' + String(m.numero_factura).padStart(6, '0')
+          : (m.concepto || '—')
+        return `
+          <tr style="${esAbono ? 'background:rgba(22,163,74,0.05);' : ''}">
+            <td>${new Date(String(m.fecha).replace(' ', 'T')).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</td>
+            <td>${ETIQUETAS_CAJA[m.tipo] || m.tipo}</td>
+            <td style="font-size:13px; color:var(--text-muted);">${referencia}</td>
+            <td>${m.usuario || '—'}</td>
+            <td>${(m.monto_transferencia || 0) !== 0
+              ? '<span class="badge" style="background:#e8f0fe;color:#2c5282;">📲 Transf.</span>'
+              : '<span class="badge" style="background:#d4f8e8;color:#1a7a4a;">💵 Efectivo</span>'}</td>
+            <td style="text-align:right;">
+              <strong style="color:${negativo ? '#e94560' : '#16a34a'};">
+                ${negativo ? '-' : ''}$${Math.abs(m.monto || 0).toLocaleString('es-CO')}
+              </strong>
+            </td>
+          </tr>
+        `
+      }).join('')
     }
 
     function aplicarFiltros() {

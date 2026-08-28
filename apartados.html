@@ -161,10 +161,21 @@
             <option value="">Sin colegio</option>
           </select>
         </div>
-        <div class="campo">
+        <div class="campo" id="campo-abono-inicial">
           <label>Abono inicial ($)</label>
           <input type="number" id="f-abono" min="0" value="0">
         </div>
+      </div>
+
+      <!-- El abono es plata que entra hoy al cajon, no cuando se entregue la
+           mercancia. Por eso se pregunta el metodo: el arqueo del dia necesita
+           separar el efectivo de lo que llego por transferencia. -->
+      <div class="campo" id="campo-metodo-abono">
+        <label>Como paga el abono</label>
+        <select id="f-metodo-abono">
+          <option value="efectivo">Efectivo</option>
+          <option value="transferencia">Transferencia</option>
+        </select>
       </div>
 
       <div class="campo">
@@ -175,6 +186,39 @@
       <div class="modal-botones">
         <button class="btn btn-gris" onclick="cerrarModal()">Cancelar</button>
         <button class="btn btn-rojo" onclick="guardarApartado()">Guardar Apartado</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL REGISTRAR ABONO -->
+  <!-- Los abonos posteriores tienen su propia pantalla en lugar de editarse a
+       mano sobre el apartado: cada uno queda como un movimiento con su fecha y
+       su metodo, que es lo que permite reconstruir la caja de cualquier dia. -->
+  <div class="modal-overlay" id="modal-abono">
+    <div class="modal" style="width:420px;">
+      <h2>Registrar Abono</h2>
+      <div id="abono-info" style="margin-bottom:16px; font-size:14px; color:var(--text-muted); line-height:1.8;"></div>
+
+      <div class="campo">
+        <label>Monto del abono ($)</label>
+        <input type="number" id="ab-monto" min="0" value="0">
+      </div>
+
+      <div class="campo">
+        <label>Como paga</label>
+        <select id="ab-metodo">
+          <option value="efectivo">Efectivo</option>
+          <option value="transferencia">Transferencia</option>
+        </select>
+      </div>
+
+      <div id="ab-error" style="display:none; color:#e94560; font-size:13px; margin-top:8px;"></div>
+
+      <div id="ab-historial" style="margin-top:18px;"></div>
+
+      <div class="modal-botones">
+        <button class="btn btn-gris" onclick="cerrarModalAbono()">Cancelar</button>
+        <button class="btn btn-rojo" onclick="guardarAbono()">Registrar Abono</button>
       </div>
     </div>
   </div>
@@ -350,6 +394,7 @@
             <td style="display:flex; gap:5px; flex-wrap:wrap;">
               <button class="btn btn-gris" style="padding:5px 10px" onclick="verDetalle(${a.id})">Ver</button>
               ${a.estado === 'pendiente' ? `
+                ${saldo > 0 ? `<button class="btn btn-verde" style="padding:5px 10px" onclick="abrirModalAbono(${a.id})">Abonar</button>` : ''}
                 <button class="btn btn-gris" style="padding:5px 10px" onclick="editarApartado(${a.id})">Editar</button>
                 <button class="btn btn-rojo" style="padding:5px 10px" onclick="eliminarApartado(${a.id})">Eliminar</button>
               ` : ''}
@@ -369,6 +414,11 @@
       document.getElementById('f-telefono').value  = ''
       document.getElementById('f-colegio').value   = ''
       document.getElementById('f-abono').value     = 0
+      document.getElementById('f-metodo-abono').value = 'efectivo'
+      // Se vuelven a mostrar por si el modal quedo en modo edicion, donde el
+      // abono se oculta a proposito.
+      document.getElementById('campo-abono-inicial').style.display = ''
+      document.getElementById('campo-metodo-abono').style.display  = ''
       document.getElementById('f-notas').value     = ''
       document.getElementById('ap-buscar').value   = ''
       document.getElementById('ap-sugerencias').innerHTML = ''
@@ -417,6 +467,10 @@
       document.getElementById('modal').classList.remove('activo')
     }
 
+    // Al editar solo se corrigen los datos del cliente. El abono NO se toca
+    // aqui: cambiarlo a mano moveria plata sin dejar un movimiento de caja
+    // detras, que es justo lo que descuadraba el cierre del dia. Para eso esta
+    // el boton "Abonar", que si registra el movimiento con su fecha y metodo.
     function editarApartado(id) {
       const a = apartados.find(x => x.id === id)
       if (!a) return
@@ -425,11 +479,110 @@
       document.getElementById('f-nombre').value   = a.nombre
       document.getElementById('f-telefono').value = a.telefono || ''
       document.getElementById('f-colegio').value  = a.colegio  || ''
-      document.getElementById('f-abono').value    = a.abono
       document.getElementById('f-notas').value    = a.notas   || ''
+      document.getElementById('campo-abono-inicial').style.display = 'none'
+      document.getElementById('campo-metodo-abono').style.display  = 'none'
       document.getElementById('campo-productos-apartado').style.display = 'none'
       document.getElementById('campo-confeccion-apartado').style.display = 'none'
       document.getElementById('modal').classList.add('activo')
+    }
+
+    // ── ABONOS ────────────────────────────────────────────────────────────
+    let abonandoId = null
+
+    async function abrirModalAbono(id) {
+      const a = apartados.find(x => x.id === id)
+      if (!a) return
+      abonandoId = id
+
+      const saldo = a.total - a.abono
+      document.getElementById('abono-info').innerHTML = `
+        <strong>${a.nombre}</strong><br>
+        Total: $${parseFloat(a.total).toLocaleString('es-CO')} &nbsp;|&nbsp;
+        Abonado: <strong style="color:#16a34a;">$${parseFloat(a.abono).toLocaleString('es-CO')}</strong><br>
+        Saldo pendiente: <strong style="color:#e94560;">$${saldo.toLocaleString('es-CO')}</strong>
+      `
+      document.getElementById('ab-monto').value  = ''
+      document.getElementById('ab-monto').max    = saldo
+      document.getElementById('ab-metodo').value = 'efectivo'
+      document.getElementById('ab-error').style.display = 'none'
+
+      // Historial de abonos: cada visita del cliente queda listada con su
+      // fecha, para poder explicarle en que quedo la cuenta.
+      const abonos = await ipcRenderer.invoke('obtener-abonos-apartado', id)
+      document.getElementById('ab-historial').innerHTML = abonos.length === 0 ? '' : `
+        <div style="font-size:13px; color:var(--text-muted); margin-bottom:6px;">Abonos registrados</div>
+        <table style="font-size:13px;">
+          <tbody>
+            ${abonos.map(ab => `
+              <tr>
+                <td>${new Date(ab.fecha.replace(' ', 'T')).toLocaleDateString('es-CO')}</td>
+                <td>${ab.monto_transferencia > 0 ? 'Transferencia' : 'Efectivo'}</td>
+                <td style="text-align:right;"><strong>$${parseFloat(ab.monto).toLocaleString('es-CO')}</strong></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `
+
+      document.getElementById('modal-abono').classList.add('activo')
+    }
+
+    function cerrarModalAbono() {
+      abonandoId = null
+      document.getElementById('modal-abono').classList.remove('activo')
+    }
+
+    async function guardarAbono() {
+      if (!abonandoId) return
+      const error = document.getElementById('ab-error')
+      const monto = parseFloat(document.getElementById('ab-monto').value)
+
+      if (!monto || monto <= 0) {
+        error.textContent = 'Escribe un monto mayor a cero.'
+        error.style.display = 'block'
+        return
+      }
+
+      const res = await ipcRenderer.invoke('agregar-abono-apartado', {
+        apartadoId: abonandoId,
+        monto,
+        metodoPago: document.getElementById('ab-metodo').value,
+        usuarioId:  sesion.id
+      })
+
+      if (res.error) {
+        error.textContent = res.error
+        error.style.display = 'block'
+        return
+      }
+
+      cerrarModalAbono()
+      cargarDatos()
+    }
+
+    function normalizarPalabrasBusqueda(texto) {
+      return texto.toLowerCase().split(/\s+/).filter(Boolean)
+        .filter(palabra => palabra !== 'talla' && palabra !== 'talle')
+        .map(palabra => {
+          const m = palabra.match(/^t(\d+[a-z]?)$/)   // t12, t8, tM -> 12, 8, M
+          return m ? m[1] : palabra
+        })
+    }
+
+    function coincideConBusquedaApartado(producto, variante, palabras) {
+      const campos = [
+        producto.nombre,
+        producto.categoria,
+        producto.colegio,
+        producto.genero,
+        variante.talla,
+        variante.codigo_barras || ''
+      ].map(c => c.toLowerCase())
+
+      return palabras.every(palabra =>
+        campos.some(campo => campo.includes(palabra))
+      )
     }
 
     function buscarProductoApartado(texto) {
@@ -458,28 +611,24 @@
         }
       }
 
-      // Búsqueda normal por texto
+      // Búsqueda normal por texto (separada por palabras, igual que en ventas)
+      const palabras  = normalizarPalabrasBusqueda(texto)
       const resultados = []
       productos.forEach(p => {
         if (!p.variantes) return
         p.variantes.forEach(v => {
-          const coincide =
-            p.nombre.toLowerCase().includes(texto.toLowerCase())    ||
-            p.categoria.toLowerCase().includes(texto.toLowerCase()) ||
-            v.talla.toLowerCase().includes(texto.toLowerCase())     ||
-            p.colegio.toLowerCase().includes(texto.toLowerCase())   ||
-            (v.codigo_barras && v.codigo_barras.includes(texto))
-          if (coincide) resultados.push({ producto: p, variante: v })
+          if (coincideConBusquedaApartado(p, v, palabras)) {
+            resultados.push({ producto: p, variante: v })
+          }
         })
       })
 
-      const top = resultados.slice(0, 8)
-      if (top.length === 0) {
+      if (resultados.length === 0) {
         sugerencias.innerHTML = '<div style="padding:12px; color:var(--text-muted); font-size:14px;">No se encontraron productos</div>'
         return
       }
 
-      sugerencias.innerHTML = top.map(({ producto: p, variante: v }) => `
+      sugerencias.innerHTML = resultados.map(({ producto: p, variante: v }) => `
         <div class="sugerencia-item" onclick="agregarAlCarritoApartado(${v.id})">
           <strong>${p.nombre} — Talla ${v.talla}</strong>
           <span>${p.categoria} · ${p.colegio} · ${p.genero}</span>
@@ -592,8 +741,7 @@
           nombre,
           telefono: document.getElementById('f-telefono').value.trim(),
           colegio:  document.getElementById('f-colegio').value,
-          notas:    document.getElementById('f-notas').value.trim(),
-          abono:    parseFloat(document.getElementById('f-abono').value)
+          notas:    document.getElementById('f-notas').value.trim()
         })
         if (res.ok) { cerrarModal(); cargarDatos() }
         return
@@ -616,8 +764,14 @@
 
       const res = await ipcRenderer.invoke('agregar-apartado', {
         apartado,
-        items: carritoApartado
+        items:      carritoApartado,
+        metodoPago: document.getElementById('f-metodo-abono').value
       })
+
+      if (res.error) {
+        alert(res.error)
+        return
+      }
 
       if (res.ok) {
         // Guardamos los datos del comprobante para imprimirlo (o no)
@@ -706,8 +860,21 @@
     }
 
     async function eliminarApartado(id) {
-      if (!confirm('Seguro que quieres eliminar este apartado?')) return
-      await ipcRenderer.invoke('eliminar-apartado', id)
+      const a = apartados.find(x => x.id === id)
+      const abono = a ? parseFloat(a.abono) || 0 : 0
+
+      // Si el apartado tenia abonos, borrarlo tambien borra esos movimientos de
+      // caja: se avisa porque significa devolverle esa plata al cliente y el
+      // cierre de los dias en que abono va a cambiar.
+      const aviso = abono > 0
+        ? `Este apartado tiene $${abono.toLocaleString('es-CO')} en abonos.\n\n` +
+          'Al eliminarlo, ese dinero se descuenta de la caja (se entiende que se le devuelve al cliente) ' +
+          'y el cierre de los dias en que abono va a cambiar.\n\nSeguro que quieres eliminarlo?'
+        : 'Seguro que quieres eliminar este apartado?'
+
+      if (!confirm(aviso)) return
+      const res = await ipcRenderer.invoke('eliminar-apartado', id)
+      if (res && res.error) { alert(res.error); return }
       cargarDatos()
     }
   </script>

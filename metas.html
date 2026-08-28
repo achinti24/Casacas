@@ -512,13 +512,13 @@
       return count
     }
 
-    function calcularRacha(ventas, metaDia) {
+    // Recibe los ingresos diarios del libro de caja ([{dia, total}]), la misma
+    // fuente que las metas, para que la racha no diga una cosa y el numero
+    // grande de la pantalla otra.
+    function calcularRacha(ingresosPorDia, metaDia) {
       if (!metaDia || metaDia === 0) return 0
       const porDia = {}
-      ventas.forEach(v => {
-        const d = v.fecha.slice(0, 10)
-        porDia[d] = (porDia[d] || 0) + v.total
-      })
+      ingresosPorDia.forEach(d => { porDia[d.dia] = d.total })
       let racha = 0
       const hoy = new Date()
       for (let i = 0; i < 365; i++) {
@@ -531,12 +531,14 @@
       return racha
     }
 
-    function calcularMejorDia(ventas) {
+    function calcularMejorDia(ingresosPorDia) {
       const acum = {}
       const cont = {}
-      ventas.forEach(v => {
-        const dow = new Date(v.fecha).getDay()
-        acum[dow] = (acum[dow] || 0) + v.total
+      ingresosPorDia.forEach(d => {
+        // Se fuerza mediodia para que el cambio de zona horaria no corra la
+        // fecha al dia anterior al construir el Date.
+        const dow = new Date(d.dia + 'T12:00:00').getDay()
+        acum[dow] = (acum[dow] || 0) + d.total
         cont[dow] = (cont[dow] || 0) + 1
       })
       let mejorDow = null, mejorProm = 0
@@ -550,7 +552,6 @@
     async function cargarDatos() {
       metas              = await ipcRenderer.invoke('obtener-metas')
       const estadisticas = await ipcRenderer.invoke('obtener-estadisticas')
-      const ventas       = await ipcRenderer.invoke('obtener-ventas')
       const egresos      = await ipcRenderer.invoke('obtener-egresos')
 
       metas.forEach(m => {
@@ -566,13 +567,19 @@
       inicioSemana.setDate(ahora.getDate() - ((ahora.getDay() + 6) % 7))
       const inicioSemanaStr = inicioSemana.toISOString().slice(0, 10)
 
-      const ventasHoy    = ventas.filter(v => v.fecha.slice(0, 10) === hoy)
-      const ventasSemana = ventas.filter(v => v.fecha.slice(0, 10) >= inicioSemanaStr)
-      const ventasMes    = ventas.filter(v => v.fecha.slice(0, 7) === mesAct)
+      // Los totales salen del libro de caja, no de sumar las facturas: una meta
+      // se cumple con la plata que efectivamente entro. Sumando facturas, el
+      // abono de un apartado no contaba el dia que el cliente lo dejo y el dia
+      // de la entrega contaba de mas.
+      const ingresos = await ipcRenderer.invoke('obtener-ingresos-resumen', {
+        dia:         hoy,
+        desdeSemana: inicioSemanaStr,
+        mes:         mesAct
+      })
 
-      const totalHoy    = ventasHoy.reduce((a, v) => a + v.total, 0)
-      const totalSemana = ventasSemana.reduce((a, v) => a + v.total, 0)
-      const totalMes    = ventasMes.reduce((a, v) => a + v.total, 0)
+      const totalHoy    = ingresos.dia.total
+      const totalSemana = ingresos.semana.total
+      const totalMes    = ingresos.mes.total
 
       const metaDia    = metas.find(m => m.tipo === 'dia')?.monto    || 0
       const metaSemana = metas.find(m => m.tipo === 'semana')?.monto || 0
@@ -637,11 +644,15 @@
         }
       }
 
-      const ticketProm = ventasHoy.length > 0 ? totalHoy / ventasHoy.length : 0
+      // El ticket promedio se mide sobre las transacciones de venta del dia
+      // (mostrador + entregas de apartado), no sobre todos los movimientos:
+      // un abono suelto no es un ticket.
+      const transaccionesHoy = ingresos.dia.transacciones
+      const ticketProm = transaccionesHoy > 0 ? totalHoy / transaccionesHoy : 0
       document.getElementById('ticket-promedio').textContent  = cop(ticketProm)
-      document.getElementById('mejor-dia').textContent        = calcularMejorDia(ventas)
-      document.getElementById('racha-dias').textContent       = calcularRacha(ventas, metaDia)
-      document.getElementById('ventas-hoy-cant').textContent  = ventasHoy.length
+      document.getElementById('mejor-dia').textContent        = calcularMejorDia(ingresos.porDia)
+      document.getElementById('racha-dias').textContent       = calcularRacha(ingresos.porDia, metaDia)
+      document.getElementById('ventas-hoy-cant').textContent  = transaccionesHoy
 
       renderTopProductos(estadisticas)
       renderResumenMeses(estadisticas, egresos, metaMes)

@@ -175,6 +175,11 @@
                    background:var(--bg); color:var(--text-muted); font-weight:700; font-size:14px; cursor:pointer;">
             📲 Transferencia
           </button>
+          <button id="btn-mixto" onclick="seleccionarMetodoPago('mixto')"
+            style="flex:1; padding:12px; border-radius:8px; border:2px solid var(--border);
+                   background:var(--bg); color:var(--text-muted); font-weight:700; font-size:14px; cursor:pointer;">
+            🔀 Mixto
+          </button>
         </div>
       </div>
 
@@ -202,6 +207,37 @@
         <div style="background:#e8f0fe; border-radius:10px; padding:16px; margin-top:4px; text-align:center; color:#2c5282;">
           <span style="font-size:15px; font-weight:600;">📲 Pago por transferencia</span><br>
           <small style="font-size:13px;">Confirma que el pago fue recibido antes de continuar.</small>
+        </div>
+      </div>
+
+      <!-- Seccion mixto: parte en efectivo, parte por transferencia -->
+      <div id="seccion-mixto" style="display:none;">
+        <div class="campo">
+          <label>Cuanto pago por transferencia ($)</label>
+          <input type="number" id="pago-mixto-transferencia" min="0" value="0"
+            oninput="calcularMixto()"
+            style="font-size:18px; padding:12px; text-align:right;">
+        </div>
+
+        <div style="display:flex; justify-content:space-between; padding:10px 4px; font-size:14px; color:var(--text-muted);">
+          <span>Falta en efectivo:</span>
+          <strong id="pago-mixto-falta">$0</strong>
+        </div>
+
+        <div class="campo">
+          <label>Efectivo que da el cliente ($)</label>
+          <input type="number" id="pago-mixto-dado" min="0" value="0"
+            oninput="calcularMixto()"
+            style="font-size:18px; padding:12px; text-align:right;">
+        </div>
+
+        <div style="background:#d4f8e8; border-radius:10px; padding:16px; margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:16px; font-weight:bold; color:#1a7a4a;">Vueltos:</span>
+          <strong id="pago-mixto-vueltos" style="font-size:24px; color:#1a7a4a;">$0</strong>
+        </div>
+
+        <div id="pago-mixto-alerta" style="display:none; background:#fde8ec; border-radius:8px; padding:10px; margin-top:10px; font-size:14px; color:#c0392b; text-align:center;">
+          El cliente no ha dado suficiente dinero
         </div>
       </div>
 
@@ -241,6 +277,20 @@
           <rect x="6" y="14" width="12" height="8"></rect>
         </svg>
         <span style="font-size:15px; color:var(--text);">Deseas imprimir la factura?</span>
+      </div>
+
+      <div style="text-align:left; margin-bottom:16px;">
+        <small style="color:var(--text-muted); display:block; margin-bottom:8px;">
+          Datos para la factura (opcional — si los dejas vacios, se imprime como siempre)
+        </small>
+        <div class="campo" style="margin-bottom:8px;">
+          <input type="text" id="factura-nombre" placeholder="Nombre del cliente (opcional)"
+            style="width:100%; padding:9px 12px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);">
+        </div>
+        <div class="campo">
+          <input type="text" id="factura-cedula" placeholder="Cedula / NIT (opcional)"
+            style="width:100%; padding:9px 12px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);">
+        </div>
       </div>
 
       <div class="modal-botones" style="justify-content:center;">
@@ -317,6 +367,17 @@
         display:none; background:#e8f0fe; border-radius:8px; padding:12px 14px;
         margin-bottom:14px; font-size:14px; color:#2c5282;"></div>
 
+      <!-- Solo aparece cuando el cambio mueve plata. Esa diferencia entra o
+           sale del cajon hoy, asi que necesita su metodo para que el arqueo
+           del dia la separe bien entre efectivo y transferencia. -->
+      <div class="campo" id="campo-metodo-cambio" style="display:none;">
+        <label id="label-metodo-cambio">Como paga la diferencia</label>
+        <select id="cambio-metodo">
+          <option value="efectivo">Efectivo</option>
+          <option value="transferencia">Transferencia</option>
+        </select>
+      </div>
+
       <div class="campo">
         <label>Motivo (opcional)</label>
         <input type="text" id="cambio-motivo" placeholder="Ej: no le quedo bien la talla">
@@ -360,32 +421,60 @@
 
       const btnEfectivo      = document.getElementById('btn-efectivo')
       const btnTransferencia = document.getElementById('btn-transferencia')
+      const btnMixto         = document.getElementById('btn-mixto')
       const secEfectivo      = document.getElementById('seccion-efectivo')
       const secTransferencia = document.getElementById('seccion-transferencia')
+      const secMixto         = document.getElementById('seccion-mixto')
       const btnConfirmar     = document.getElementById('btn-confirmar-pago')
 
+      const botones = [
+        { btn: btnEfectivo,      activo: metodo === 'efectivo',      colorBorde: '#2ecc71', colorFondo: '#d4f8e8', colorTexto: '#1a7a4a' },
+        { btn: btnTransferencia, activo: metodo === 'transferencia', colorBorde: '#3b82f6', colorFondo: '#e8f0fe', colorTexto: '#2c5282' },
+        { btn: btnMixto,         activo: metodo === 'mixto',         colorBorde: '#f39c12', colorFondo: '#fef3d4', colorTexto: '#8a5a00' },
+      ]
+      botones.forEach(({ btn, activo, colorBorde, colorFondo, colorTexto }) => {
+        btn.style.border     = activo ? `2px solid ${colorBorde}` : '2px solid var(--border)'
+        btn.style.background = activo ? colorFondo : 'var(--bg)'
+        btn.style.color      = activo ? colorTexto : 'var(--text-muted)'
+      })
+
+      secEfectivo.style.display     = metodo === 'efectivo'      ? 'block' : 'none'
+      secTransferencia.style.display = metodo === 'transferencia' ? 'block' : 'none'
+      secMixto.style.display        = metodo === 'mixto'         ? 'block' : 'none'
+
       if (metodo === 'efectivo') {
-        btnEfectivo.style.border      = '2px solid #2ecc71'
-        btnEfectivo.style.background  = '#d4f8e8'
-        btnEfectivo.style.color       = '#1a7a4a'
-        btnTransferencia.style.border = '2px solid var(--border)'
-        btnTransferencia.style.background = 'var(--bg)'
-        btnTransferencia.style.color  = 'var(--text-muted)'
-        secEfectivo.style.display     = 'block'
-        secTransferencia.style.display = 'none'
         calcularVueltos()
+      } else if (metodo === 'mixto') {
+        calcularMixto()
       } else {
-        btnTransferencia.style.border = '2px solid #3b82f6'
-        btnTransferencia.style.background = '#e8f0fe'
-        btnTransferencia.style.color  = '#2c5282'
-        btnEfectivo.style.border      = '2px solid var(--border)'
-        btnEfectivo.style.background  = 'var(--bg)'
-        btnEfectivo.style.color       = 'var(--text-muted)'
-        secEfectivo.style.display     = 'none'
-        secTransferencia.style.display = 'block'
         // Con transferencia siempre se puede confirmar
         btnConfirmar.disabled = false
         document.getElementById('pago-alerta').style.display = 'none'
+      }
+    }
+
+    function calcularMixto() {
+      const subtotal      = carrito.reduce((acc, i) => acc + i.precio_unitario * i.cantidad, 0)
+      const abonoAplicado = apartadoActual ? parseFloat(apartadoActual.abono) || 0 : 0
+      const totalCobrar   = Math.max(0, subtotal - abonoAplicado)
+
+      const transferencia = Math.min(totalCobrar, Math.max(0, parseFloat(document.getElementById('pago-mixto-transferencia').value) || 0))
+      const faltaEfectivo = Math.max(0, totalCobrar - transferencia)
+      const dado          = parseFloat(document.getElementById('pago-mixto-dado').value) || 0
+      const vueltos       = dado - faltaEfectivo
+
+      document.getElementById('pago-mixto-falta').textContent   = '$' + faltaEfectivo.toLocaleString('es-CO')
+      document.getElementById('pago-mixto-vueltos').textContent = '$' + Math.max(0, vueltos).toLocaleString('es-CO')
+
+      const btnConfirmar = document.getElementById('btn-confirmar-pago')
+      if (dado > 0 && vueltos < 0) {
+        document.getElementById('pago-mixto-alerta').style.display = 'block'
+        btnConfirmar.disabled = true
+        document.getElementById('pago-mixto-vueltos').style.color = '#e94560'
+      } else {
+        document.getElementById('pago-mixto-alerta').style.display = 'none'
+        btnConfirmar.disabled = faltaEfectivo > 0 && dado < faltaEfectivo
+        document.getElementById('pago-mixto-vueltos').style.color = '#1a7a4a'
       }
     }
 
@@ -453,8 +542,38 @@
       cargarVentas()
     }
 
+    // La lista mezcla las ventas con los abonos de apartados, porque un abono
+    // es plata que entro pero NO crea una venta: si solo se consultara la
+    // tabla "ventas", ese dinero no aparece por ningun lado aunque este bien
+    // registrado en la caja.
+    //
+    // Solo se agregan los abonos. El saldo que se cobra al entregar ya viene
+    // como la venta, y las diferencias de cambio ya estan sumadas dentro del
+    // total de su venta: incluirlos aqui mostraria la misma plata dos veces.
     async function cargarVentas() {
-      ventasCache = await ipcRenderer.invoke('obtener-ventas')
+      const [ventas, movimientos] = await Promise.all([
+        ipcRenderer.invoke('obtener-ventas'),
+        ipcRenderer.invoke('obtener-movimientos-caja', { limite: 500 })
+      ])
+
+      const abonos = movimientos
+        .filter(m => m.tipo === 'abono_apartado' || m.tipo === 'abono_apartado_migrado')
+        .map(m => ({
+          id:            m.id,
+          es_abono:      true,
+          fecha:         m.fecha,
+          total:         m.monto,
+          vendedor:      m.usuario || '—',
+          cliente:       m.cliente || '—',
+          apartado_id:   m.apartado_id,
+          metodo_pago:   (m.monto_transferencia || 0) > 0 ? 'transferencia' : 'efectivo',
+          items_display: `Abono de apartado${m.cliente ? ' — ' + m.cliente : ''}`,
+          items_resumen: `abono apartado ${m.cliente || ''}`
+        }))
+
+      ventasCache = [...ventas, ...abonos]
+        .sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')))
+
       aplicarFiltroVentas()
     }
 
@@ -485,7 +604,28 @@
           : '<tr><td colspan="9" class="vacio">No se encontraron ventas con esa busqueda.</td></tr>'
         return
       }
-      tbody.innerHTML = ventas.map(v => `
+      tbody.innerHTML = ventas.map(v => v.es_abono ? `
+        <tr style="background:rgba(22,163,74,0.05);">
+          <td><span class="badge" style="background:#d4f8e8;color:#1a7a4a;">ABONO</span></td>
+          <td>${new Date(String(v.fecha).replace(' ', 'T')).toLocaleString('es-CO')}</td>
+          <td style="max-width:220px;">
+            <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px; color:var(--text);">
+              ${v.items_display}
+            </div>
+          </td>
+          <td>${v.vendedor}</td>
+          <td>${v.cliente}</td>
+          <td><strong style="color:#16a34a;">$${parseFloat(v.total).toLocaleString('es-CO')}</strong></td>
+          <td>
+            ${v.metodo_pago === 'transferencia'
+              ? '<span class="badge" style="background:#e8f0fe;color:#2c5282;">📲 Transf.</span>'
+              : '<span class="badge" style="background:#d4f8e8;color:#1a7a4a;">💵 Efectivo</span>'
+            }
+          </td>
+          <td><span class="badge" style="background:#fef3d4;color:#8a5a00;">Apartado</span></td>
+          <td><button class="btn btn-gris" style="padding:5px 10px" onclick="navegar('apartados.html')">Ver</button></td>
+        </tr>
+      ` : `
         <tr style="${v.anulada ? 'opacity:0.5;' : ''}">
           <td><strong style="font-family:monospace;">#${String(v.numero_factura || v.id).padStart(6,'0')}</strong></td>
           <td>${new Date(v.fecha).toLocaleString('es-CO')}</td>
@@ -501,7 +641,9 @@
           <td>
             ${v.metodo_pago === 'transferencia'
               ? '<span class="badge" style="background:#e8f0fe;color:#2c5282;">📲 Transf.</span>'
-              : '<span class="badge" style="background:#d4f8e8;color:#1a7a4a;">💵 Efectivo</span>'
+              : v.metodo_pago === 'mixto'
+                ? '<span class="badge" style="background:#fef3d4;color:#8a5a00;">🔀 Mixto</span>'
+                : '<span class="badge" style="background:#d4f8e8;color:#1a7a4a;">💵 Efectivo</span>'
             }
           </td>
           <td>
@@ -803,6 +945,11 @@
       document.getElementById('pago-dado').value           = 0
       document.getElementById('pago-vueltos').textContent  = '$0'
       document.getElementById('pago-alerta').style.display = 'none'
+      document.getElementById('pago-mixto-transferencia').value = 0
+      document.getElementById('pago-mixto-dado').value           = 0
+      document.getElementById('pago-mixto-falta').textContent    = '$' + totalCobrar.toLocaleString('es-CO')
+      document.getElementById('pago-mixto-vueltos').textContent  = '$0'
+      document.getElementById('pago-mixto-alerta').style.display = 'none'
 
       const abonoFila = document.getElementById('pago-abono-fila')
       if (abonoAplicado > 0) {
@@ -849,13 +996,26 @@
       const subtotal      = carrito.reduce((acc, i) => acc + i.precio_unitario * i.cantidad, 0)
       const abonoAplicado = apartadoActual ? parseFloat(apartadoActual.abono) || 0 : 0
       const totalCobrar   = Math.max(0, subtotal - abonoAplicado)
-      const dado          = metodoPago === 'efectivo'
-        ? parseFloat(document.getElementById('pago-dado').value) || 0
-        : totalCobrar   // en transferencia se asume pago exacto
 
-      if (metodoPago === 'efectivo' && dado < totalCobrar) {
-        alert('El cliente no ha dado suficiente dinero')
-        return
+      let dado, vueltos, montoTransferencia = 0, montoEfectivo = totalCobrar
+
+      if (metodoPago === 'efectivo') {
+        dado    = parseFloat(document.getElementById('pago-dado').value) || 0
+        vueltos = dado - totalCobrar
+        if (dado < totalCobrar) { alert('El cliente no ha dado suficiente dinero'); return }
+        montoEfectivo = totalCobrar
+      } else if (metodoPago === 'transferencia') {
+        dado    = totalCobrar   // en transferencia se asume pago exacto
+        vueltos = 0
+        montoTransferencia = totalCobrar
+        montoEfectivo      = 0
+      } else { // mixto
+        montoTransferencia = Math.min(totalCobrar, Math.max(0, parseFloat(document.getElementById('pago-mixto-transferencia').value) || 0))
+        const faltaEfectivo = Math.max(0, totalCobrar - montoTransferencia)
+        dado    = parseFloat(document.getElementById('pago-mixto-dado').value) || 0
+        vueltos = dado - faltaEfectivo
+        if (dado < faltaEfectivo) { alert('El cliente no ha dado suficiente dinero en efectivo'); return }
+        montoEfectivo = faltaEfectivo
       }
 
       const apartadoId = apartadoActual ? apartadoActual.id : null
@@ -865,14 +1025,13 @@
         apartadoId,
         items:     carrito,
         abonoAplicado,
-        metodoPago                        // ← se envía al backend
+        metodoPago,                       // ← se envía al backend
+        montoTransferencia
       })
 
       if (resultado.error) { alert(resultado.error); return }
 
       if (resultado.ok) {
-        const vueltos = metodoPago === 'efectivo' ? dado - totalCobrar : 0
-
         datosPendientesImpresion = {
           recibo: {
             items:          carrito,
@@ -884,7 +1043,9 @@
             vendedor:       sesion.nombre,
             cliente:        apartadoActual ? apartadoActual.nombre : null,
             numeroFactura:  resultado.numeroFactura,
-            metodoPago
+            metodoPago,
+            montoEfectivo,
+            montoTransferencia
           },
           resultado,
           totalCobrar,
@@ -902,6 +1063,8 @@
         '#' + String(numeroFactura).padStart(6, '0')
       document.getElementById('imprimir-factura-total').textContent =
         '$' + totalCobrar.toLocaleString('es-CO')
+      document.getElementById('factura-nombre').value = ''
+      document.getElementById('factura-cedula').value = ''
       document.getElementById('modal-imprimir').classList.add('activo')
     }
 
@@ -912,7 +1075,15 @@
     async function confirmarImpresion() {
       if (!datosPendientesImpresion) { cerrarModalImprimir(); return }
 
-      const impresion = await ipcRenderer.invoke('imprimir-recibo', datosPendientesImpresion.recibo)
+      const nombreFactura = document.getElementById('factura-nombre').value.trim()
+      const cedulaFactura = document.getElementById('factura-cedula').value.trim()
+
+      const impresion = await ipcRenderer.invoke('imprimir-recibo', {
+        ...datosPendientesImpresion.recibo,
+        ventaId: datosPendientesImpresion.resultado.ventaId,
+        nombreFactura,
+        cedulaFactura
+      })
       if (impresion?.error) {
         console.warn('No se pudo imprimir:', impresion.error)
         alert('No se pudo imprimir la factura: ' + impresion.error)
@@ -967,7 +1138,9 @@
 
       const labelPago = v?.metodo_pago === 'transferencia'
         ? '<span style="color:#2c5282;">📲 Transferencia</span>'
-        : '<span style="color:#1a7a4a;">💵 Efectivo</span>'
+        : v?.metodo_pago === 'mixto'
+          ? `<span style="color:#8a5a00;">🔀 Mixto (Efvo: $${parseFloat(v.monto_efectivo || 0).toLocaleString('es-CO')} · Transf: $${parseFloat(v.monto_transferencia || 0).toLocaleString('es-CO')})</span>`
+          : '<span style="color:#1a7a4a;">💵 Efectivo</span>'
 
       document.getElementById('detalle-header').innerHTML = v
         ? `Vendedor: <strong>${v.vendedor}</strong> &nbsp;|&nbsp;
@@ -975,6 +1148,7 @@
            Pago: <strong>${labelPago}</strong> &nbsp;|&nbsp;
            ${v.abono_aplicado > 0 ? `Abono: <strong style="color:#2ecc71;">$${parseFloat(v.abono_aplicado).toLocaleString('es-CO')}</strong> &nbsp;|&nbsp;` : ''}
            Total cobrado: <strong style="color:#e94560;">$${parseFloat(v.total).toLocaleString('es-CO')}</strong>
+           ${v.cliente_factura_nombre ? `<br>Facturado a: <strong>${v.cliente_factura_nombre}</strong>${v.cliente_factura_cedula ? ` &nbsp;|&nbsp; C.C./NIT: <strong>${v.cliente_factura_cedula}</strong>` : ''}` : ''}
            ${v.anulada ? `<br><span style="color:#e94560; font-weight:bold;">ANULADA — ${v.motivo_anulacion}</span>` : ''}`
         : ''
 
@@ -1047,6 +1221,8 @@
       document.getElementById('c-sugerencias').innerHTML = ''
       document.getElementById('cambio-nuevo-seleccionado').style.display = 'none'
       document.getElementById('cambio-motivo').value = ''
+      document.getElementById('cambio-metodo').value = 'efectivo'
+      document.getElementById('campo-metodo-cambio').style.display = 'none'
       document.getElementById('btn-confirmar-cambio').disabled = true
 
       document.getElementById('modal-cambio').classList.add('activo')
@@ -1132,6 +1308,13 @@
               : 'Sin diferencia de precio'}
         </span>
       `
+
+      const campoMetodo = document.getElementById('campo-metodo-cambio')
+      campoMetodo.style.display = diferencia === 0 ? 'none' : ''
+      document.getElementById('label-metodo-cambio').textContent = diferencia > 0
+        ? 'Como paga la diferencia'
+        : 'Como se le devuelve la diferencia'
+
       document.getElementById('btn-confirmar-cambio').disabled = false
     }
 
@@ -1144,7 +1327,8 @@
         itemId:          cambioItemActual.itemId,
         varianteNuevaId: cambioVarianteNuevaSeleccionada.id,
         usuarioId:       sesion.id,
-        motivo
+        motivo,
+        metodoPago:      document.getElementById('cambio-metodo').value
       })
 
       if (res.error) { alert('Error: ' + res.error); return }
