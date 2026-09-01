@@ -466,6 +466,79 @@ try {
   console.error('Error migrando abonos al libro de caja (no se aplico nada):', e.message)
 }
 
+// ── Backfill: ventas hechas antes de que existiera el libro de caja ─────────
+// El backfill de arriba solo trae los abonos de apartados; a las ventas ya
+// registradas (mostrador y entregas de apartado) tambien les falta su
+// asiento, y sin eso el arqueo, los reportes y las metas de cualquier fecha
+// anterior a esta version aparecen casi vacios, aunque la lista de ventas
+// siga mostrando todo con normalidad (esa lista lee directo la tabla
+// "ventas", que nunca perdio sus datos).
+//
+// Se excluyen las ventas anuladas a proposito: los reportes tambien las
+// excluyen de sus totales (ver 'obtener-reporte'), y como no existe un
+// asiento historico de cuando se devolvio esa plata, incluirlas aqui sin su
+// contraparte inflaria esos dias artificialmente.
+//
+// Es idempotente por venta_id: es el mismo criterio con el que el codigo
+// actual evita duplicar el asiento de una venta nueva, asi que corre sin
+// problema en cada arranque y convive bien con cambios o anulaciones que se
+// hagan despues sobre una venta ya migrada.
+const backfillVentas = db.transaction(() => {
+  const sinAsiento = db.prepare(`
+    SELECT v.id, v.total, v.monto_efectivo, v.monto_transferencia,
+           v.apartado_id, v.numero_factura, v.usuario_id, v.fecha
+    FROM ventas v
+    WHERE (v.anulada IS NULL OR v.anulada = 0)
+      AND v.total != 0
+      AND NOT EXISTS (SELECT 1 FROM movimientos_caja mc WHERE mc.venta_id = v.id)
+  `).all()
+
+  const insertar = db.prepare(`
+    INSERT INTO movimientos_caja
+      (tipo, concepto, monto, monto_efectivo, monto_transferencia, apartado_id, venta_id, usuario_id, fecha)
+    VALUES (@tipo, @concepto, @monto, @monto_efectivo, @monto_transferencia, @apartado_id, @venta_id, @usuario_id, @fecha)
+  `)
+
+  for (const v of sinAsiento) {
+    // "monto_efectivo"/"monto_transferencia" ya existian antes de este libro
+    // de caja y deberian sumar el total. Si no cuadran (ventas de antes de
+    // que esas columnas existieran, o con un cambio de talla hecho con la
+    // version vieja, que movia el total pero no ese reparto), se asume todo
+    // en efectivo en vez de perder ese dinero silenciosamente.
+    let efectivo      = v.monto_efectivo      || 0
+    let transferencia = v.monto_transferencia || 0
+    if (Math.abs((efectivo + transferencia) - v.total) > 0.5) {
+      efectivo      = v.total
+      transferencia = 0
+    }
+
+    const numFactura = v.numero_factura || v.id
+    insertar.run({
+      tipo:     v.apartado_id ? 'saldo_apartado' : 'venta',
+      concepto: (v.apartado_id
+        ? `Saldo de apartado al entregar (factura #${numFactura})`
+        : `Venta #${numFactura}`) + ' (migrada)',
+      monto:                v.total,
+      monto_efectivo:       efectivo,
+      monto_transferencia:  transferencia,
+      apartado_id:          v.apartado_id || null,
+      venta_id:             v.id,
+      usuario_id:           v.usuario_id  || null,
+      fecha:                v.fecha || new Date().toISOString().slice(0, 19).replace('T', ' ')
+    })
+  }
+
+  if (sinAsiento.length > 0) {
+    console.log(`Libro de caja: se migraron ${sinAsiento.length} venta(s) anteriores al libro de caja.`)
+  }
+})
+
+try {
+  backfillVentas()
+} catch (e) {
+  console.error('Error migrando ventas al libro de caja (no se aplico nada):', e.message)
+}
+
 // Inicializar contador de facturas
 const contadorExiste = db.prepare('SELECT id FROM contador_facturas WHERE id = 1').get()
 if (!contadorExiste) {
