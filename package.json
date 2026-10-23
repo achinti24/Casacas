@@ -40,7 +40,8 @@
       "**/*",
       "!reportes/**",
       "!dist/**",
-      "!.git/**"
+      "!.git/**",
+      "!.taste-skill/**"
     ],
     "win": {
       "target": "nsis",
