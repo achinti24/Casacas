@@ -126,6 +126,7 @@
       <div class="rent-card azul">
         <span class="rent-etiqueta">Costo de productos vendidos</span>
         <span class="rent-valor" id="r-costo">$0</span>
+        <span class="rent-desglose" id="r-costo-desglose"></span>
       </div>
       <div class="rent-card verde">
         <span class="rent-etiqueta">Ganancia neta</span>
@@ -133,7 +134,7 @@
       </div>
     </div>
     <p class="rent-nota">
-      Ganancia neta = vendido - egresos - costo de productos. Si aun no has configurado el precio de costo en tus productos, este valor sera igual a "Vendido - Egresos".
+      Ganancia neta = vendido - egresos - costo de productos (insumos + confeccion). Si aun no has configurado el costo de tus productos, este valor sera igual a "Vendido - Egresos".
     </p>
 
     <!-- WIDGETS: MAS VENDIDOS + POR DIA -->
@@ -260,6 +261,16 @@
       if (periodo) cargarReporte()
     }
 
+    function textoDesgloseCosto(reporte) {
+      const pesos  = valor => '$' + parseFloat(valor || 0).toLocaleString('es-CO')
+      const partes = [
+        `Insumos ${pesos(reporte.costoInsumos)}`,
+        `Confeccion ${pesos(reporte.costoConfeccion)}`
+      ]
+      if (reporte.costoSinDividir > 0) partes.push(`Sin dividir ${pesos(reporte.costoSinDividir)}`)
+      return partes.join(' · ')
+    }
+
     async function cargarReporte() {
       const fechaInicio = document.getElementById('f-desde').value
       const fechaFin    = document.getElementById('f-hasta').value
@@ -283,6 +294,7 @@
       // Rentabilidad
       document.getElementById('r-egresos').textContent        = '$' + parseFloat(reporte.totalEgresos).toLocaleString('es-CO')
       document.getElementById('r-costo').textContent          = '$' + parseFloat(reporte.costoVendido).toLocaleString('es-CO')
+      document.getElementById('r-costo-desglose').textContent = textoDesgloseCosto(reporte)
       document.getElementById('r-ganancia-bruta').textContent = '$' + parseFloat(reporte.gananciaBruta).toLocaleString('es-CO')
       document.getElementById('r-ganancia-neta').textContent  = '$' + parseFloat(reporte.gananciaNeta).toLocaleString('es-CO')
 

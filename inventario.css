@@ -61,3 +61,13 @@
   color: var(--text-muted);
   margin-left: 4px;
 }
+
+/* Suma de insumos + confeccion bajo los dos campos de costo */
+.costo-total {
+  margin: -6px 0 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.costo-total:empty { display: none; }

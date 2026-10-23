@@ -63,7 +63,7 @@
 
   <!-- MODAL PRODUCTO -->
   <div class="modal-overlay" id="modal-producto">
-    <div class="modal" style="width:600px; max-height:85vh; overflow-y:auto;">
+    <div class="modal" style="width:720px; max-height:85vh; overflow-y:auto;">
       <h2 id="modal-producto-titulo">Agregar Producto</h2>
       <div class="fila-doble">
         <div class="campo">
@@ -105,7 +105,8 @@
           <thead>
             <tr>
               <th style="background:var(--raised); color:var(--text-muted); padding:8px 10px; font-size:12px; text-align:left;">Talla</th>
-              <th style="background:var(--raised); color:var(--text-muted); padding:8px 10px; font-size:12px; text-align:left;">P. Costo ($)</th>
+              <th style="background:var(--raised); color:var(--text-muted); padding:8px 10px; font-size:12px; text-align:left;">Insumos ($)</th>
+              <th style="background:var(--raised); color:var(--text-muted); padding:8px 10px; font-size:12px; text-align:left;">Confeccion ($)</th>
               <th style="background:var(--raised); color:var(--text-muted); padding:8px 10px; font-size:12px; text-align:left;">P. Venta ($)</th>
               <th style="background:var(--raised); color:var(--text-muted); padding:8px 10px; font-size:12px; text-align:left;">Cantidad</th>
               <th style="background:var(--raised); color:var(--text-muted); padding:8px 10px; font-size:12px; text-align:left;">Stock min.</th>
@@ -128,30 +129,34 @@
       <h2>Agregar Talla</h2>
       <div class="fila-doble">
         <div class="campo">
-          <label>Talla</label>
+          <label for="v-talla">Talla</label>
           <select id="v-talla"></select>
         </div>
         <div class="campo">
-          <label>Precio Costo ($)</label>
-          <input type="number" id="v-precio-costo" min="0" value="0">
-        </div>
-      </div>
-      <div class="fila-doble">
-        <div class="campo">
-          <label>Precio Venta ($)</label>
+          <label for="v-precio">Precio de venta ($)</label>
           <input type="number" id="v-precio" min="0" value="0">
         </div>
-        <div class="campo">
-          <label>Cantidad</label>
-          <input type="number" id="v-cantidad" min="0" value="0">
-        </div>
       </div>
       <div class="fila-doble">
         <div class="campo">
-          <label>Stock minimo</label>
+          <label for="v-costo-insumos">Costo de insumos ($)</label>
+          <input type="number" id="v-costo-insumos" min="0" value="0" oninput="mostrarCostoTotal('v')">
+        </div>
+        <div class="campo">
+          <label for="v-costo-confeccion">Costo de confeccion ($)</label>
+          <input type="number" id="v-costo-confeccion" min="0" value="0" oninput="mostrarCostoTotal('v')">
+        </div>
+      </div>
+      <p class="costo-total" id="v-costo-total"></p>
+      <div class="fila-doble">
+        <div class="campo">
+          <label for="v-cantidad">Cantidad</label>
+          <input type="number" id="v-cantidad" min="0" value="0">
+        </div>
+        <div class="campo">
+          <label for="v-stock-minimo">Stock minimo</label>
           <input type="number" id="v-stock-minimo" min="0" value="3">
         </div>
-        <div class="campo"></div>
       </div>
       <div class="modal-botones">
         <button class="btn btn-gris" onclick="cerrarModalVariante()">Cancelar</button>
@@ -166,33 +171,38 @@
       <h2>Editar Talla</h2>
       <div class="fila-doble">
         <div class="campo">
-          <label>Talla</label>
+          <label for="ev-talla">Talla</label>
           <select id="ev-talla"></select>
         </div>
         <div class="campo">
-          <label>Precio Costo ($)</label>
-          <input type="number" id="ev-precio-costo" min="0" value="0">
-        </div>
-      </div>
-      <div class="fila-doble">
-        <div class="campo">
-          <label>Precio Venta ($)</label>
+          <label for="ev-precio">Precio de venta ($)</label>
           <input type="number" id="ev-precio" min="0" value="0">
         </div>
+      </div>
+      <div class="aviso" id="ev-costo-anterior" style="display:none;"></div>
+      <div class="fila-doble">
         <div class="campo">
-          <label>Cantidad</label>
+          <label for="ev-costo-insumos">Costo de insumos ($)</label>
+          <input type="number" id="ev-costo-insumos" min="0" value="0" oninput="mostrarCostoTotal('ev')">
+        </div>
+        <div class="campo">
+          <label for="ev-costo-confeccion">Costo de confeccion ($)</label>
+          <input type="number" id="ev-costo-confeccion" min="0" value="0" oninput="mostrarCostoTotal('ev')">
+        </div>
+      </div>
+      <p class="costo-total" id="ev-costo-total"></p>
+      <div class="fila-doble">
+        <div class="campo">
+          <label for="ev-cantidad">Cantidad</label>
           <input type="number" id="ev-cantidad" min="0" value="0">
           <small id="ev-cantidad-nota" style="display:none; color:var(--text-muted);">
             Se calcula automaticamente desde las piezas del bundle vinculadas.
           </small>
         </div>
-      </div>
-      <div class="fila-doble">
         <div class="campo">
-          <label>Stock minimo</label>
+          <label for="ev-stock-minimo">Stock minimo</label>
           <input type="number" id="ev-stock-minimo" min="0" value="3">
         </div>
-        <div class="campo"></div>
       </div>
       <div class="modal-botones">
         <button class="btn btn-gris" onclick="cerrarModalEditarVariante()">Cancelar</button>
@@ -241,7 +251,7 @@
 
   <!-- MODAL ACTUALIZAR PRECIOS MASIVO -->
   <div class="modal-overlay" id="modal-precios">
-    <div class="modal" style="width:580px; max-height:85vh; overflow-y:auto;">
+    <div class="modal" style="width:760px; max-height:85vh; overflow-y:auto;">
       <h2 id="precios-titulo">Actualizar Precios</h2>
       <p style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">
         Modifica los precios de todas las tallas del producto. Los cambios se guardan todos a la vez.
@@ -251,7 +261,8 @@
           <tr>
             <th style="background:var(--bg); color:var(--text-muted); padding:8px 12px; font-size:12px; text-align:left;">Talla</th>
             <th style="background:var(--bg); color:var(--text-muted); padding:8px 12px; font-size:12px; text-align:left;">Costo actual</th>
-            <th style="background:var(--bg); color:var(--text-muted); padding:8px 12px; font-size:12px; text-align:left;">Nuevo costo ($)</th>
+            <th style="background:var(--bg); color:var(--text-muted); padding:8px 12px; font-size:12px; text-align:left;">Insumos ($)</th>
+            <th style="background:var(--bg); color:var(--text-muted); padding:8px 12px; font-size:12px; text-align:left;">Confeccion ($)</th>
             <th style="background:var(--bg); color:var(--text-muted); padding:8px 12px; font-size:12px; text-align:left;">Venta actual</th>
             <th style="background:var(--bg); color:var(--text-muted); padding:8px 12px; font-size:12px; text-align:left;">Nuevo precio ($)</th>
           </tr>
@@ -317,6 +328,7 @@
     let productoEditandoId = null
     let varianteProdId     = null
     let varianteEditandoId = null
+    let costoAnteriorEditando = 0
     let preciosProductoId  = null
     let preciosVariantes   = []
     const productosAbiertos = new Set()
@@ -438,6 +450,38 @@
       return '<span class="badge badge-verde">En stock</span>'
     }
 
+    // ── COSTOS: insumos + confeccion ──────────────────
+    function formatoPesos(valor) {
+      return '$' + parseFloat(valor || 0).toLocaleString('es-CO')
+    }
+
+    function leerCosto(inputId) {
+      return Math.max(0, parseFloat(document.getElementById(inputId).value) || 0)
+    }
+
+    // Tallas guardadas antes de dividir el costo: tienen precio_costo pero
+    // insumos y confeccion en 0. Ese costo se sigue usando hasta dividirlo.
+    function costoSinDividir(variante) {
+      const dividido = (variante.costo_insumos || 0) + (variante.costo_confeccion || 0)
+      return dividido > 0 ? 0 : (variante.precio_costo || 0)
+    }
+
+    function celdaCosto(variante) {
+      const sinDividir = costoSinDividir(variante)
+      if (sinDividir > 0) {
+        return `${formatoPesos(sinDividir)}<br><small class="texto-suave">sin dividir</small>`
+      }
+      if (!variante.precio_costo) return formatoPesos(0)
+      return `${formatoPesos(variante.precio_costo)}<br><small class="texto-suave">` +
+        `Insumos ${formatoPesos(variante.costo_insumos)} · Confeccion ${formatoPesos(variante.costo_confeccion)}</small>`
+    }
+
+    function mostrarCostoTotal(prefijo) {
+      const total = leerCosto(`${prefijo}-costo-insumos`) + leerCosto(`${prefijo}-costo-confeccion`)
+      document.getElementById(`${prefijo}-costo-total`).textContent =
+        total > 0 ? `Costo total: ${formatoPesos(total)}` : ''
+    }
+
     function renderProductos(lista) {
       const contenedor = document.getElementById('lista-productos')
       if (lista.length === 0) {
@@ -487,7 +531,7 @@
               <thead>
                 <tr>
                   <th>Talla</th>
-                  <th>P. Costo</th>
+                  <th class="num">Costo</th>
                   <th>P. Venta</th>
                   <th>Cantidad</th>
                   <th>Stock min.</th>
@@ -500,7 +544,7 @@
                 ${p.variantes.map(v => `
                   <tr>
                     <td><strong>${v.talla}</strong></td>
-                    <td style="color:var(--text-muted);">$${parseFloat(v.precio_costo || 0).toLocaleString('es-CO')}</td>
+                    <td class="num">${celdaCosto(v)}</td>
                     <td>$${parseFloat(v.precio).toLocaleString('es-CO')}</td>
                     <td>${v.cantidad}${v.es_bundle ? ' <span style="color:var(--text-muted); font-size:11px;">(auto)</span>' : ''}</td>
                     <td>${v.stock_minimo}</td>
@@ -514,7 +558,7 @@
                     ${esAdmin ? `
                       <td style="display:flex; gap:4px; flex-wrap:wrap;">
                         <button class="accion-fila"
-                          onclick="abrirModalEditarVariante(${v.id}, ${p.id}, '${v.talla}', ${v.precio_costo || 0}, ${v.precio}, ${v.cantidad}, ${v.stock_minimo}, ${!!v.es_bundle})">
+                          onclick="abrirModalEditarVariante(${v.id}, ${p.id})">
                           Editar
                         </button>
                         ${!v.es_bundle ? `
@@ -586,7 +630,7 @@
       const grupoId = parseInt(document.getElementById('p-grupo-talla').value)
       const opciones = tallasDeGrupo(grupoId)
       if (opciones.length === 0) { alert('No hay tallas configuradas para este grupo. Ve a Configuracion y agrega al menos una.'); return }
-      filasVariantes.push({ talla: opciones[0], precio_costo: 0, precio: 0, cantidad: 0, stock_minimo: 3 })
+      filasVariantes.push({ talla: opciones[0], costo_insumos: 0, costo_confeccion: 0, precio: 0, cantidad: 0, stock_minimo: 3 })
       renderFilasVariantes()
     }
 
@@ -612,8 +656,13 @@
             </select>
           </td>
           <td>
-            <input type="number" min="0" value="${v.precio_costo}"
-              onchange="filasVariantes[${i}].precio_costo = parseFloat(this.value)"
+            <input type="number" min="0" value="${v.costo_insumos}" aria-label="Costo de insumos"
+              onchange="filasVariantes[${i}].costo_insumos = parseFloat(this.value)"
+              style="width:85px; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
+          </td>
+          <td>
+            <input type="number" min="0" value="${v.costo_confeccion}" aria-label="Costo de confeccion"
+              onchange="filasVariantes[${i}].costo_confeccion = parseFloat(this.value)"
               style="width:85px; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
           </td>
           <td>
@@ -682,12 +731,14 @@
       if (!p) return
       preciosProductoId = productoId
       preciosVariantes  = p.variantes.map(v => ({
-        id:            v.id,
-        talla:         v.talla,
-        costoActual:   v.precio_costo || 0,
-        costoNuevo:    v.precio_costo || 0,
-        precioActual:  v.precio,
-        precioNuevo:   v.precio
+        id:              v.id,
+        talla:           v.talla,
+        costoActual:     v.precio_costo || 0,
+        costoAnterior:   costoSinDividir(v),
+        costoInsumos:    v.costo_insumos || 0,
+        costoConfeccion: v.costo_confeccion || 0,
+        precioActual:    v.precio,
+        precioNuevo:     v.precio
       }))
 
       document.getElementById('precios-titulo').textContent = `Actualizar Precios — ${p.nombre} (${p.colegio})`
@@ -695,11 +746,18 @@
       document.getElementById('precios-body').innerHTML = preciosVariantes.map((v, i) => `
         <tr>
           <td style="padding:8px 12px;"><strong>${v.talla}</strong></td>
-          <td style="padding:8px 12px; color:var(--text-muted);">$${parseFloat(v.costoActual).toLocaleString('es-CO')}</td>
+          <td style="padding:8px 12px; color:var(--text-muted);">
+            ${formatoPesos(v.costoActual)}${v.costoAnterior > 0 ? '<br><small>sin dividir</small>' : ''}
+          </td>
           <td style="padding:8px 12px;">
-            <input type="number" min="0" value="${v.costoNuevo}"
-              onchange="preciosVariantes[${i}].costoNuevo = parseFloat(this.value)"
-              style="width:110px; padding:6px 10px; border:1px solid var(--input-border); border-radius:6px; font-size:14px; background:var(--input-bg); color:var(--text);">
+            <input type="number" min="0" value="${v.costoInsumos}" aria-label="Costo de insumos talla ${v.talla}"
+              onchange="preciosVariantes[${i}].costoInsumos = parseFloat(this.value)"
+              style="width:100px; padding:6px 10px; border:1px solid var(--input-border); border-radius:6px; font-size:14px; background:var(--input-bg); color:var(--text);">
+          </td>
+          <td style="padding:8px 12px;">
+            <input type="number" min="0" value="${v.costoConfeccion}" aria-label="Costo de confeccion talla ${v.talla}"
+              onchange="preciosVariantes[${i}].costoConfeccion = parseFloat(this.value)"
+              style="width:100px; padding:6px 10px; border:1px solid var(--input-border); border-radius:6px; font-size:14px; background:var(--input-bg); color:var(--text);">
           </td>
           <td style="padding:8px 12px; color:var(--text-muted);">$${parseFloat(v.precioActual).toLocaleString('es-CO')}</td>
           <td style="padding:8px 12px;">
@@ -723,9 +781,11 @@
       if (!preciosProductoId) return
 
       const variantes = preciosVariantes.map(v => ({
-        id:           v.id,
-        precio_costo: v.costoNuevo,
-        precio:       v.precioNuevo
+        id:               v.id,
+        costo_insumos:    v.costoInsumos,
+        costo_confeccion: v.costoConfeccion,
+        precio_costo:     v.costoAnterior,
+        precio:           v.precioNuevo
       }))
       const res = await ipcRenderer.invoke('actualizar-precios-producto', {
         productoId: preciosProductoId,
@@ -747,7 +807,9 @@
       if (opciones.length === 0) { alert('No hay tallas configuradas para el grupo de este producto. Ve a Configuracion y agrega al menos una.'); return }
       document.getElementById('v-talla').innerHTML = opciones.map(t => `<option>${t}</option>`).join('')
       document.getElementById('v-talla').selectedIndex = 0
-      document.getElementById('v-precio-costo').value = 0
+      document.getElementById('v-costo-insumos').value    = 0
+      document.getElementById('v-costo-confeccion').value = 0
+      mostrarCostoTotal('v')
       document.getElementById('v-precio').value       = 0
       document.getElementById('v-cantidad').value     = 0
       document.getElementById('v-stock-minimo').value = 3
@@ -760,8 +822,9 @@
 
     async function guardarVariante() {
       const variante = {
-        talla:        document.getElementById('v-talla').value,
-        precio_costo: parseFloat(document.getElementById('v-precio-costo').value),
+        talla:            document.getElementById('v-talla').value,
+        costo_insumos:    leerCosto('v-costo-insumos'),
+        costo_confeccion: leerCosto('v-costo-confeccion'),
         precio:       parseFloat(document.getElementById('v-precio').value),
         cantidad:     parseInt(document.getElementById('v-cantidad').value),
         stock_minimo: parseInt(document.getElementById('v-stock-minimo').value)
@@ -771,19 +834,33 @@
     }
 
     // ── MODAL EDITAR VARIANTE ─────────────────────────
-    function abrirModalEditarVariante(id, productoId, talla, precioCosto, precio, cantidad, stockMinimo, esBundle) {
-      varianteEditandoId = id
+    function abrirModalEditarVariante(id, productoId) {
       const p = productos.find(x => x.id === productoId)
-      const opciones = tallasDeGrupo(p ? p.grupo_talla_id : null, talla)
+      const v = p && p.variantes.find(x => x.id === id)
+      if (!v) return
+
+      varianteEditandoId    = id
+      costoAnteriorEditando = costoSinDividir(v)
+      const opciones = tallasDeGrupo(p.grupo_talla_id, v.talla)
       document.getElementById('ev-talla').innerHTML = opciones.map(t => `<option>${t}</option>`).join('')
-      document.getElementById('ev-talla').value        = talla
-      document.getElementById('ev-precio-costo').value = precioCosto
-      document.getElementById('ev-precio').value       = precio
-      document.getElementById('ev-cantidad').value     = cantidad
-      document.getElementById('ev-stock-minimo').value = stockMinimo
-      document.getElementById('ev-cantidad').disabled  = !!esBundle
-      document.getElementById('ev-cantidad-nota').style.display = esBundle ? 'block' : 'none'
+      document.getElementById('ev-talla').value             = v.talla
+      document.getElementById('ev-costo-insumos').value     = v.costo_insumos || 0
+      document.getElementById('ev-costo-confeccion').value  = v.costo_confeccion || 0
+      document.getElementById('ev-precio').value            = v.precio
+      document.getElementById('ev-cantidad').value          = v.cantidad
+      document.getElementById('ev-stock-minimo').value      = v.stock_minimo
+      document.getElementById('ev-cantidad').disabled       = !!v.es_bundle
+      document.getElementById('ev-cantidad-nota').style.display = v.es_bundle ? 'block' : 'none'
+      mostrarAvisoCostoAnterior()
+      mostrarCostoTotal('ev')
       document.getElementById('modal-editar-variante').classList.add('activo')
+    }
+
+    function mostrarAvisoCostoAnterior() {
+      const aviso = document.getElementById('ev-costo-anterior')
+      aviso.style.display = costoAnteriorEditando > 0 ? 'block' : 'none'
+      aviso.textContent   = `Esta talla tiene un costo anterior sin dividir de ${formatoPesos(costoAnteriorEditando)}. ` +
+        'Se sigue usando en la ganancia hasta que escribas el costo de insumos y el de confeccion.'
     }
 
     function cerrarModalEditarVariante() {
@@ -793,8 +870,10 @@
     async function confirmarEditarVariante() {
       const variante = {
         id:           varianteEditandoId,
-        talla:        document.getElementById('ev-talla').value,
-        precio_costo: parseFloat(document.getElementById('ev-precio-costo').value),
+        talla:            document.getElementById('ev-talla').value,
+        costo_insumos:    leerCosto('ev-costo-insumos'),
+        costo_confeccion: leerCosto('ev-costo-confeccion'),
+        precio_costo:     costoAnteriorEditando,
         precio:       parseFloat(document.getElementById('ev-precio').value),
         cantidad:     parseInt(document.getElementById('ev-cantidad').value),
         stock_minimo: parseInt(document.getElementById('ev-stock-minimo').value)

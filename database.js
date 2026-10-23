@@ -360,6 +360,12 @@ const alterMigrations = [
   { tabla: 'ventas', columna: 'cliente_factura_cedula', sql: `ALTER TABLE ventas ADD COLUMN cliente_factura_cedula TEXT` },
   { tabla: 'ventas', columna: 'metodo_pago', sql: `ALTER TABLE ventas ADD COLUMN metodo_pago TEXT DEFAULT 'efectivo'` },
   { tabla: 'producto_variantes', columna: 'precio_costo', sql: `ALTER TABLE producto_variantes ADD COLUMN precio_costo REAL DEFAULT 0` },
+  // El costo se divide en insumos y confeccion. "precio_costo" se conserva
+  // como la suma de los dos (la usan la ganancia y el Excel). Las tallas que
+  // ya tenian costo arrancan con ambos en 0: su costo queda "sin dividir" y
+  // se sigue usando tal cual hasta que se edite.
+  { tabla: 'producto_variantes', columna: 'costo_insumos', sql: `ALTER TABLE producto_variantes ADD COLUMN costo_insumos REAL DEFAULT 0` },
+  { tabla: 'producto_variantes', columna: 'costo_confeccion', sql: `ALTER TABLE producto_variantes ADD COLUMN costo_confeccion REAL DEFAULT 0` },
   { tabla: 'tallas', columna: 'grupo_id', sql: `ALTER TABLE tallas ADD COLUMN grupo_id INTEGER REFERENCES grupos_talla(id)` },
   { tabla: 'productos', columna: 'grupo_talla_id', sql: `ALTER TABLE productos ADD COLUMN grupo_talla_id INTEGER REFERENCES grupos_talla(id)` },
   { tabla: 'apartado_items', columna: 'descripcion_libre', sql: `ALTER TABLE apartado_items ADD COLUMN descripcion_libre TEXT` },

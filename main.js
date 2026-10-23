@@ -384,11 +384,26 @@ function actualizarExcelVentas(db) {
   } catch (err) { console.error('Error Excel ventas:', err) }
 }
 
+// El costo de una talla es insumos + confeccion. Si ninguno de los dos se ha
+// cargado, se respeta el costo anterior "sin dividir" que ya tuviera, para
+// que la ganancia de las prendas viejas no caiga a cero de un dia para otro.
+function costosVariante(variante) {
+  const costo_insumos    = Math.max(0, parseFloat(variante.costo_insumos)    || 0)
+  const costo_confeccion = Math.max(0, parseFloat(variante.costo_confeccion) || 0)
+  const costoDividido    = costo_insumos + costo_confeccion
+  return {
+    costo_insumos,
+    costo_confeccion,
+    precio_costo: costoDividido > 0 ? costoDividido : Math.max(0, parseFloat(variante.precio_costo) || 0)
+  }
+}
+
 function actualizarExcelInventario(db) {
   try {
     const variantes = db.prepare(`
       SELECT p.nombre, p.categoria, p.colegio, p.genero,
-             v.talla, v.precio, v.precio_costo, v.cantidad, v.stock_minimo, v.codigo_barras
+             v.talla, v.precio, v.precio_costo, v.costo_insumos, v.costo_confeccion,
+             v.cantidad, v.stock_minimo, v.codigo_barras
       FROM producto_variantes v
       JOIN productos p ON v.producto_id = p.id
     `).all().sort((a, b) => {
@@ -399,7 +414,9 @@ function actualizarExcelInventario(db) {
     const ws = XLSX.utils.json_to_sheet(variantes.map(v => ({
       Nombre: v.nombre, Categoria: v.categoria, Colegio: v.colegio,
       Genero: v.genero, Talla: v.talla, Precio: v.precio,
-      'Precio costo': v.precio_costo || 0,
+      'Costo insumos': v.costo_insumos || 0,
+      'Costo confeccion': v.costo_confeccion || 0,
+      'Costo total': v.precio_costo || 0,
       Cantidad: v.cantidad, 'Stock minimo': v.stock_minimo,
       'Codigo de barras': v.codigo_barras
     })))
@@ -1020,12 +1037,16 @@ app.whenReady().then(() => {
 
     const productoId = result.lastInsertRowid
     const insertVar  = db.prepare(`
-      INSERT INTO producto_variantes (producto_id, talla, precio, precio_costo, cantidad, stock_minimo, codigo_barras)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO producto_variantes
+        (producto_id, talla, precio, precio_costo, costo_insumos, costo_confeccion, cantidad, stock_minimo, codigo_barras)
+      VALUES (@producto_id, @talla, @precio, @precio_costo, @costo_insumos, @costo_confeccion, @cantidad, @stock_minimo, 'TEMP')
     `)
 
     for (const v of variantes) {
-      const varResult  = insertVar.run(productoId, v.talla, v.precio, v.precio_costo || 0, v.cantidad, v.stock_minimo, 'TEMP')
+      const varResult  = insertVar.run({
+        producto_id: productoId, talla: v.talla, precio: v.precio,
+        cantidad: v.cantidad, stock_minimo: v.stock_minimo, ...costosVariante(v)
+      })
       const varianteId = varResult.lastInsertRowid
       const codigo     = generarEAN13(productoId, varianteId)
       db.prepare('UPDATE producto_variantes SET codigo_barras = ? WHERE id = ?').run(codigo, varianteId)
@@ -1045,9 +1066,13 @@ app.whenReady().then(() => {
 
   ipcMain.handle('agregar-variante', (e, { productoId, variante }) => {
     const result = db.prepare(`
-      INSERT INTO producto_variantes (producto_id, talla, precio, precio_costo, cantidad, stock_minimo, codigo_barras)
-      VALUES (?, ?, ?, ?, ?, ?, 'TEMP')
-    `).run(productoId, variante.talla, variante.precio, variante.precio_costo || 0, variante.cantidad, variante.stock_minimo)
+      INSERT INTO producto_variantes
+        (producto_id, talla, precio, precio_costo, costo_insumos, costo_confeccion, cantidad, stock_minimo, codigo_barras)
+      VALUES (@producto_id, @talla, @precio, @precio_costo, @costo_insumos, @costo_confeccion, @cantidad, @stock_minimo, 'TEMP')
+    `).run({
+      producto_id: productoId, talla: variante.talla, precio: variante.precio,
+      cantidad: variante.cantidad, stock_minimo: variante.stock_minimo, ...costosVariante(variante)
+    })
     const varianteId = result.lastInsertRowid
     const codigo     = generarEAN13(productoId, varianteId)
     db.prepare('UPDATE producto_variantes SET codigo_barras = ? WHERE id = ?').run(codigo, varianteId)
@@ -1056,9 +1081,13 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('editar-variante', (e, variante) => {
-    const datos = { ...variante, precio_costo: variante.precio_costo || 0 }
+    const datos = { ...variante, ...costosVariante(variante) }
     db.prepare(`
-      UPDATE producto_variantes SET talla=@talla, precio=@precio, precio_costo=@precio_costo, cantidad=@cantidad, stock_minimo=@stock_minimo WHERE id=@id
+      UPDATE producto_variantes
+      SET talla=@talla, precio=@precio, precio_costo=@precio_costo,
+          costo_insumos=@costo_insumos, costo_confeccion=@costo_confeccion,
+          cantidad=@cantidad, stock_minimo=@stock_minimo
+      WHERE id=@id
     `).run(datos)
     actualizarExcelInventario(db)
     return { ok: true }
@@ -1121,10 +1150,13 @@ app.whenReady().then(() => {
 
   ipcMain.handle('actualizar-precios-producto', (e, { productoId, variantes }) => {
     const update = db.prepare(`
-      UPDATE producto_variantes SET precio = @precio, precio_costo = @precio_costo WHERE id = @id
+      UPDATE producto_variantes
+      SET precio = @precio, precio_costo = @precio_costo,
+          costo_insumos = @costo_insumos, costo_confeccion = @costo_confeccion
+      WHERE id = @id
     `)
     for (const v of variantes) {
-      update.run({ id: v.id, precio: v.precio, precio_costo: v.precio_costo || 0 })
+      update.run({ id: v.id, precio: v.precio, ...costosVariante(v) })
     }
     actualizarExcelInventario(db)
     return { ok: true }
@@ -2228,7 +2260,9 @@ app.whenReady().then(() => {
     `).get(fechaInicio, fechaFin)
 
     const costoVendido = db.prepare(`
-      SELECT COALESCE(SUM(vi.cantidad * pv.precio_costo), 0) as total
+      SELECT COALESCE(SUM(vi.cantidad * pv.precio_costo), 0)     as total,
+             COALESCE(SUM(vi.cantidad * pv.costo_insumos), 0)    as insumos,
+             COALESCE(SUM(vi.cantidad * pv.costo_confeccion), 0) as confeccion
       FROM venta_items vi
       JOIN ventas v ON vi.venta_id = v.id
       JOIN producto_variantes pv ON vi.variante_id = pv.id
@@ -2253,6 +2287,10 @@ app.whenReady().then(() => {
       porDia,
       totalEgresos:          totalEgresos.total  || 0,
       costoVendido:          costoVendido.total  || 0,
+      costoInsumos:          costoVendido.insumos    || 0,
+      costoConfeccion:       costoVendido.confeccion || 0,
+      // Lo que aportan las tallas con costo viejo que aun no se ha dividido.
+      costoSinDividir:       Math.max(0, (costoVendido.total || 0) - (costoVendido.insumos || 0) - (costoVendido.confeccion || 0)),
       gananciaBruta,
       gananciaNeta
     }
