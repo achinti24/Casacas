@@ -114,9 +114,9 @@
           <td>${new Date(u.fecha_creacion).toLocaleDateString('es-CO')}</td>
           <td>
             ${u.usuario !== 'admin' ? `
-              <button class="btn btn-gris" style="padding:6px 12px;margin-right:5px" onclick="editarUsuario(${u.id})">Editar</button>
-              <button class="btn btn-rojo" style="padding:6px 12px" onclick="eliminarUsuario(${u.id})">Eliminar</button>
-            ` : '<span style="color:#aaa; font-size:13px;">Protegido</span>'}
+              <button class="accion-fila" onclick="editarUsuario(${u.id})">Editar</button>
+              <button class="accion-fila peligro" onclick="eliminarUsuario(${u.id})">Eliminar</button>
+            ` : '<span style="color:var(--text-muted); font-size:13px;">Protegido</span>'}
           </td>
         </tr>
       `).join('')

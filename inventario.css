@@ -1,56 +1,63 @@
+/* Cada producto es una fila de la lista, no una tarjeta flotante. */
 .producto-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-  margin-bottom: 12px;
+  border-bottom: none;
   overflow: hidden;
 }
+
+.producto-card:first-of-type { border-radius: var(--radius) var(--radius) 0 0; }
+
+.producto-card:last-of-type {
+  border-bottom: 1px solid var(--border);
+  border-radius: 0 0 var(--radius) var(--radius);
+  margin-bottom: 16px;
+}
+
+.producto-card:only-of-type { border-radius: var(--radius); }
 
 .producto-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 16px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.12s;
 }
 
-.producto-header:hover { background: var(--bg); }
+.producto-header:hover { background: var(--table-row-hover); }
 
 .producto-info {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 4px 10px;
+  min-width: 0;
 }
 
 .variantes-tabla {
-  border-top: 1px solid var(--border);
-  padding: 0 16px 16px;
+  border-top: 1px solid var(--table-border);
+  background: var(--raised);
+  padding: 4px 16px 12px;
 }
 
 .variantes-tabla table {
-  box-shadow: none;
-  border-radius: 8px;
-  margin-top: 12px;
+  background: transparent;
+  margin-top: 4px;
 }
 
-.variantes-tabla th {
-  background: var(--bg);
-  color: var(--text-muted);
-  font-size: 12px;
-  padding: 10px 12px;
-}
+.variantes-tabla th { padding: 8px 12px; }
 
 .variantes-tabla td {
-  padding: 10px 12px;
+  padding: 8px 12px;
   font-size: 13px;
   color: var(--text);
 }
 
 .chevron {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
-  margin-left: 8px;
+  margin-left: 4px;
 }

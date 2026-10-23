@@ -29,7 +29,7 @@
         display:flex; align-items:center; gap:8px;
         background:var(--card-bg); border:1px solid var(--border);
         padding:8px 14px; border-radius:8px; font-size:13px; color:var(--text-muted);">
-        <span id="lector-dot" style="width:8px;height:8px;border-radius:50%;background:#2ecc71;display:inline-block;"></span>
+        <span id="lector-dot" style="width:8px;height:8px;border-radius:50%;background:var(--verde);display:inline-block;"></span>
         <span id="lector-texto">Lector listo</span>
       </div>
     </div>
@@ -38,6 +38,13 @@
 
       <div class="panel">
         <h3>Nueva Venta</h3>
+
+        <div class="cuentas-pestanas" id="cuentas-pestanas" aria-label="Cuentas abiertas"></div>
+
+        <input type="text" id="v-nombre-cuenta" class="nombre-cuenta" maxlength="30"
+          aria-label="Nombre de esta cuenta"
+          placeholder="Nombre del cliente (opcional)"
+          oninput="renombrarCuentaActiva(this.value)">
 
         <div class="campo">
           <label>Apartado del cliente (opcional)</label>
@@ -50,9 +57,9 @@
           <strong id="banner-nombre"></strong><br>
           Tel: <span id="banner-tel"></span> &nbsp;|&nbsp;
           Colegio: <span id="banner-colegio"></span><br>
-          Abono ya dado: <strong id="banner-abono" style="color:#2ecc71;"></strong>
+          Abono ya dado: <strong id="banner-abono" style="color:var(--verde);"></strong>
           &nbsp;|&nbsp;
-          Saldo pendiente: <strong id="banner-saldo" style="color:#e94560;"></strong>
+          Saldo pendiente: <strong id="banner-saldo" style="color:var(--text);"></strong>
           <span id="banner-notas"></span>
         </div>
 
@@ -91,11 +98,11 @@
           </div>
           <div class="desglose-fila">
             <span>Abono aplicado</span>
-            <span id="desglose-abono" style="color:#2ecc71;">- $0</span>
+            <span id="desglose-abono" style="color:var(--verde);">- $0</span>
           </div>
           <div class="desglose-fila">
             <span>Total a cobrar</span>
-            <span id="desglose-total" style="color:#e94560;">$0</span>
+            <span id="desglose-total" style="color:var(--text);">$0</span>
           </div>
         </div>
 
@@ -118,6 +125,7 @@
           placeholder="Buscar por producto, talla, colegio, vendedor, cliente o factura..."
           oninput="aplicarFiltroVentas()"
           style="width:100%; padding:10px 14px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; margin-bottom:12px; background:var(--input-bg); color:var(--text);">
+        <div class="tabla-desplazable">
         <table>
           <thead>
             <tr>
@@ -136,6 +144,7 @@
             <tr><td colspan="9" class="vacio">Cargando...</td></tr>
           </tbody>
         </table>
+        </div>
       </div>
 
     </div>
@@ -153,11 +162,11 @@
         </div>
         <div id="pago-abono-fila" style="display:none; justify-content:space-between; margin-bottom:8px; font-size:15px;">
           <span>Abono aplicado:</span>
-          <strong id="pago-abono" style="color:#2ecc71;">- $0</strong>
+          <strong id="pago-abono" style="color:var(--verde);">- $0</strong>
         </div>
         <div style="display:flex; justify-content:space-between; padding-top:10px; border-top:2px solid var(--border); font-size:18px;">
           <span>Total a cobrar:</span>
-          <strong id="pago-total" style="color:#e94560;">$0</strong>
+          <strong id="pago-total" style="color:var(--text);">$0</strong>
         </div>
       </div>
 
@@ -166,19 +175,19 @@
         <label style="font-size:14px; font-weight:600; margin-bottom:8px; display:block;">Metodo de pago</label>
         <div style="display:flex; gap:10px;">
           <button id="btn-efectivo" onclick="seleccionarMetodoPago('efectivo')"
-            style="flex:1; padding:12px; border-radius:8px; border:2px solid #2ecc71;
-                   background:#d4f8e8; color:#1a7a4a; font-weight:700; font-size:14px; cursor:pointer;">
-            💵 Efectivo
+            style="flex:1; padding:12px; border-radius:8px; border:2px solid var(--text);
+                   background:var(--card-bg); color:var(--text); font-weight:500; font-size:14px; cursor:pointer;">
+            Efectivo
           </button>
           <button id="btn-transferencia" onclick="seleccionarMetodoPago('transferencia')"
             style="flex:1; padding:12px; border-radius:8px; border:2px solid var(--border);
-                   background:var(--bg); color:var(--text-muted); font-weight:700; font-size:14px; cursor:pointer;">
-            📲 Transferencia
+                   background:var(--card-bg); color:var(--text-muted); font-weight:500; font-size:14px; cursor:pointer;">
+            Transferencia
           </button>
           <button id="btn-mixto" onclick="seleccionarMetodoPago('mixto')"
             style="flex:1; padding:12px; border-radius:8px; border:2px solid var(--border);
-                   background:var(--bg); color:var(--text-muted); font-weight:700; font-size:14px; cursor:pointer;">
-            🔀 Mixto
+                   background:var(--card-bg); color:var(--text-muted); font-weight:500; font-size:14px; cursor:pointer;">
+            Mixto
           </button>
         </div>
       </div>
@@ -192,20 +201,20 @@
             style="font-size:20px; padding:12px; text-align:right;">
         </div>
 
-        <div style="background:#d4f8e8; border-radius:10px; padding:16px; margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:16px; font-weight:bold; color:#1a7a4a;">Vueltos:</span>
-          <strong id="pago-vueltos" style="font-size:24px; color:#1a7a4a;">$0</strong>
+        <div style="background:var(--pill-verde-bg); border-radius:10px; padding:16px; margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:16px; font-weight:bold; color:var(--pill-verde-ink);">Vueltos:</span>
+          <strong id="pago-vueltos" style="font-size:24px; color:var(--pill-verde-ink);">$0</strong>
         </div>
 
-        <div id="pago-alerta" style="display:none; background:#fde8ec; border-radius:8px; padding:10px; margin-top:10px; font-size:14px; color:#c0392b; text-align:center;">
+        <div id="pago-alerta" style="display:none; background:var(--pill-rojo-bg); border-radius:8px; padding:10px; margin-top:10px; font-size:14px; color:var(--pill-rojo-ink); text-align:center;">
           El cliente no ha dado suficiente dinero
         </div>
       </div>
 
       <!-- Seccion transferencia: solo visible cuando metodoPago === 'transferencia' -->
       <div id="seccion-transferencia" style="display:none;">
-        <div style="background:#e8f0fe; border-radius:10px; padding:16px; margin-top:4px; text-align:center; color:#2c5282;">
-          <span style="font-size:15px; font-weight:600;">📲 Pago por transferencia</span><br>
+        <div style="background:var(--pill-azul-bg); border-radius:10px; padding:16px; margin-top:4px; text-align:center; color:var(--pill-azul-ink);">
+          <span style="font-size:15px; font-weight:600;">Pago por transferencia</span><br>
           <small style="font-size:13px;">Confirma que el pago fue recibido antes de continuar.</small>
         </div>
       </div>
@@ -231,12 +240,12 @@
             style="font-size:18px; padding:12px; text-align:right;">
         </div>
 
-        <div style="background:#d4f8e8; border-radius:10px; padding:16px; margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:16px; font-weight:bold; color:#1a7a4a;">Vueltos:</span>
-          <strong id="pago-mixto-vueltos" style="font-size:24px; color:#1a7a4a;">$0</strong>
+        <div style="background:var(--pill-verde-bg); border-radius:10px; padding:16px; margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:16px; font-weight:bold; color:var(--pill-verde-ink);">Vueltos:</span>
+          <strong id="pago-mixto-vueltos" style="font-size:24px; color:var(--pill-verde-ink);">$0</strong>
         </div>
 
-        <div id="pago-mixto-alerta" style="display:none; background:#fde8ec; border-radius:8px; padding:10px; margin-top:10px; font-size:14px; color:#c0392b; text-align:center;">
+        <div id="pago-mixto-alerta" style="display:none; background:var(--pill-rojo-bg); border-radius:8px; padding:10px; margin-top:10px; font-size:14px; color:var(--pill-rojo-ink); text-align:center;">
           El cliente no ha dado suficiente dinero
         </div>
       </div>
@@ -254,9 +263,9 @@
 
       <div style="
         width:64px; height:64px; border-radius:50%;
-        background:#d4f8e8; display:flex; align-items:center; justify-content:center;
+        background:var(--pill-verde-bg); display:flex; align-items:center; justify-content:center;
         margin:0 auto 16px;">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" style="stroke:var(--pill-verde-ink)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="20 6 9 17 4 12"></polyline>
         </svg>
       </div>
@@ -265,13 +274,13 @@
       <div style="color:var(--text-muted); font-size:14px; margin-bottom:18px;">
         Factura <strong id="imprimir-factura-num" style="font-family:monospace;"></strong>
         &nbsp;·&nbsp;
-        Total <strong id="imprimir-factura-total" style="color:#e94560;"></strong>
+        Total <strong id="imprimir-factura-total" style="color:var(--text);"></strong>
       </div>
 
       <div style="
         background:var(--bg); border:1px solid var(--border); border-radius:10px;
         padding:18px; margin-bottom:20px; display:flex; flex-direction:column; align-items:center; gap:10px;">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" style="stroke:var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="6 9 6 2 18 2 18 9"></polyline>
           <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
           <rect x="6" y="14" width="12" height="8"></rect>
@@ -319,12 +328,12 @@
           <label>Motivo de la anulacion (opcional)</label>
           <input type="text" id="anular-motivo" placeholder="Ej: el cliente se arrepintio, error al registrar...">
         </div>
-        <div style="background:#fde8ec; border-radius:8px; padding:10px 14px; margin-top:8px; font-size:13px; color:#c0392b;">
+        <div style="background:var(--pill-rojo-bg); border-radius:8px; padding:10px 14px; margin-top:8px; font-size:13px; color:var(--pill-rojo-ink);">
           Esto devolvera el stock vendido al inventario. La venta quedara marcada como anulada y no se puede deshacer.
         </div>
         <div class="modal-botones" style="justify-content:flex-end; margin-top:12px;">
           <button class="btn btn-gris" onclick="cerrarSeccionAnular()">Cancelar</button>
-          <button class="btn btn-rojo" onclick="confirmarAnularVenta()">Confirmar Anulacion</button>
+          <button class="btn btn-peligro" onclick="confirmarAnularVenta()">Confirmar Anulacion</button>
         </div>
       </div>
 
@@ -334,7 +343,7 @@
           <button class="btn btn-gris" id="btn-reimprimir" onclick="reimprimirRecibo()" style="display:none;">
             Reimprimir
           </button>
-          <button class="btn btn-rojo" id="btn-anular-venta" onclick="mostrarSeccionAnular()" style="display:none;">
+          <button class="btn btn-peligro" id="btn-anular-venta" onclick="mostrarSeccionAnular()" style="display:none;">
             Anular Venta
           </button>
         </div>
@@ -364,8 +373,8 @@
       </div>
 
       <div id="cambio-nuevo-seleccionado" style="
-        display:none; background:#e8f0fe; border-radius:8px; padding:12px 14px;
-        margin-bottom:14px; font-size:14px; color:#2c5282;"></div>
+        display:none; background:var(--pill-azul-bg); border-radius:8px; padding:12px 14px;
+        margin-bottom:14px; font-size:14px; color:var(--pill-azul-ink);"></div>
 
       <!-- Solo aparece cuando el cambio mueve plata. Esa diferencia entra o
            sale del cajon hoy, asi que necesita su metodo para que el arqueo
@@ -405,6 +414,201 @@
     let cambioItemActual = null
     let cambioVarianteNuevaSeleccionada = null
 
+    // ── CUENTAS ABIERTAS ──────────────────────────────
+    // Cada cuenta es un carrito sin cobrar (con su apartado, si tiene), para
+    // atender a varios clientes a la vez. "carrito" y "apartadoActual" siempre
+    // son los de la cuenta activa. Se guardan en localStorage para que no se
+    // pierdan al ir a otra pagina y volver.
+    const CLAVE_CUENTAS  = 'ventas-cuentas-abiertas'
+    const estadoGuardado = leerEstadoGuardado()
+    let cuentas          = Array.isArray(estadoGuardado.cuentas) ? estadoGuardado.cuentas : []
+    let cuentaActivaId   = estadoGuardado.cuentaActivaId || null
+
+    function leerEstadoGuardado() {
+      try {
+        return JSON.parse(localStorage.getItem(CLAVE_CUENTAS)) || {}
+      } catch (e) {
+        console.warn('No se pudieron leer las cuentas abiertas guardadas:', e.message)
+        return {}
+      }
+    }
+
+    function guardarCuentas() {
+      try {
+        localStorage.setItem(CLAVE_CUENTAS, JSON.stringify({ cuentas, cuentaActivaId }))
+      } catch (e) {
+        console.warn('No se pudieron guardar las cuentas abiertas:', e.message)
+      }
+    }
+
+    function siguienteIdCuenta() {
+      let id = 1
+      while (cuentas.some(c => c.id === id)) id++
+      return id
+    }
+
+    function crearCuenta() {
+      const cuenta = { id: siguienteIdCuenta(), nombre: '', carrito: [], apartadoId: null }
+      cuentas.push(cuenta)
+      return cuenta
+    }
+
+    function cuentaActiva() {
+      return cuentas.find(c => c.id === cuentaActivaId)
+    }
+
+    function nombreCuenta(cuenta) {
+      if (cuenta.nombre) return cuenta.nombre
+      const apartado = apartados.find(a => a.id === cuenta.apartadoId)
+      return apartado ? apartado.nombre : `Cuenta ${cuenta.id}`
+    }
+
+    function subtotalItems(items) {
+      return items.reduce((acc, i) => acc + i.precio_unitario * i.cantidad, 0)
+    }
+
+    function unidadesEnOtrasCuentas(varianteId) {
+      return cuentas
+        .filter(c => c.id !== cuentaActivaId)
+        .flatMap(c => c.carrito)
+        .filter(i => i.variante_id === varianteId)
+        .reduce((acc, i) => acc + i.cantidad, 0)
+    }
+
+    // Lo guardado puede ser de hace horas: el apartado pudo entregarse o
+    // cancelarse desde otra pantalla y el stock pudo cambiar. Sin el apartado
+    // vigente se quitan sus prendas, para no cobrarlas dos veces.
+    function depurarCuenta(cuenta) {
+      const apartadoVigente = apartados.some(a => a.id === cuenta.apartadoId)
+      return {
+        ...cuenta,
+        apartadoId: apartadoVigente ? cuenta.apartadoId : null,
+        carrito: cuenta.carrito
+          .filter(item => apartadoVigente || !item.del_apartado)
+          .map(item => ({ ...item, stock: stockActual(item) }))
+      }
+    }
+
+    function stockActual(item) {
+      const encontrado = buscarVariante(item.variante_id)
+      return encontrado ? encontrado.variante.cantidad : item.stock
+    }
+
+    function refrescarCuentas() {
+      cuentas = cuentas.map(depurarCuenta)
+      if (cuentas.length === 0) crearCuenta()
+      mostrarCuenta(cuentaActiva() || cuentas[0])
+    }
+
+    function mostrarCuenta(cuenta) {
+      cuentaActivaId = cuenta.id
+      carrito        = cuenta.carrito
+      apartadoActual = apartados.find(a => a.id === cuenta.apartadoId) || null
+
+      document.getElementById('v-apartado').value      = apartadoActual ? apartadoActual.id : ''
+      document.getElementById('v-nombre-cuenta').value = cuenta.nombre
+      mostrarApartado(apartadoActual)
+      renderCarrito()
+      actualizarDesglose()
+      guardarCuentas()
+      renderPestanasCuentas()
+    }
+
+    function limpiarBusqueda() {
+      document.getElementById('v-buscar').value = ''
+      document.getElementById('v-sugerencias').innerHTML = ''
+    }
+
+    function seleccionarCuenta(id) {
+      if (id === cuentaActivaId) return
+      limpiarBusqueda()
+      mostrarCuenta(cuentas.find(c => c.id === id))
+    }
+
+    function abrirCuentaNueva() {
+      limpiarBusqueda()
+      mostrarCuenta(crearCuenta())
+      document.getElementById('v-buscar').focus()
+    }
+
+    function renombrarCuentaActiva(nombre) {
+      cuentaActiva().nombre = nombre.trim()
+      guardarCuentas()
+      renderPestanasCuentas()
+    }
+
+    function cerrarCuenta(id) {
+      const cuenta = cuentas.find(c => c.id === id)
+      const confirmado = cuenta.carrito.length === 0 || confirm(
+        `"${nombreCuenta(cuenta)}" tiene productos sin cobrar. Seguro que quieres cerrarla? Se perdera lo que lleva.`
+      )
+      if (confirmado) descartarCuenta(cuenta)
+    }
+
+    function descartarCuenta(cuenta) {
+      const indice = cuentas.indexOf(cuenta)
+      cuentas.splice(indice, 1)
+      if (cuentas.length === 0) crearCuenta()
+
+      if (cuenta.id !== cuentaActivaId) {
+        guardarCuentas()
+        renderPestanasCuentas()
+        return
+      }
+      limpiarBusqueda()
+      mostrarCuenta(cuentas[Math.min(indice, cuentas.length - 1)])
+    }
+
+    function resumenCuenta(cuenta) {
+      if (cuenta.carrito.length === 0) return 'vacia'
+      const unidades = cuenta.carrito.reduce((acc, i) => acc + i.cantidad, 0)
+      return `${unidades} prod. · $${subtotalItems(cuenta.carrito).toLocaleString('es-CO')}`
+    }
+
+    function escaparHtml(texto) {
+      const div = document.createElement('div')
+      div.textContent = texto
+      return div.innerHTML
+    }
+
+    function renderPestanasCuentas() {
+      const sePuedeCerrar = cuenta => cuentas.length > 1 || cuenta.carrito.length > 0
+      const pestanas = cuentas.map(cuenta => {
+        const activa = cuenta.id === cuentaActivaId
+        const nombre = escaparHtml(nombreCuenta(cuenta))
+        return `
+          <div class="pestana-cuenta ${activa ? 'activa' : ''}">
+            <button class="pestana-cuenta-principal" role="tab" aria-selected="${activa}"
+              onclick="seleccionarCuenta(${cuenta.id})">
+              <span class="pestana-cuenta-nombre">${nombre}</span>
+              <span class="pestana-cuenta-resumen">${resumenCuenta(cuenta)}</span>
+            </button>
+            ${sePuedeCerrar(cuenta) ? `
+              <button class="pestana-cuenta-cerrar" aria-label="Cerrar ${nombre}" title="Cerrar cuenta"
+                onclick="cerrarCuenta(${cuenta.id})">×</button>` : ''}
+          </div>
+        `
+      }).join('')
+
+      document.getElementById('cuentas-pestanas').innerHTML = `
+        <div class="cuentas-lista" role="tablist">${pestanas}</div>
+        <button class="btn-nueva-cuenta" onclick="abrirCuentaNueva()"
+          title="Atender a otro cliente sin cobrar esta cuenta">+ Nueva cuenta</button>
+      `
+    }
+
+    // Toda modificacion del carrito pasa por aqui, para que la cuenta activa
+    // quede guardada y su pestana muestre el total al dia.
+    function actualizarCarrito() {
+      const cuenta = cuentaActiva()
+      cuenta.carrito    = carrito
+      cuenta.apartadoId = apartadoActual ? apartadoActual.id : null
+      renderCarrito()
+      actualizarDesglose()
+      guardarCuentas()
+      renderPestanasCuentas()
+    }
+
     // ── NORMALIZACION DE BUSQUEDA (soporta "talla 12", "t12", etc) ──
     function normalizarPalabrasBusqueda(texto) {
       return texto.toLowerCase().split(/\s+/).filter(Boolean)
@@ -428,13 +632,13 @@
       const btnConfirmar     = document.getElementById('btn-confirmar-pago')
 
       const botones = [
-        { btn: btnEfectivo,      activo: metodo === 'efectivo',      colorBorde: '#2ecc71', colorFondo: '#d4f8e8', colorTexto: '#1a7a4a' },
-        { btn: btnTransferencia, activo: metodo === 'transferencia', colorBorde: '#3b82f6', colorFondo: '#e8f0fe', colorTexto: '#2c5282' },
-        { btn: btnMixto,         activo: metodo === 'mixto',         colorBorde: '#f39c12', colorFondo: '#fef3d4', colorTexto: '#8a5a00' },
+        { btn: btnEfectivo,      activo: metodo === 'efectivo',      colorBorde: 'var(--text)', colorFondo: 'var(--card-bg)', colorTexto: 'var(--text)' },
+        { btn: btnTransferencia, activo: metodo === 'transferencia', colorBorde: 'var(--text)', colorFondo: 'var(--card-bg)', colorTexto: 'var(--text)' },
+        { btn: btnMixto,         activo: metodo === 'mixto',         colorBorde: 'var(--text)', colorFondo: 'var(--card-bg)', colorTexto: 'var(--text)' },
       ]
       botones.forEach(({ btn, activo, colorBorde, colorFondo, colorTexto }) => {
-        btn.style.border     = activo ? `2px solid ${colorBorde}` : '2px solid var(--border)'
-        btn.style.background = activo ? colorFondo : 'var(--bg)'
+        btn.style.border     = activo ? `2px solid ${colorBorde}` : '2px solid var(--input-border)'
+        btn.style.background = activo ? colorFondo : 'var(--card-bg)'
         btn.style.color      = activo ? colorTexto : 'var(--text-muted)'
       })
 
@@ -470,11 +674,11 @@
       if (dado > 0 && vueltos < 0) {
         document.getElementById('pago-mixto-alerta').style.display = 'block'
         btnConfirmar.disabled = true
-        document.getElementById('pago-mixto-vueltos').style.color = '#e94560'
+        document.getElementById('pago-mixto-vueltos').style.color = 'var(--negativo)'
       } else {
         document.getElementById('pago-mixto-alerta').style.display = 'none'
         btnConfirmar.disabled = faltaEfectivo > 0 && dado < faltaEfectivo
-        document.getElementById('pago-mixto-vueltos').style.color = '#1a7a4a'
+        document.getElementById('pago-mixto-vueltos').style.color = 'var(--pill-verde-ink)'
       }
     }
 
@@ -502,16 +706,16 @@
     })
 
     async function procesarCodigoLector(codigo) {
-      mostrarLectorStatus(`Buscando: ${codigo}`, '#f39c12')
+      mostrarLectorStatus(`Buscando: ${codigo}`, 'var(--amarillo)')
       const variante = await ipcRenderer.invoke('buscar-por-codigo', codigo)
       if (!variante) {
-        mostrarLectorStatus('Codigo no encontrado', '#e94560')
-        setTimeout(() => mostrarLectorStatus('Lector listo', '#2ecc71'), 2000)
+        mostrarLectorStatus('Codigo no encontrado', 'var(--negativo)')
+        setTimeout(() => mostrarLectorStatus('Lector listo', 'var(--verde)'), 2000)
         return
       }
       agregarAlCarrito(variante.id)
-      mostrarLectorStatus(`+ ${variante.nombre} T${variante.talla}`, '#2ecc71')
-      setTimeout(() => mostrarLectorStatus('Lector listo', '#2ecc71'), 2000)
+      mostrarLectorStatus(`+ ${variante.nombre} T${variante.talla}`, 'var(--verde)')
+      setTimeout(() => mostrarLectorStatus('Lector listo', 'var(--verde)'), 2000)
     }
 
     function mostrarLectorStatus(texto, color) {
@@ -539,6 +743,7 @@
         select.appendChild(opt)
       })
 
+      refrescarCuentas()
       cargarVentas()
     }
 
@@ -605,8 +810,8 @@
         return
       }
       tbody.innerHTML = ventas.map(v => v.es_abono ? `
-        <tr style="background:rgba(22,163,74,0.05);">
-          <td><span class="badge" style="background:#d4f8e8;color:#1a7a4a;">ABONO</span></td>
+        <tr>
+          <td><span class="badge badge-verde">Abono</span></td>
           <td>${new Date(String(v.fecha).replace(' ', 'T')).toLocaleString('es-CO')}</td>
           <td style="max-width:220px;">
             <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px; color:var(--text);">
@@ -615,15 +820,15 @@
           </td>
           <td>${v.vendedor}</td>
           <td>${v.cliente}</td>
-          <td><strong style="color:#16a34a;">$${parseFloat(v.total).toLocaleString('es-CO')}</strong></td>
+          <td><strong style="color:var(--verde);">$${parseFloat(v.total).toLocaleString('es-CO')}</strong></td>
           <td>
             ${v.metodo_pago === 'transferencia'
-              ? '<span class="badge" style="background:#e8f0fe;color:#2c5282;">📲 Transf.</span>'
-              : '<span class="badge" style="background:#d4f8e8;color:#1a7a4a;">💵 Efectivo</span>'
+              ? '<span class="badge badge-gris">Transf.</span>'
+              : '<span class="badge badge-gris">Efectivo</span>'
             }
           </td>
-          <td><span class="badge" style="background:#fef3d4;color:#8a5a00;">Apartado</span></td>
-          <td><button class="btn btn-gris" style="padding:5px 10px" onclick="navegar('apartados.html')">Ver</button></td>
+          <td><span class="badge" style="background:var(--pill-amarillo-bg);color:var(--pill-amarillo-ink);">Apartado</span></td>
+          <td><button class="accion-fila" onclick="navegar('apartados.html')">Ver</button></td>
         </tr>
       ` : `
         <tr style="${v.anulada ? 'opacity:0.5;' : ''}">
@@ -637,13 +842,13 @@
           </td>
           <td>${v.vendedor}</td>
           <td>${v.cliente || '—'}</td>
-          <td><strong ${v.anulada ? 'style="text-decoration:line-through;color:#aaa;"' : ''}>$${parseFloat(v.total).toLocaleString('es-CO')}</strong></td>
+          <td><strong ${v.anulada ? 'style="text-decoration:line-through;color:var(--text-muted);"' : ''}>$${parseFloat(v.total).toLocaleString('es-CO')}</strong></td>
           <td>
             ${v.metodo_pago === 'transferencia'
-              ? '<span class="badge" style="background:#e8f0fe;color:#2c5282;">📲 Transf.</span>'
+              ? '<span class="badge badge-gris">Transf.</span>'
               : v.metodo_pago === 'mixto'
-                ? '<span class="badge" style="background:#fef3d4;color:#8a5a00;">🔀 Mixto</span>'
-                : '<span class="badge" style="background:#d4f8e8;color:#1a7a4a;">💵 Efectivo</span>'
+                ? '<span class="badge badge-gris">Mixto</span>'
+                : '<span class="badge badge-gris">Efectivo</span>'
             }
           </td>
           <td>
@@ -652,48 +857,37 @@
               : '<span class="badge badge-verde">Entregada</span>'
             }
           </td>
-          <td><button class="btn btn-gris" style="padding:5px 10px" onclick="verDetalle(${v.id})">Ver</button></td>
+          <td><button class="accion-fila" onclick="verDetalle(${v.id})">Ver</button></td>
         </tr>
       `).join('')
     }
 
     async function cargarApartado() {
-      const id          = document.getElementById('v-apartado').value
-      const banner      = document.getElementById('apartado-banner')
-      const desglose    = document.getElementById('desglose-pago')
-      const totalSimple = document.getElementById('total-venta-simple')
+      const id = parseInt(document.getElementById('v-apartado').value) || null
+      limpiarBusqueda()
 
-      carrito = []
-      renderCarrito()
-      document.getElementById('v-buscar').value = ''
-      document.getElementById('v-sugerencias').innerHTML = ''
-
-      if (!id) {
-        apartadoActual = null
-        banner.classList.remove('activo')
-        desglose.classList.remove('activo')
-        totalSimple.style.display = 'flex'
+      const cuentaConEseApartado = cuentas.find(c => c.id !== cuentaActivaId && c.apartadoId === id)
+      if (id && cuentaConEseApartado) {
+        mostrarCuenta(cuentaConEseApartado)
+        toast(`Ese apartado ya esta abierto en "${nombreCuenta(cuentaConEseApartado)}"`, 'info')
         return
       }
 
-      const a = apartados.find(x => x.id === parseInt(id))
-      if (!a) return
-      apartadoActual = a
+      const cuentaQuePidio = cuentaActivaId
+      const apartado       = apartados.find(a => a.id === id) || null
+      const items          = apartado ? await itemsDelApartado(apartado) : []
+      if (cuentaQuePidio !== cuentaActivaId) return
 
-      const items = await ipcRenderer.invoke('obtener-apartado-detalle', a.id)
-      const saldo  = a.total - a.abono
+      apartadoActual = apartado
+      carrito        = items
+      mostrarApartado(apartadoActual)
+      actualizarCarrito()
+    }
 
-      document.getElementById('banner-nombre').textContent  = a.nombre
-      document.getElementById('banner-tel').textContent     = a.telefono || '—'
-      document.getElementById('banner-colegio').textContent = a.colegio  || '—'
-      document.getElementById('banner-abono').textContent   = '$' + parseFloat(a.abono).toLocaleString('es-CO')
-      document.getElementById('banner-saldo').textContent   = '$' + parseFloat(saldo).toLocaleString('es-CO')
-      document.getElementById('banner-notas').innerHTML     = a.notas ? `<br>Notas: ${a.notas}` : ''
-      banner.classList.add('activo')
-
-      carrito = items.map(i => {
-        const prod     = productos.find(p => p.variantes && p.variantes.find(v => v.id === i.variante_id))
-        const variante = prod ? prod.variantes.find(v => v.id === i.variante_id) : null
+    async function itemsDelApartado(apartado) {
+      const items = await ipcRenderer.invoke('obtener-apartado-detalle', apartado.id)
+      return items.map(i => {
+        const encontrado = buscarVariante(i.variante_id)
         return {
           variante_id:     i.variante_id,
           nombre:          i.producto,
@@ -701,15 +895,25 @@
           categoria:       i.categoria,
           precio_unitario: i.precio_unitario,
           cantidad:        i.cantidad,
-          stock:           variante ? variante.cantidad : 999,
+          stock:           encontrado ? encontrado.variante.cantidad : 999,
           del_apartado:    true
         }
       })
+    }
 
-      renderCarrito()
-      totalSimple.style.display = 'none'
-      desglose.classList.add('activo')
-      actualizarDesglose()
+    function mostrarApartado(apartado) {
+      document.getElementById('apartado-banner').classList.toggle('activo', !!apartado)
+      document.getElementById('desglose-pago').classList.toggle('activo', !!apartado)
+      document.getElementById('total-venta-simple').style.display = apartado ? 'none' : 'flex'
+      if (!apartado) return
+
+      const saldo = apartado.total - apartado.abono
+      document.getElementById('banner-nombre').textContent  = apartado.nombre
+      document.getElementById('banner-tel').textContent     = apartado.telefono || '—'
+      document.getElementById('banner-colegio').textContent = apartado.colegio  || '—'
+      document.getElementById('banner-abono').textContent   = '$' + parseFloat(apartado.abono).toLocaleString('es-CO')
+      document.getElementById('banner-saldo').textContent   = '$' + parseFloat(saldo).toLocaleString('es-CO')
+      document.getElementById('banner-notas').innerHTML     = apartado.notas ? `<br>Notas: ${apartado.notas}` : ''
     }
 
     function actualizarDesglose() {
@@ -756,12 +960,12 @@
           agregarAlCarrito(varianteEncontrada.id)
           document.getElementById('v-buscar').value = ''
           sugerencias.innerHTML = ''
-          mostrarLectorStatus(`+ ${productoEncontrado.nombre} T${varianteEncontrada.talla}`, '#2ecc71')
-          setTimeout(() => mostrarLectorStatus('Lector listo', '#2ecc71'), 2000)
+          mostrarLectorStatus(`+ ${productoEncontrado.nombre} T${varianteEncontrada.talla}`, 'var(--verde)')
+          setTimeout(() => mostrarLectorStatus('Lector listo', 'var(--verde)'), 2000)
         } else {
-          sugerencias.innerHTML = '<div style="padding:12px; color:#e94560; font-size:14px;">Codigo no encontrado</div>'
-          mostrarLectorStatus('Codigo no encontrado', '#e94560')
-          setTimeout(() => mostrarLectorStatus('Lector listo', '#2ecc71'), 2000)
+          sugerencias.innerHTML = '<div style="padding:12px; color:var(--negativo); font-size:14px;">Codigo no encontrado</div>'
+          mostrarLectorStatus('Codigo no encontrado', 'var(--negativo)')
+          setTimeout(() => mostrarLectorStatus('Lector listo', 'var(--verde)'), 2000)
         }
         return
       }
@@ -785,21 +989,22 @@
 
       sugerencias.innerHTML = resultados.map(({ producto: p, variante: v }) => {
         const sinStock = v.cantidad <= 0
-        const enCarrito       = (carrito.find(x => x.variante_id === v.id) || {}).cantidad || 0
-        const stockDisponible = v.cantidad - enCarrito
-        const sinStockReal    = stockDisponible <= 0
+        const enCarrito        = (carrito.find(x => x.variante_id === v.id) || {}).cantidad || 0
+        const reservadoEnOtras = unidadesEnOtrasCuentas(v.id)
+        const stockDisponible  = v.cantidad - enCarrito - reservadoEnOtras
+        const sinStockReal     = stockDisponible <= 0
 
         return `
           <div class="sugerencia-item" onclick="${sinStockReal ? '' : `agregarAlCarrito(${v.id})`}"
             style="${sinStockReal ? 'opacity:0.5; cursor:not-allowed;' : 'cursor:pointer;'}">
             <strong>${p.nombre} — Talla ${v.talla}</strong>
             <span>${p.categoria} · ${p.colegio} · ${p.genero}</span>
-            <span style="color:${sinStock ? '#e94560' : (stockDisponible <= 3 ? '#f39c12' : 'inherit')};">
+            <span style="color:${sinStock ? 'var(--negativo)' : (stockDisponible <= 3 ? 'var(--amarillo)' : 'inherit')};">
               $${parseFloat(v.precio).toLocaleString('es-CO')} —
               ${sinStock
                 ? 'Agotado'
-                : enCarrito > 0
-                  ? `Stock: ${v.cantidad} (${stockDisponible} disponibles)`
+                : enCarrito + reservadoEnOtras > 0
+                  ? `Stock: ${v.cantidad} (${Math.max(0, stockDisponible)} disponibles)`
                   : `Stock: ${v.cantidad}`
               }
             </span>
@@ -808,29 +1013,41 @@
       }).join('')
     }
 
-    function agregarAlCarrito(varianteId) {
-      let productoEncontrado = null
-      let varianteEncontrada = null
-      for (const p of productos) {
-        if (!p.variantes) continue
-        const v = p.variantes.find(x => x.id === varianteId)
-        if (v) { productoEncontrado = p; varianteEncontrada = v; break }
+    function buscarVariante(varianteId) {
+      for (const producto of productos) {
+        const variante = (producto.variantes || []).find(v => v.id === varianteId)
+        if (variante) return { producto, variante }
       }
-      if (!varianteEncontrada) return
+      return null
+    }
 
-      document.getElementById('v-buscar').value = ''
-      document.getElementById('v-sugerencias').innerHTML = ''
+    function mensajeSinStock(descripcion, stock, enOtrasCuentas) {
+      const unidades = `${stock} unidad${stock === 1 ? '' : 'es'} disponible${stock === 1 ? '' : 's'}`
+      const aviso    = `Solo hay ${unidades} de "${descripcion}".`
+      return enOtrasCuentas > 0
+        ? `${aviso} ${enOtrasCuentas} ya esta${enOtrasCuentas === 1 ? '' : 'n'} en otra cuenta abierta.`
+        : aviso
+    }
 
-      const stockReal = varianteEncontrada.cantidad
-      const existente = carrito.find(x => x.variante_id === varianteId)
-      const enCarrito = existente ? existente.cantidad : 0
+    function agregarAlCarrito(varianteId) {
+      const encontrado = buscarVariante(varianteId)
+      if (!encontrado) return
+      const { producto: productoEncontrado, variante: varianteEncontrada } = encontrado
+
+      limpiarBusqueda()
+
+      const stockReal      = varianteEncontrada.cantidad
+      const existente      = carrito.find(x => x.variante_id === varianteId)
+      const enCarrito      = existente ? existente.cantidad : 0
+      const enOtrasCuentas = unidadesEnOtrasCuentas(varianteId)
+      const descripcion    = `${productoEncontrado.nombre} T${varianteEncontrada.talla}`
 
       if (stockReal <= 0) {
-        alert(`"${productoEncontrado.nombre} T${varianteEncontrada.talla}" esta agotado.`)
+        alert(`"${descripcion}" esta agotado.`)
         return
       }
-      if (enCarrito >= stockReal) {
-        alert(`Solo hay ${stockReal} unidad${stockReal === 1 ? '' : 'es'} disponible${stockReal === 1 ? '' : 's'} de "${productoEncontrado.nombre} T${varianteEncontrada.talla}".`)
+      if (enCarrito + enOtrasCuentas >= stockReal) {
+        alert(mensajeSinStock(descripcion, stockReal, enOtrasCuentas))
         return
       }
 
@@ -848,29 +1065,28 @@
           del_apartado:    false
         })
       }
-      renderCarrito()
-      if (apartadoActual) actualizarDesglose()
+      actualizarCarrito()
     }
 
     function cambiarCantidad(idx, val) {
-      const item  = carrito[idx]
-      const nueva = parseInt(val)
+      const item           = carrito[idx]
+      const nueva          = parseInt(val)
+      const enOtrasCuentas = unidadesEnOtrasCuentas(item.variante_id)
       if (nueva < 1) {
         carrito.splice(idx, 1)
-      } else if (nueva > item.stock) {
-        alert(`Solo hay ${item.stock} unidad${item.stock === 1 ? '' : 'es'} disponible${item.stock === 1 ? '' : 's'} de "${item.nombre} T${item.talla}".`)
+      } else if (nueva + enOtrasCuentas > item.stock) {
+        alert(mensajeSinStock(`${item.nombre} T${item.talla}`, item.stock, enOtrasCuentas))
+        renderCarrito()
         return
       } else {
         item.cantidad = nueva
       }
-      renderCarrito()
-      if (apartadoActual) actualizarDesglose()
+      actualizarCarrito()
     }
 
     function quitarDelCarrito(idx) {
       carrito.splice(idx, 1)
-      renderCarrito()
-      if (apartadoActual) actualizarDesglose()
+      actualizarCarrito()
     }
 
     function renderCarrito() {
@@ -892,7 +1108,7 @@
         <tr>
           <td>
             <strong>${item.nombre}</strong>
-            <br><small style="color:var(--text-muted);">${item.categoria} - ${item.talla}${item.del_apartado ? ' <span style="color:#f39c12; font-weight:bold;">· apartado</span>' : ''}</small>
+            <br><small style="color:var(--text-muted);">${item.categoria} - ${item.talla}${item.del_apartado ? ' <span style="color:var(--amarillo); font-weight:bold;">· apartado</span>' : ''}</small>
           </td>
           <td>$${parseFloat(item.precio_unitario).toLocaleString('es-CO')}</td>
           <td>
@@ -903,7 +1119,7 @@
           <td>$${(item.precio_unitario * item.cantidad).toLocaleString('es-CO')}</td>
           <td>
             <button onclick="quitarDelCarrito(${idx})"
-              style="background:none; border:none; cursor:pointer; color:#e94560; font-size:16px;">x</button>
+              style="background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:16px;" aria-label="Quitar del carrito">×</button>
           </td>
         </tr>
       `).join('')
@@ -980,11 +1196,11 @@
       if (dado > 0 && vueltos < 0) {
         document.getElementById('pago-alerta').style.display = 'block'
         document.getElementById('btn-confirmar-pago').disabled = true
-        document.getElementById('pago-vueltos').style.color = '#e94560'
+        document.getElementById('pago-vueltos').style.color = 'var(--negativo)'
       } else {
         document.getElementById('pago-alerta').style.display = 'none'
         document.getElementById('btn-confirmar-pago').disabled = false
-        document.getElementById('pago-vueltos').style.color = '#1a7a4a'
+        document.getElementById('pago-vueltos').style.color = 'var(--pill-verde-ink)'
       }
     }
 
@@ -1047,6 +1263,7 @@
             montoEfectivo,
             montoTransferencia
           },
+          cuentaId: cuentaActivaId,
           resultado,
           totalCobrar,
           dado,
@@ -1100,16 +1317,10 @@
 
     async function finalizarVenta() {
       if (!datosPendientesImpresion) return
-      const { resultado, totalCobrar, dado, vueltos } = datosPendientesImpresion
+      const { cuentaId, resultado, totalCobrar, dado, vueltos } = datosPendientesImpresion
 
-      carrito        = []
-      apartadoActual = null
-      document.getElementById('v-apartado').value = ''
-      document.getElementById('apartado-banner').classList.remove('activo')
-      document.getElementById('desglose-pago').classList.remove('activo')
-      document.getElementById('total-venta-simple').style.display = 'flex'
-      renderCarrito()
-      productos = await ipcRenderer.invoke('obtener-productos')
+      const cuentaCobrada = cuentas.find(c => c.id === cuentaId)
+      if (cuentaCobrada) descartarCuenta(cuentaCobrada)
       await cargarDatos()
 
       let mensaje = `Venta registrada\nFactura #${String(resultado.numeroFactura).padStart(6,'0')}\n\nTotal: $${totalCobrar.toLocaleString('es-CO')}\nDio: $${dado.toLocaleString('es-CO')}\nVueltos: $${vueltos.toLocaleString('es-CO')}`
@@ -1137,19 +1348,19 @@
       document.getElementById('detalle-titulo').textContent = `Detalle de Venta ${numFactura}`
 
       const labelPago = v?.metodo_pago === 'transferencia'
-        ? '<span style="color:#2c5282;">📲 Transferencia</span>'
+        ? '<span style="color:var(--pill-azul-ink);">Transferencia</span>'
         : v?.metodo_pago === 'mixto'
-          ? `<span style="color:#8a5a00;">🔀 Mixto (Efvo: $${parseFloat(v.monto_efectivo || 0).toLocaleString('es-CO')} · Transf: $${parseFloat(v.monto_transferencia || 0).toLocaleString('es-CO')})</span>`
-          : '<span style="color:#1a7a4a;">💵 Efectivo</span>'
+          ? `<span style="color:var(--pill-amarillo-ink);">Mixto (Efvo: $${parseFloat(v.monto_efectivo || 0).toLocaleString('es-CO')} · Transf: $${parseFloat(v.monto_transferencia || 0).toLocaleString('es-CO')})</span>`
+          : '<span style="color:var(--pill-verde-ink);">Efectivo</span>'
 
       document.getElementById('detalle-header').innerHTML = v
         ? `Vendedor: <strong>${v.vendedor}</strong> &nbsp;|&nbsp;
            Cliente: <strong>${v.cliente || 'Sin apartado'}</strong> &nbsp;|&nbsp;
            Pago: <strong>${labelPago}</strong> &nbsp;|&nbsp;
-           ${v.abono_aplicado > 0 ? `Abono: <strong style="color:#2ecc71;">$${parseFloat(v.abono_aplicado).toLocaleString('es-CO')}</strong> &nbsp;|&nbsp;` : ''}
-           Total cobrado: <strong style="color:#e94560;">$${parseFloat(v.total).toLocaleString('es-CO')}</strong>
+           ${v.abono_aplicado > 0 ? `Abono: <strong style="color:var(--verde);">$${parseFloat(v.abono_aplicado).toLocaleString('es-CO')}</strong> &nbsp;|&nbsp;` : ''}
+           Total cobrado: <strong style="color:var(--text);">$${parseFloat(v.total).toLocaleString('es-CO')}</strong>
            ${v.cliente_factura_nombre ? `<br>Facturado a: <strong>${v.cliente_factura_nombre}</strong>${v.cliente_factura_cedula ? ` &nbsp;|&nbsp; C.C./NIT: <strong>${v.cliente_factura_cedula}</strong>` : ''}` : ''}
-           ${v.anulada ? `<br><span style="color:#e94560; font-weight:bold;">ANULADA — ${v.motivo_anulacion}</span>` : ''}`
+           ${v.anulada ? `<br><span style="color:var(--negativo); font-weight:bold;">ANULADA — ${v.motivo_anulacion}</span>` : ''}`
         : ''
 
       document.getElementById('detalle-body').innerHTML = items.map(i => `
@@ -1161,7 +1372,7 @@
           <td>$${parseFloat(i.precio_unitario).toLocaleString('es-CO')}</td>
           <td>$${(i.precio_unitario * i.cantidad).toLocaleString('es-CO')}</td>
           <td>
-            ${ventaDetalleAnulada ? '' : `<button class="btn btn-gris" style="padding:4px 8px; font-size:12px;"
+            ${ventaDetalleAnulada ? '' : `<button class="accion-fila"
               onclick="abrirModalCambio(${i.item_id}, ${i.variante_id}, ${i.cantidad}, '${i.producto.replace(/'/g, "\\'")}', '${i.talla}', ${i.precio_unitario})">Cambiar</button>`}
           </td>
         </tr>
@@ -1266,7 +1477,7 @@
             style="${sinStock ? 'opacity:0.5; cursor:not-allowed;' : 'cursor:pointer;'}">
             <strong>${p.nombre} — Talla ${v.talla}</strong>
             <span>${p.categoria} · ${p.colegio} · ${p.genero}</span>
-            <span style="color:${sinStock ? '#e94560' : 'inherit'};">
+            <span style="color:${sinStock ? 'var(--negativo)' : 'inherit'};">
               $${parseFloat(v.precio).toLocaleString('es-CO')} — ${sinStock ? 'Agotado' : 'Stock: ' + v.cantidad}
             </span>
           </div>
@@ -1275,14 +1486,9 @@
     }
 
     function seleccionarVarianteCambio(varianteId) {
-      let productoEncontrado = null
-      let varianteEncontrada = null
-      for (const p of productos) {
-        if (!p.variantes) continue
-        const v = p.variantes.find(x => x.id === varianteId)
-        if (v) { productoEncontrado = p; varianteEncontrada = v; break }
-      }
-      if (!varianteEncontrada || !cambioItemActual) return
+      const encontrado = buscarVariante(varianteId)
+      if (!encontrado || !cambioItemActual) return
+      const { producto: productoEncontrado, variante: varianteEncontrada } = encontrado
 
       cambioVarianteNuevaSeleccionada = {
         id:     varianteId,
@@ -1300,7 +1506,7 @@
       div.innerHTML = `
         <strong>${productoEncontrado.nombre} — Talla ${varianteEncontrada.talla}</strong>
         <br>$${parseFloat(varianteEncontrada.precio).toLocaleString('es-CO')} c/u
-        <br><span style="color:${diferencia > 0 ? '#c0392b' : (diferencia < 0 ? '#1a7a4a' : '#2c5282')}; font-weight:600;">
+        <br><span style="color:${diferencia > 0 ? 'var(--pill-rojo-ink)' : (diferencia < 0 ? 'var(--pill-verde-ink)' : 'var(--pill-azul-ink)')}; font-weight:600;">
           ${diferencia > 0
             ? 'El cliente debe pagar $' + diferencia.toLocaleString('es-CO') + ' mas'
             : diferencia < 0

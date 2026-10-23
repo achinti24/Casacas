@@ -58,28 +58,24 @@
     </div>
     <div class="kpi-grid">
       <div class="kpi-card">
-        <div class="kpi-icono verde">💰</div>
         <div class="kpi-texto">
           <span class="kpi-valor" id="r-total">$0</span>
           <span class="kpi-etiqueta">Total recaudado</span>
         </div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-icono azul">🧾</div>
         <div class="kpi-texto">
           <span class="kpi-valor" id="r-ventas">0</span>
           <span class="kpi-etiqueta">Ventas realizadas</span>
         </div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-icono rojo">📦</div>
         <div class="kpi-texto">
           <span class="kpi-valor" id="r-unidades">0</span>
           <span class="kpi-etiqueta">Unidades vendidas</span>
         </div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-icono morado">📥</div>
         <div class="kpi-texto">
           <span class="kpi-valor" id="r-entradas">0 uds</span>
           <span class="kpi-etiqueta">Entradas de stock</span>
@@ -93,8 +89,8 @@
       <h3>Metodo de pago</h3>
     </div>
     <div class="kpi-grid" style="grid-template-columns: repeat(2, 1fr);">
-      <div class="kpi-card" style="border-left: 4px solid #2ecc71;">
-        <div class="kpi-icono verde">💵</div>
+      <div class="kpi-card" style="border-left: 4px solid var(--verde);">
+        <div class="kpi-icono verde"></div>
         <div class="kpi-texto">
           <span class="kpi-valor" id="r-efectivo">$0</span>
           <span class="kpi-etiqueta">
@@ -102,8 +98,8 @@
           </span>
         </div>
       </div>
-      <div class="kpi-card" style="border-left: 4px solid #3b82f6;">
-        <div class="kpi-icono azul">📲</div>
+      <div class="kpi-card" style="border-left: 4px solid var(--dato);">
+        <div class="kpi-icono azul"></div>
         <div class="kpi-texto">
           <span class="kpi-valor" id="r-transferencia">$0</span>
           <span class="kpi-etiqueta">
@@ -342,13 +338,13 @@
               <td>${v.cliente || '—'}</td>
               <td>
                 ${v.metodo_pago === 'transferencia'
-                  ? '<span class="badge" style="background:#e8f0fe;color:#2c5282;">📲 Transf.</span>'
-                  : '<span class="badge" style="background:#d4f8e8;color:#1a7a4a;">💵 Efectivo</span>'
+                  ? '<span class="badge badge-gris">Transf.</span>'
+                  : '<span class="badge badge-gris">Efectivo</span>'
                 }
               </td>
               <td>${v.abono_aplicado > 0 ? '$' + parseFloat(v.abono_aplicado).toLocaleString('es-CO') : '—'}</td>
               <td><strong>$${parseFloat(v.total).toLocaleString('es-CO')}</strong></td>
-              <td><button class="btn btn-gris" style="padding:5px 10px" onclick="verDetalle(${v.id})">Ver</button></td>
+              <td><button class="accion-fila" onclick="verDetalle(${v.id})">Ver</button></td>
             </tr>
           `).join('')
     }

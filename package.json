@@ -1,6 +1,6 @@
 {
   "name": "casacas",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "description": "Sistema de inventario para tienda de ropa",
   "main": "main.js",
   "type": "commonjs",
@@ -32,7 +32,7 @@
     "appId": "com.casacas.colegial",
     "productName": "Casacas",
     "npmRebuild": true,
-    "buildDependenciesFromSource": true,
+    "buildDependenciesFromSource": false,
     "directories": {
       "output": "dist"
     },

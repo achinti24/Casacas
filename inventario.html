@@ -56,7 +56,7 @@
       <button class="btn-limpiar" onclick="limpiarFiltros()">Limpiar filtros</button>
     </div>
 
-    <p id="contador" style="margin-bottom:12px; color:#888; font-size:14px;"></p>
+    <p id="contador" style="margin-bottom:12px; color:var(--text-muted); font-size:14px;"></p>
 
     <div id="lista-productos"></div>
   </div>
@@ -98,18 +98,18 @@
       </div>
       <div id="variantes-container">
         <div style="display:flex; justify-content:space-between; align-items:center; margin:16px 0 10px;">
-          <h4 style="color:#555;">Tallas y precios</h4>
+          <h4 style="color:var(--text-muted);">Tallas y precios</h4>
           <button class="btn btn-gris" style="padding:6px 14px; font-size:13px;" onclick="agregarFilaVariante()">+ Agregar talla</button>
         </div>
         <table style="width:100%; margin-bottom:10px;">
           <thead>
             <tr>
-              <th style="background:#f5f6fa; color:#555; padding:8px 10px; font-size:12px; text-align:left;">Talla</th>
-              <th style="background:#f5f6fa; color:#555; padding:8px 10px; font-size:12px; text-align:left;">P. Costo ($)</th>
-              <th style="background:#f5f6fa; color:#555; padding:8px 10px; font-size:12px; text-align:left;">P. Venta ($)</th>
-              <th style="background:#f5f6fa; color:#555; padding:8px 10px; font-size:12px; text-align:left;">Cantidad</th>
-              <th style="background:#f5f6fa; color:#555; padding:8px 10px; font-size:12px; text-align:left;">Stock min.</th>
-              <th style="background:#f5f6fa; padding:8px 10px;"></th>
+              <th style="background:var(--raised); color:var(--text-muted); padding:8px 10px; font-size:12px; text-align:left;">Talla</th>
+              <th style="background:var(--raised); color:var(--text-muted); padding:8px 10px; font-size:12px; text-align:left;">P. Costo ($)</th>
+              <th style="background:var(--raised); color:var(--text-muted); padding:8px 10px; font-size:12px; text-align:left;">P. Venta ($)</th>
+              <th style="background:var(--raised); color:var(--text-muted); padding:8px 10px; font-size:12px; text-align:left;">Cantidad</th>
+              <th style="background:var(--raised); color:var(--text-muted); padding:8px 10px; font-size:12px; text-align:left;">Stock min.</th>
+              <th style="background:var(--raised); padding:8px 10px;"></th>
             </tr>
           </thead>
           <tbody id="variantes-body"></tbody>
@@ -205,9 +205,9 @@
   <div class="modal-overlay" id="modal-codigo">
     <div class="modal" style="width:380px; text-align:center;">
       <h2>Codigo de Barras</h2>
-      <p id="codigo-producto-nombre" style="color:#555; font-size:14px; margin-bottom:16px;"></p>
+      <p id="codigo-producto-nombre" style="color:var(--text-muted); font-size:14px; margin-bottom:16px;"></p>
       <canvas id="codigo-canvas" style="max-width:100%;"></canvas>
-      <p id="codigo-numero" style="font-size:18px; font-weight:bold; letter-spacing:3px; margin-top:12px; color:#1a1a2e;"></p>
+      <p id="codigo-numero" style="font-size:18px; font-weight:bold; margin-top:12px; color:var(--text);"></p>
       <div class="modal-botones" style="justify-content:center;">
         <button class="btn btn-gris" onclick="cerrarModalCodigo()">Cerrar</button>
       </div>
@@ -441,7 +441,7 @@
     function renderProductos(lista) {
       const contenedor = document.getElementById('lista-productos')
       if (lista.length === 0) {
-        contenedor.innerHTML = '<div class="vacio" style="padding:60px; text-align:center; color:#aaa;">No se encontraron productos.</div>'
+        contenedor.innerHTML = '<div class="vacio" style="padding:60px; text-align:center; color:var(--text-muted);">No se encontraron productos.</div>'
         return
       }
 
@@ -451,30 +451,30 @@
         <div class="producto-card">
           <div class="producto-header" onclick="toggleVariantes(${p.id})">
             <div class="producto-info">
-              <strong style="font-size:16px; color:var(--text);">${p.nombre}</strong>
-              <span style="color:var(--text-muted); font-size:13px; margin-left:12px;">${p.categoria} — ${p.colegio} — ${p.genero} — ${nombreGrupoTalla(p.grupo_talla_id)}</span>
+              <strong style="font-size:15px; font-weight:600; color:var(--text);">${p.nombre}</strong>
+              <span style="color:var(--text-muted); font-size:13px;">${p.categoria} · ${p.colegio} · ${p.genero} · ${nombreGrupoTalla(p.grupo_talla_id)}</span>
             </div>
-            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-              <span style="font-size:13px; color:#888;">${p.variantes.length} talla(s)</span>
+            <div style="display:flex; align-items:center; gap:2px; flex-wrap:wrap; justify-content:flex-end;">
+              <span style="font-size:13px; color:var(--text-muted); margin-right:8px; font-variant-numeric:tabular-nums;">${p.variantes.length} talla(s)</span>
               ${esAdmin ? `
-                <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
+                <button class="accion-fila"
                   onclick="event.stopPropagation(); abrirModalEditarProducto(${p.id})">
                   Editar
                 </button>
-                <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
+                <button class="accion-fila"
                   onclick="event.stopPropagation(); abrirModalPrecios(${p.id})">
                   Precios
                 </button>
-                <button class="btn btn-gris" style="padding:4px 10px; font-size:12px; color:#8e44ad; border-color:#8e44ad;"
+                <button class="accion-fila"
                   onclick="event.stopPropagation(); abrirModalBundle(${p.id})"
                   title="Definir que piezas componen este paquete">
                   Bundles
                 </button>
-                <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
+                <button class="accion-fila"
                   onclick="event.stopPropagation(); abrirModalVariante(${p.id})">
                   + Talla
                 </button>
-                <button class="btn btn-rojo" style="padding:4px 10px; font-size:12px;"
+                <button class="accion-fila peligro"
                   onclick="event.stopPropagation(); eliminarProducto(${p.id})">
                   Eliminar
                 </button>
@@ -506,23 +506,23 @@
                     <td>${v.stock_minimo}</td>
                     <td>${stockBadge(v)}</td>
                     <td>
-                      <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
+                      <button class="accion-fila"
                         onclick="verCodigo(${v.id}, '${p.nombre} - ${v.talla}', '${v.codigo_barras}')">
                         Ver codigo
                       </button>
                     </td>
                     ${esAdmin ? `
                       <td style="display:flex; gap:4px; flex-wrap:wrap;">
-                        <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
+                        <button class="accion-fila"
                           onclick="abrirModalEditarVariante(${v.id}, ${p.id}, '${v.talla}', ${v.precio_costo || 0}, ${v.precio}, ${v.cantidad}, ${v.stock_minimo}, ${!!v.es_bundle})">
                           Editar
                         </button>
                         ${!v.es_bundle ? `
-                        <button class="btn btn-gris" style="padding:4px 10px; font-size:12px; color:#2ecc71; border-color:#2ecc71;"
+                        <button class="accion-fila"
                           onclick="abrirEntradaRapida(${v.id}, '${p.nombre}', '${v.talla}')">
                           + Stock
                         </button>` : ''}
-                        <button class="btn btn-rojo" style="padding:4px 10px; font-size:12px;"
+                        <button class="accion-fila peligro"
                           onclick="eliminarVariante(${v.id}, ${p.id})">
                           Eliminar
                         </button>
@@ -607,39 +607,39 @@
         <tr>
           <td>
             <select onchange="filasVariantes[${i}].talla = this.value"
-              style="padding:6px; border:1px solid #ddd; border-radius:6px; font-size:13px; width:80px;">
+              style="padding:6px; border:1px solid var(--border); border-radius:6px; font-size:13px; width:80px;">
               ${opcionesTalla.map(t => `<option ${t === v.talla ? 'selected' : ''}>${t}</option>`).join('')}
             </select>
           </td>
           <td>
             <input type="number" min="0" value="${v.precio_costo}"
               onchange="filasVariantes[${i}].precio_costo = parseFloat(this.value)"
-              style="width:85px; padding:6px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
+              style="width:85px; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
           </td>
           <td>
             <input type="number" min="0" value="${v.precio}"
               onchange="filasVariantes[${i}].precio = parseFloat(this.value)"
-              style="width:85px; padding:6px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
+              style="width:85px; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
           </td>
           <td>
             <input type="number" min="0" value="${v.cantidad}"
               onchange="filasVariantes[${i}].cantidad = parseInt(this.value)"
-              style="width:70px; padding:6px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
+              style="width:70px; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
           </td>
           <td>
             <input type="number" min="0" value="${v.stock_minimo}"
               onchange="filasVariantes[${i}].stock_minimo = parseInt(this.value)"
-              style="width:70px; padding:6px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
+              style="width:70px; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
           </td>
           <td>
             <button onclick="filasVariantes.splice(${i},1); renderFilasVariantes()"
-              style="background:none; border:none; cursor:pointer; color:#e94560; font-size:16px;">✕</button>
+              style="background:none; border:none; cursor:pointer; color:var(--negativo); font-size:16px;">×</button>
           </td>
         </tr>
       `).join('')
 
       if (filasVariantes.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#aaa; padding:16px; font-size:13px;">
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:16px; font-size:13px;">
           Agrega al menos una talla con el boton de arriba
         </td></tr>`
       }
@@ -985,7 +985,7 @@
           style="padding:10px 14px; cursor:pointer; border-bottom:1px solid var(--border); font-size:13px;"
           onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
           <strong style="color:var(--text);">${v.label}</strong>
-          <span style="color:${v.stock <= 0 ? '#e94560' : v.stock <= 3 ? '#f39c12' : '#2ecc71'}; margin-left:8px; font-size:12px;">
+          <span style="color:${v.stock <= 0 ? 'var(--negativo)' : v.stock <= 3 ? 'var(--amarillo)' : 'var(--verde)'}; margin-left:8px; font-size:12px;">
             Stock: ${v.stock}
           </span>
         </div>
@@ -1028,7 +1028,7 @@
       contenedor.innerHTML = `
         <div style="margin-bottom:10px; padding:10px 14px; background:var(--bg); border-radius:8px; font-size:13px; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center;">
           <span>Paquetes disponibles (minimo entre piezas):</span>
-          <strong style="font-size:16px; color:${stockBundle <= 0 ? '#e94560' : stockBundle <= 3 ? '#f39c12' : '#2ecc71'};">
+          <strong style="font-size:16px; color:${stockBundle <= 0 ? 'var(--negativo)' : stockBundle <= 3 ? 'var(--amarillo)' : 'var(--verde)'};">
             ${stockBundle <= 0 ? 'Agotado' : stockBundle + ' uds'}
           </strong>
         </div>
@@ -1039,11 +1039,11 @@
               <strong style="font-size:14px; color:var(--text);">${f.label}</strong>
             </div>
             <div style="display:flex; align-items:center; gap:12px;">
-              <span style="font-size:13px; color:${f.stock <= 0 ? '#e94560' : f.stock <= 3 ? '#f39c12' : 'var(--text-muted)'};">
+              <span style="font-size:13px; color:${f.stock <= 0 ? 'var(--negativo)' : f.stock <= 3 ? 'var(--amarillo)' : 'var(--text-muted)'};">
                 Stock: ${f.stock}
               </span>
               <button onclick="quitarPiezaBundle(${i})"
-                style="background:none; border:none; cursor:pointer; color:#e94560; font-size:18px; line-height:1; padding:0;">✕</button>
+                style="background:none; border:none; cursor:pointer; color:var(--negativo); font-size:18px; line-height:1; padding:0;">×</button>
             </div>
           </div>
         `).join('')}

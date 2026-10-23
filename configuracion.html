@@ -91,7 +91,7 @@
 
         <!-- Lista de grupos -->
         <div>
-          <h4 style="margin-bottom:10px; color:var(--text-muted); font-size:13px; text-transform:uppercase;">Grupos</h4>
+          <h4 style="margin-bottom:10px; color:var(--text-muted); font-size:13px;">Grupos</h4>
           <div style="display:flex; gap:8px; margin-bottom:12px;">
             <input type="text" id="nuevo-grupo-talla" placeholder="Nuevo grupo..."
               style="flex:1; padding:10px; border:1px solid var(--input-border); border-radius:8px; font-size:14px; background:var(--input-bg); color:var(--text);">
@@ -102,7 +102,7 @@
 
         <!-- Tallas del grupo seleccionado -->
         <div>
-          <h4 id="titulo-tallas-grupo" style="margin-bottom:10px; color:var(--text-muted); font-size:13px; text-transform:uppercase;">
+          <h4 id="titulo-tallas-grupo" style="margin-bottom:10px; color:var(--text-muted); font-size:13px;">
             Tallas
           </h4>
           <div style="display:flex; gap:8px; margin-bottom:12px;">
@@ -200,15 +200,15 @@
         const activo = g.id === grupoSeleccionado
         return `
         <div style="display:flex; align-items:center; justify-content:space-between;
-             padding:10px 12px; background:${activo ? 'var(--rojo, #e94560)' : 'var(--bg)'}; border-radius:8px; margin-bottom:8px; cursor:pointer;"
+             padding:10px 12px; background:${activo ? 'var(--nav-activo)' : 'var(--raised)'}; box-shadow:${activo ? 'inset 0 0 0 1px var(--text)' : 'none'}; border-radius:6px; margin-bottom:8px; cursor:pointer;"
              onclick="seleccionarGrupoTalla(${g.id})">
-          <span style="font-size:14px; color:${activo ? '#fff' : 'var(--text)'}; font-weight:${activo ? '600' : '400'};">${g.nombre}</span>
+          <span style="font-size:14px; color:var(--text); font-weight:${activo ? '600' : '400'};">${g.nombre}</span>
           <div style="display:flex; gap:6px;" onclick="event.stopPropagation()">
-            <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
+            <button class="accion-fila"
               onclick="abrirEditar('grupo', ${g.id}, '${g.nombre.replace(/'/g, "\\'")}')">
               Editar
             </button>
-            <button class="btn btn-rojo" style="padding:4px 10px; font-size:12px;"
+            <button class="accion-fila peligro"
               onclick="eliminarGrupoTalla(${g.id})">
               Eliminar
             </button>
@@ -234,11 +234,11 @@
              padding:8px 10px; background:var(--bg); border-radius:8px;">
           <span style="font-size:14px; color:var(--text);">${item.nombre}</span>
           <div style="display:flex; gap:4px;">
-            <button class="btn btn-gris" style="padding:3px 8px; font-size:11px;"
+            <button class="accion-fila"
               onclick="abrirEditar('talla', ${item.id}, '${item.nombre.replace(/'/g, "\\'")}')">
               Editar
             </button>
-            <button class="btn btn-rojo" style="padding:3px 8px; font-size:11px;"
+            <button class="accion-fila peligro"
               onclick="eliminar('talla', ${item.id})">
               Eliminar
             </button>
@@ -283,11 +283,11 @@
              padding:10px 12px; background:var(--bg); border-radius:8px; margin-bottom:8px;">
           <span style="font-size:14px; color:var(--text);">${item.nombre}</span>
           <div style="display:flex; gap:6px;">
-            <button class="btn btn-gris" style="padding:4px 10px; font-size:12px;"
+            <button class="accion-fila"
               onclick="abrirEditar('${tipo}', ${item.id}, '${item.nombre.replace(/'/g, "\\'")}')">
               Editar
             </button>
-            <button class="btn btn-rojo" style="padding:4px 10px; font-size:12px;"
+            <button class="accion-fila peligro"
               onclick="eliminar('${tipo}', ${item.id})">
               Eliminar
             </button>

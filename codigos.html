@@ -56,7 +56,7 @@
       <h2 id="codigo-titulo"></h2>
       <p id="codigo-subtitulo" style="color:var(--text-muted); font-size:14px; margin-bottom:20px;"></p>
       <canvas id="codigo-canvas-modal" style="max-width:100%;"></canvas>
-      <p id="codigo-numero-modal" style="font-size:16px; font-weight:bold; letter-spacing:3px; margin-top:12px; color:var(--text);"></p>
+      <p id="codigo-numero-modal" style="font-size:16px; font-weight:bold; margin-top:12px; color:var(--text);"></p>
       <div class="modal-botones" style="justify-content:center; gap:10px;">
         <button class="btn btn-gris" onclick="cerrarModalCodigo()">Cerrar</button>
         <button class="btn btn-rojo" onclick="descargarCodigoModal()">Descargar imagen</button>
@@ -241,8 +241,8 @@
               <strong style="font-size:14px; color:var(--text);">${v.nombre}</strong><br>
               <span style="font-size:12px; color:var(--text-muted);">${v.categoria} · ${v.colegio} · T${v.talla}</span><br>
               <span style="font-size:12px; color:var(--text-muted);">${v.genero}</span><br>
-              <strong style="font-size:13px; color:#e94560;">$${parseFloat(v.precio).toLocaleString('es-CO')}</strong><br>
-              <span style="font-size:11px; color:var(--text-muted); letter-spacing:1px;">${v.codigo}</span>
+              <strong style="font-size:13px; color:var(--text);">$${parseFloat(v.precio).toLocaleString('es-CO')}</strong><br>
+              <span style="font-size:11px; color:var(--text-muted);">${v.codigo}</span>
             </div>
             <div style="margin-top:10px; display:flex; gap:6px; justify-content:center;">
               <span class="badge ${v.cantidad > 0 ? 'badge-verde' : 'badge-rojo'}" style="font-size:11px;">

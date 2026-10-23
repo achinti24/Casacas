@@ -30,10 +30,10 @@
           display:flex; align-items:center; gap:8px;
           background:var(--card-bg); border:1px solid var(--border);
           padding:8px 14px; border-radius:8px; font-size:13px; color:var(--text-muted);">
-          <span id="lector-dot" style="width:8px;height:8px;border-radius:50%;background:#2ecc71;display:inline-block;"></span>
+          <span id="lector-dot" style="width:8px;height:8px;border-radius:50%;background:var(--verde);display:inline-block;"></span>
           <span id="lector-texto">Lector listo</span>
         </div>
-        <button class="btn btn-gris" onclick="imprimirArqueo()">🖨️ Arqueo del dia</button>
+        <button class="btn btn-gris" onclick="imprimirArqueo()">Arqueo del dia</button>
         <button class="btn btn-rojo" onclick="abrirModalEntrada()">+ Entrada de Stock</button>
       </div>
     </div>
@@ -75,7 +75,7 @@
       <button class="btn-limpiar" onclick="limpiarFiltros()">Limpiar</button>
     </div>
 
-    <p id="contador" style="margin-bottom:12px; color:#888; font-size:14px;"></p>
+    <p id="contador" style="margin-bottom:12px; color:var(--text-muted); font-size:14px;"></p>
 
     <table>
       <thead>
@@ -159,12 +159,12 @@
     })
 
     async function procesarCodigoLector(codigo, abrirModal) {
-      mostrarLectorStatus(`Buscando: ${codigo}`, '#f39c12')
+      mostrarLectorStatus(`Buscando: ${codigo}`, 'var(--amarillo)')
       const variante = await ipcRenderer.invoke('buscar-por-codigo', codigo)
 
       if (!variante) {
-        mostrarLectorStatus('Codigo no encontrado', '#e94560')
-        setTimeout(() => mostrarLectorStatus('Lector listo', '#2ecc71'), 2000)
+        mostrarLectorStatus('Codigo no encontrado', 'var(--negativo)')
+        setTimeout(() => mostrarLectorStatus('Lector listo', 'var(--verde)'), 2000)
         return
       }
 
@@ -178,8 +178,8 @@
         select.value = variante.id
       }
 
-      mostrarLectorStatus(`Seleccionado: ${variante.nombre} T${variante.talla}`, '#2ecc71')
-      setTimeout(() => mostrarLectorStatus('Lector listo', '#2ecc71'), 2000)
+      mostrarLectorStatus(`Seleccionado: ${variante.nombre} T${variante.talla}`, 'var(--verde)')
+      setTimeout(() => mostrarLectorStatus('Lector listo', 'var(--verde)'), 2000)
 
       // Enfocar cantidad para que el usuario la escriba directo
       setTimeout(() => document.getElementById('e-cantidad').focus(), 200)
@@ -236,9 +236,9 @@
 
       document.getElementById('caja-totales').innerHTML = `
         <div><span style="color:var(--text-muted); font-size:13px;">Efectivo</span><br>
-          <strong style="font-size:20px; color:#1a7a4a;">${cop(efectivo)}</strong></div>
+          <strong style="font-size:20px; color:var(--pill-verde-ink);">${cop(efectivo)}</strong></div>
         <div><span style="color:var(--text-muted); font-size:13px;">Transferencia</span><br>
-          <strong style="font-size:20px; color:#2c5282;">${cop(transferencia)}</strong></div>
+          <strong style="font-size:20px; color:var(--pill-azul-ink);">${cop(transferencia)}</strong></div>
         <div><span style="color:var(--text-muted); font-size:13px;">Total del dia</span><br>
           <strong style="font-size:20px;">${cop(efectivo + transferencia)}</strong></div>
       `
@@ -256,16 +256,16 @@
           ? '#' + String(m.numero_factura).padStart(6, '0')
           : (m.concepto || '—')
         return `
-          <tr style="${esAbono ? 'background:rgba(22,163,74,0.05);' : ''}">
+          <tr>
             <td>${new Date(String(m.fecha).replace(' ', 'T')).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</td>
             <td>${ETIQUETAS_CAJA[m.tipo] || m.tipo}</td>
             <td style="font-size:13px; color:var(--text-muted);">${referencia}</td>
             <td>${m.usuario || '—'}</td>
             <td>${(m.monto_transferencia || 0) !== 0
-              ? '<span class="badge" style="background:#e8f0fe;color:#2c5282;">📲 Transf.</span>'
-              : '<span class="badge" style="background:#d4f8e8;color:#1a7a4a;">💵 Efectivo</span>'}</td>
+              ? '<span class="badge badge-gris">Transf.</span>'
+              : '<span class="badge badge-gris">Efectivo</span>'}</td>
             <td style="text-align:right;">
-              <strong style="color:${negativo ? '#e94560' : '#16a34a'};">
+              <strong style="color:${negativo ? 'var(--negativo)' : 'var(--text)'};">
                 ${negativo ? '-' : ''}$${Math.abs(m.monto || 0).toLocaleString('es-CO')}
               </strong>
             </td>
@@ -297,7 +297,7 @@
         <tr>
           <td>${new Date(m.fecha).toLocaleString('es-CO')}</td>
           <td>
-            <span class="badge ${m.tipo === 'venta' ? 'badge-rojo' : 'badge-verde'}">
+            <span class="badge ${m.tipo === 'venta' ? 'badge-gris' : 'badge-verde'}">
               ${m.tipo === 'venta' ? 'Venta' : 'Entrada'}
             </span>
           </td>
@@ -311,17 +311,17 @@
 
     async function imprimirArqueo() {
       if (!confirm('Se va a imprimir el arqueo de caja de hoy. Continuar?')) return
-      mostrarLectorStatus('Imprimiendo arqueo...', '#f39c12')
+      mostrarLectorStatus('Imprimiendo arqueo...', 'var(--amarillo)')
       const res = await ipcRenderer.invoke('imprimir-arqueo-diario', {
         cerradoPor: sesion?.nombre || ''
       })
       if (res?.error) {
-        mostrarLectorStatus('Error al imprimir', '#e94560')
+        mostrarLectorStatus('Error al imprimir', 'var(--negativo)')
         alert('No se pudo imprimir el arqueo: ' + res.error)
       } else {
-        mostrarLectorStatus('Arqueo impreso', '#2ecc71')
+        mostrarLectorStatus('Arqueo impreso', 'var(--verde)')
       }
-      setTimeout(() => mostrarLectorStatus('Lector listo', '#2ecc71'), 2000)
+      setTimeout(() => mostrarLectorStatus('Lector listo', 'var(--verde)'), 2000)
     }
 
     function abrirModalEntrada() {

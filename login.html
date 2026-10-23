@@ -3,23 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <title>Casacas - Login</title>
+  <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="login.css">
   <script src="toast.js"></script>
 </head>
 <body>
   <div id="breadcrumb"></div>
   <div class="login-box">
-    <h1>Casacas</h1>
-    <p>Sistema de Inventario</p>
-
-    <div class="campo">
-      <label>Usuario</label>
-      <input type="text" id="usuario" placeholder="Ej: admin" />
+    <div class="login-marca">
+      <img src="assets/casacas.jpg" alt="">
+      <div>
+        <h1>Casacas Colegial</h1>
+        <p>Inventario y ventas · San Gil</p>
+      </div>
     </div>
 
     <div class="campo">
-      <label>Contraseña</label>
-      <input type="password" id="contrasena" placeholder="••••••••" />
+      <label for="usuario">Usuario</label>
+      <input type="text" id="usuario" placeholder="Ej: admin" autofocus />
+    </div>
+
+    <div class="campo">
+      <label for="contrasena">Contraseña</label>
+      <input type="password" id="contrasena" />
     </div>
 
     <button class="btn-login" id="btn-login">Ingresar</button>

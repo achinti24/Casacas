@@ -43,12 +43,10 @@ async function cargarMenu(paginaActiva) {
   const logoEl = document.querySelector('.sidebar-logo')
   if (logoEl) {
     logoEl.innerHTML = `
-      <img src="assets/casacas.jpg"
-           alt="Casacas Colegial"
-           style="width:36px; height:36px; border-radius:9px; object-fit:cover; flex-shrink:0; box-shadow:0 4px 10px rgba(0,0,0,0.3);">
+      <img src="assets/casacas.jpg" alt="" class="sidebar-logo-img">
       <div>
-        <h2 style="font-size:15px; font-weight:800; color:#ffffff; letter-spacing:-0.3px; line-height:1.1;">Casacas Colegial</h2>
-        <small style="display:block; color:#4b4f5e; font-size:9px; letter-spacing:1.5px; text-transform:uppercase; margin-top:1px;">San Gil</small>
+        <h2>Casacas Colegial</h2>
+        <small>San Gil</small>
       </div>
     `
   }

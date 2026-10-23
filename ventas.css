@@ -1,81 +1,152 @@
 .ventas-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  grid-template-columns: minmax(380px, 5fr) 7fr;
+  align-items: start;
+  gap: 16px;
 }
 
-.sugerencias {
-  border: 1px solid #eee;
-  border-radius: 8px;
-  background: white;
-  margin-top: 4px;
-  max-height: 220px;
-  overflow-y: auto;
+.ventas-grid > .panel { min-width: 0; }
+
+.tabla-desplazable { overflow-x: auto; }
+
+@media (max-width: 1100px) {
+  .ventas-grid { grid-template-columns: 1fr; }
 }
 
-.sugerencia-item {
-  padding: 10px 14px;
-  cursor: pointer;
-  border-bottom: 1px solid #f5f5f5;
+/* ── CUENTAS ABIERTAS ── */
+.cuentas-pestanas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.cuentas-lista { display: contents; }
+
+.pestana-cuenta {
+  display: flex;
+  align-items: center;
+  max-width: 200px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.pestana-cuenta:hover { border-color: var(--input-border); }
+
+.pestana-cuenta.activa {
+  border-color: var(--accent);
+  background: var(--card-bg);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.pestana-cuenta-principal {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 7px 12px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pestana-cuenta-principal:not(:only-child) { padding-right: 2px; }
+
+.pestana-cuenta-nombre,
+.pestana-cuenta-resumen {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pestana-cuenta-nombre {
   font-size: 13px;
-  transition: background 0.15s;
+  font-weight: 600;
+  line-height: 1.3;
 }
 
-.sugerencia-item:hover { background: #f9f0f2; }
-.sugerencia-item strong { font-size: 14px; color: #1a1a2e; }
-.sugerencia-item span { color: #888; }
+.pestana-cuenta.activa .pestana-cuenta-nombre { color: var(--accent); }
 
-.total-venta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 0 0;
-  border-top: 2px solid #f0f0f0;
-  margin-top: 16px;
-  font-size: 18px;
+.pestana-cuenta-resumen {
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
-.total-venta strong {
-  font-size: 24px;
-  color: #e94560;
+.pestana-cuenta-cerrar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  margin-right: 4px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
 }
 
-.apartado-banner {
-  background: #fff8e1;
-  border-left: 4px solid #f39c12;
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin-bottom: 14px;
+.pestana-cuenta-cerrar:hover {
+  background: var(--border);
+  color: var(--negativo);
+}
+
+.btn-nueva-cuenta {
+  padding: 7px 14px;
+  border: 1px dashed var(--input-border);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
   font-size: 13px;
-  display: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
 }
 
-.apartado-banner.activo { display: block; }
-.apartado-banner strong { color: #1a1a2e; }
-
-.desglose-pago {
-  background: #f5f6fa;
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin-top: 12px;
-  font-size: 14px;
-  display: none;
+.btn-nueva-cuenta:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
-.desglose-pago.activo { display: block; }
-
-.desglose-fila {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 6px;
+.pestana-cuenta-principal:focus-visible,
+.pestana-cuenta-cerrar:focus-visible,
+.btn-nueva-cuenta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
-.desglose-fila:last-child {
-  margin-bottom: 0;
-  padding-top: 8px;
-  border-top: 1px solid #ddd;
-  font-weight: bold;
+.nombre-cuenta {
+  width: 100%;
+  margin-bottom: 18px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-bottom-color: var(--border);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
 }
+
+.nombre-cuenta::placeholder { color: var(--text-muted); }
+
+.nombre-cuenta:hover { border-bottom-color: var(--input-border); }
+
+.nombre-cuenta:focus {
+  outline: none;
+  border-color: var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+}
+
+.tabla-desplazable td { white-space: nowrap; }

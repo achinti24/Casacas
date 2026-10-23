@@ -1,81 +1,102 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-  font-family: 'Segoe UI', sans-serif;
-  background: #1a1a2e;
+  font-family: 'Geist', 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
+  min-height: 100vh;
+  padding: 16px;
+  -webkit-font-smoothing: antialiased;
 }
 
 .login-box {
-  background: white;
-  border-radius: 20px;
-  padding: 50px 40px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 36px 32px 32px;
   width: 380px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-  text-align: center;
+  max-width: 100%;
+}
+
+.login-marca {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.login-marca img {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
 }
 
 .login-box h1 {
-  font-size: 28px;
-  color: #1a1a2e;
-  margin-bottom: 6px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  line-height: 1.2;
 }
 
 .login-box p {
-  color: #888;
-  font-size: 14px;
-  margin-bottom: 35px;
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .campo {
   text-align: left;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
 .campo label {
   display: block;
   font-size: 13px;
-  font-weight: bold;
-  color: #555;
+  font-weight: 500;
+  color: var(--text);
   margin-bottom: 6px;
 }
 
 .campo input {
   width: 100%;
-  padding: 12px 16px;
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  font-size: 15px;
-  transition: border 0.2s;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  background: var(--input-bg);
+  color: var(--text);
+  transition: var(--transition);
 }
 
 .campo input:focus {
   outline: none;
-  border-color: #e94560;
+  border-color: var(--text);
 }
 
 .btn-login {
   width: 100%;
-  padding: 13px;
-  background: #e94560;
-  color: white;
+  height: 40px;
+  background: var(--accent);
+  color: var(--on-accent);
   border: none;
-  border-radius: 10px;
-  font-size: 16px;
-  font-weight: bold;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  margin-top: 10px;
-  transition: opacity 0.2s;
+  margin-top: 8px;
+  transition: var(--transition);
 }
 
-.btn-login:hover { opacity: 0.88; }
+.btn-login:hover { background: var(--accent-hover); }
 
-.error {
-  color: #e94560;
+.login-box .error {
+  color: var(--negativo);
   font-size: 13px;
-  margin-top: 14px;
+  margin-top: 12px;
   display: none;
 }

@@ -63,7 +63,7 @@
       <button class="btn-limpiar" onclick="limpiarFiltros()">Limpiar filtros</button>
     </div>
 
-    <p id="contador" style="margin-bottom:12px; color:#888; font-size:14px;"></p>
+    <p id="contador" style="margin-bottom:12px; color:var(--text-muted); font-size:14px;"></p>
 
     <table>
       <thead>
@@ -297,15 +297,15 @@
           <td>$${(i.cantidad * (i.costo_unitario || 0)).toLocaleString('es-CO', { maximumFractionDigits: 0 })}</td>
           <td>${stockBadge(i)}</td>
           <td style="white-space:nowrap;">
-            <button class="btn btn-gris" style="padding:5px 10px; font-size:12px; margin-right:4px;"
+            <button class="accion-fila"
               onclick="abrirModalEditarInsumo(${i.id})">Editar</button>
-            <button class="btn btn-gris" style="padding:5px 10px; font-size:12px; color:#2ecc71; border-color:#2ecc71; margin-right:4px;"
+            <button class="accion-fila"
               onclick="abrirEntradaRapida(${i.id})">+ Stock</button>
-            <button class="btn btn-gris" style="padding:5px 10px; font-size:12px; color:#e67e22; border-color:#e67e22; margin-right:4px;"
+            <button class="accion-fila"
               onclick="abrirModalSalida(${i.id})">- Uso</button>
-            <button class="btn btn-gris" style="padding:5px 10px; font-size:12px; margin-right:4px;"
+            <button class="accion-fila"
               onclick="verHistorial(${i.id})">Historial</button>
-            <button class="btn btn-rojo" style="padding:5px 10px; font-size:12px;"
+            <button class="accion-fila peligro"
               onclick="eliminarInsumo(${i.id})">Eliminar</button>
           </td>
         </tr>

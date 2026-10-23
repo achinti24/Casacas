@@ -37,9 +37,9 @@
       </div>
     </div>
 
-    <div id="alerta-vencidos" style="display:none; background:#fde8ec; border-left:4px solid #e94560; border-radius:10px; padding:16px 20px; margin-bottom:20px;">
+    <div id="alerta-vencidos" style="display:none; background:var(--pill-rojo-bg); border-left:4px solid var(--negativo); border-radius:10px; padding:16px 20px; margin-bottom:20px;">
       <strong>Apartados sin recoger hace mas de <span id="alerta-dias"></span> dias:</strong>
-      <div id="alerta-lista" style="margin-top:8px; font-size:14px; color:#555;"></div>
+      <div id="alerta-lista" style="margin-top:8px; font-size:14px; color:var(--text-muted);"></div>
     </div>
 
     <div class="filtros">
@@ -63,9 +63,9 @@
           <th>Tipo</th>
           <th>Telefono</th>
           <th>Colegio</th>
-          <th>Total</th>
-          <th>Abono</th>
-          <th>Saldo</th>
+          <th class="num">Total</th>
+          <th class="num">Abono</th>
+          <th class="num">Saldo</th>
           <th>Dias</th>
           <th>Estado</th>
           <th>Acciones</th>
@@ -139,7 +139,7 @@
 
       <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-top:2px solid var(--border); margin-top:8px; margin-bottom:16px;">
         <span style="font-size:15px; color:var(--text);">Total apartado:</span>
-        <strong id="ap-total" style="font-size:20px; color:#e94560;">$0</strong>
+        <strong id="ap-total" style="font-size:20px; color:var(--negativo);">$0</strong>
       </div>
 
       <!-- 2. DATOS DEL CLIENTE DESPUÉS -->
@@ -212,7 +212,7 @@
         </select>
       </div>
 
-      <div id="ab-error" style="display:none; color:#e94560; font-size:13px; margin-top:8px;"></div>
+      <div id="ab-error" style="display:none; color:var(--negativo); font-size:13px; margin-top:8px;"></div>
 
       <div id="ab-historial" style="margin-top:18px;"></div>
 
@@ -246,9 +246,9 @@
 
       <div style="
         width:64px; height:64px; border-radius:50%;
-        background:#d4f8e8; display:flex; align-items:center; justify-content:center;
+        background:var(--pill-verde-bg); display:flex; align-items:center; justify-content:center;
         margin:0 auto 16px;">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" style="stroke:var(--pill-verde-ink)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="20 6 9 17 4 12"></polyline>
         </svg>
       </div>
@@ -261,7 +261,7 @@
       <div style="
         background:var(--bg); border:1px solid var(--border); border-radius:10px;
         padding:18px; margin-bottom:20px; display:flex; flex-direction:column; align-items:center; gap:8px;">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" style="stroke:var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="6 9 6 2 18 2 18 9"></polyline>
           <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
           <rect x="6" y="14" width="12" height="8"></rect>
@@ -335,7 +335,7 @@
             <strong>${a.nombre}</strong>
             ${a.telefono ? `— Tel: <strong>${a.telefono}</strong>` : ''}
             ${a.colegio  ? `— ${a.colegio}` : ''}
-            — Saldo: <strong style="color:#e94560;">$${parseFloat(a.total - a.abono).toLocaleString('es-CO')}</strong>
+            — Saldo: <strong style="color:var(--negativo);">$${parseFloat(a.total - a.abono).toLocaleString('es-CO')}</strong>
             — <strong>${getDias(a.fecha_creacion)} dias</strong> sin recoger
           </div>
         `).join('')
@@ -365,25 +365,25 @@
         const dias    = getDias(a.fecha_creacion)
         const vencido = a.estado === 'pendiente' && dias >= diasMax
         return `
-          <tr style="${vencido ? 'background:rgba(233,69,96,0.05);' : ''}">
+          <tr>
             <td>
               <strong>${a.nombre}</strong>
               ${a.telefono ? `<br><small style="color:var(--text-muted);">${a.telefono}</small>` : ''}
             </td>
             <td>
-              <span class="badge" style="background:${a.tipo === 'confeccion' ? '#f3e8ff' : '#e8f0fe'}; color:${a.tipo === 'confeccion' ? '#7c3aed' : '#2c5282'};">
+              <span class="badge ${a.tipo === 'confeccion' ? 'badge-azul' : 'badge-gris'}">
                 ${a.tipo === 'confeccion' ? 'Confeccion' : 'Apartado'}
               </span>
             </td>
             <td>${a.telefono || '—'}</td>
             <td>${a.colegio || '—'}</td>
-            <td>$${parseFloat(a.total).toLocaleString('es-CO')}</td>
-            <td>$${parseFloat(a.abono).toLocaleString('es-CO')}</td>
-            <td><strong style="color:#e94560;">$${parseFloat(saldo).toLocaleString('es-CO')}</strong></td>
+            <td class="num">$${parseFloat(a.total).toLocaleString('es-CO')}</td>
+            <td class="num">$${parseFloat(a.abono).toLocaleString('es-CO')}</td>
+            <td class="num"><strong>$${parseFloat(saldo).toLocaleString('es-CO')}</strong></td>
             <td>
-              <span style="font-weight:bold; color:${vencido ? '#e94560' : 'var(--text)'}">
+              <span style="white-space:nowrap; font-variant-numeric:tabular-nums; color:${vencido ? 'var(--negativo)' : 'var(--text)'}">
                 ${dias} dias
-                ${vencido ? '<br><small style="color:#e94560;">Llamar al cliente</small>' : ''}
+                ${vencido ? '<br><small style="color:var(--negativo);">Llamar al cliente</small>' : ''}
               </span>
             </td>
             <td>
@@ -391,14 +391,14 @@
                 ${a.estado}
               </span>
             </td>
-            <td style="display:flex; gap:5px; flex-wrap:wrap;">
-              <button class="btn btn-gris" style="padding:5px 10px" onclick="verDetalle(${a.id})">Ver</button>
+            <td><div class="acciones-fila">
+              <button class="accion-fila" onclick="verDetalle(${a.id})">Ver</button>
               ${a.estado === 'pendiente' ? `
-                ${saldo > 0 ? `<button class="btn btn-verde" style="padding:5px 10px" onclick="abrirModalAbono(${a.id})">Abonar</button>` : ''}
-                <button class="btn btn-gris" style="padding:5px 10px" onclick="editarApartado(${a.id})">Editar</button>
-                <button class="btn btn-rojo" style="padding:5px 10px" onclick="eliminarApartado(${a.id})">Eliminar</button>
+                ${saldo > 0 ? `<button class="accion-fila destacada" onclick="abrirModalAbono(${a.id})">Abonar</button>` : ''}
+                <button class="accion-fila" onclick="editarApartado(${a.id})">Editar</button>
+                <button class="accion-fila peligro" onclick="eliminarApartado(${a.id})">Eliminar</button>
               ` : ''}
-            </td>
+            </div></td>
           </tr>
         `
       }).join('')
@@ -499,8 +499,8 @@
       document.getElementById('abono-info').innerHTML = `
         <strong>${a.nombre}</strong><br>
         Total: $${parseFloat(a.total).toLocaleString('es-CO')} &nbsp;|&nbsp;
-        Abonado: <strong style="color:#16a34a;">$${parseFloat(a.abono).toLocaleString('es-CO')}</strong><br>
-        Saldo pendiente: <strong style="color:#e94560;">$${saldo.toLocaleString('es-CO')}</strong>
+        Abonado: <strong style="color:var(--verde);">$${parseFloat(a.abono).toLocaleString('es-CO')}</strong><br>
+        Saldo pendiente: <strong style="color:var(--negativo);">$${saldo.toLocaleString('es-CO')}</strong>
       `
       document.getElementById('ab-monto').value  = ''
       document.getElementById('ab-monto').max    = saldo
@@ -606,7 +606,7 @@
           agregarAlCarritoApartado(varianteEncontrada.id)
           return
         } else {
-          sugerencias.innerHTML = '<div style="padding:12px; color:#e94560; font-size:14px;">Codigo no encontrado</div>'
+          sugerencias.innerHTML = '<div style="padding:12px; color:var(--negativo); font-size:14px;">Codigo no encontrado</div>'
           return
         }
       }
@@ -708,7 +708,7 @@
           <td>$${(item.precio_unitario * item.cantidad).toLocaleString('es-CO')}</td>
           <td>
             <button onclick="quitarDelCarritoApartado(${idx})"
-              style="background:none; border:none; cursor:pointer; color:#e94560; font-size:16px;">X</button>
+              style="background:none; border:none; cursor:pointer; color:var(--negativo); font-size:16px;">X</button>
           </td>
         </tr>
       `).join('')
@@ -835,8 +835,8 @@
         <strong>${a.nombre}</strong><br>
         Telefono: ${a.telefono || '—'} &nbsp;|&nbsp;
         Colegio: ${a.colegio || '—'}<br>
-        Abono: <strong style="color:#2ecc71;">$${parseFloat(a.abono).toLocaleString('es-CO')}</strong> &nbsp;|&nbsp;
-        Saldo: <strong style="color:#e94560;">$${parseFloat(saldo).toLocaleString('es-CO')}</strong><br>
+        Abono: <strong style="color:var(--verde);">$${parseFloat(a.abono).toLocaleString('es-CO')}</strong> &nbsp;|&nbsp;
+        Saldo: <strong style="color:var(--negativo);">$${parseFloat(saldo).toLocaleString('es-CO')}</strong><br>
         Creado hace: <strong>${dias} dias</strong>
         ${a.notas ? `<br>Notas: ${a.notas}` : ''}
       `

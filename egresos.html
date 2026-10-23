@@ -53,7 +53,7 @@
       <button class="btn-limpiar" onclick="limpiarFiltros()">Limpiar</button>
     </div>
 
-    <p id="contador" style="margin:12px 0; color:#888; font-size:14px;"></p>
+    <p id="contador" style="margin:12px 0; color:var(--text-muted); font-size:14px;"></p>
 
     <table>
       <thead>
@@ -61,7 +61,7 @@
           <th>Fecha y hora</th>
           <th>Categoria</th>
           <th>Descripcion</th>
-          <th>Monto</th>
+          <th class="num">Monto</th>
           <th>Usuario</th>
           <th>Acciones</th>
         </tr>
@@ -168,13 +168,13 @@
       tbody.innerHTML = lista.map(e => `
         <tr>
           <td>${new Date(e.fecha).toLocaleString('es-CO')}</td>
-          <td><span class="badge badge-rojo">${e.categoria}</span></td>
+          <td><span class="badge badge-gris">${e.categoria}</span></td>
           <td>${e.descripcion || '—'}</td>
-          <td><strong style="color:#e94560;">$${parseFloat(e.monto).toLocaleString('es-CO')}</strong></td>
+          <td class="num"><strong>$${parseFloat(e.monto).toLocaleString('es-CO')}</strong></td>
           <td>${e.usuario || '—'}</td>
           <td>
-            <button class="btn btn-gris" style="padding:6px 12px;margin-right:5px" onclick="editarEgreso(${e.id})">Editar</button>
-            <button class="btn btn-rojo" style="padding:6px 12px" onclick="eliminarEgreso(${e.id})">Eliminar</button>
+            <button class="accion-fila" onclick="editarEgreso(${e.id})">Editar</button>
+            <button class="accion-fila peligro" onclick="eliminarEgreso(${e.id})">Eliminar</button>
           </td>
         </tr>
       `).join('')
