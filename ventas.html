@@ -828,7 +828,7 @@
             }
           </td>
           <td><span class="badge" style="background:var(--pill-amarillo-bg);color:var(--pill-amarillo-ink);">Apartado</span></td>
-          <td><button class="accion-fila" onclick="navegar('apartados.html')">Ver</button></td>
+          <td><button class="accion-fila destacada" onclick="navegar('apartados.html')">Ver</button></td>
         </tr>
       ` : `
         <tr style="${v.anulada ? 'opacity:0.5;' : ''}">
@@ -857,7 +857,7 @@
               : '<span class="badge badge-verde">Entregada</span>'
             }
           </td>
-          <td><button class="accion-fila" onclick="verDetalle(${v.id})">Ver</button></td>
+          <td><button class="accion-fila destacada" onclick="verDetalle(${v.id})">Ver</button></td>
         </tr>
       `).join('')
     }

@@ -150,3 +150,16 @@
 }
 
 .tabla-desplazable td { white-space: nowrap; }
+
+/* La columna del boton "Ver" queda fija a la derecha: la tabla tiene mas
+   columnas de las que caben en el panel y, al desplazarse de lado, el boton
+   que abre el detalle de la venta no puede quedar fuera de la vista. */
+.tabla-desplazable th:last-child,
+.tabla-desplazable td:last-child {
+  position: sticky;
+  right: 0;
+  background: var(--card-bg);
+  box-shadow: inset 1px 0 0 var(--border);
+}
+
+.tabla-desplazable tbody tr:hover td:last-child { background: var(--table-row-hover); }
