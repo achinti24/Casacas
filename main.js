@@ -1740,10 +1740,65 @@ app.whenReady().then(() => {
     `).all(ventaId)
   })
 
+  // Piezas fisicas que mueve una variante en el inventario. Un paquete (bundle)
+  // no tiene stock propio: mueve cada una de sus piezas, igual que al venderlo
+  // en 'registrar-venta'. Una prenda suelta se mueve a si misma. Se usa la
+  // composicion actual del paquete: si se edito despues de la venta, se
+  // devuelven las piezas que lo forman hoy.
+  function piezasDeVariante(varianteId, cantidad) {
+    const componentes = db.prepare(
+      'SELECT componente_variante_id, cantidad FROM bundle_componentes WHERE bundle_variante_id = ?'
+    ).all(varianteId)
+    if (componentes.length === 0) return [{ variante_id: varianteId, cantidad }]
+    return componentes.map(c => ({ variante_id: c.componente_variante_id, cantidad: (c.cantidad || 1) * cantidad }))
+  }
+
+  function sumarPorVariante(piezas) {
+    const total = new Map()
+    for (const { variante_id, cantidad } of piezas) {
+      total.set(variante_id, (total.get(variante_id) || 0) + cantidad)
+    }
+    return total
+  }
+
+  function nombreVariante(varianteId) {
+    const info = db.prepare(`
+      SELECT p.nombre, pv.talla FROM producto_variantes pv
+      JOIN productos p ON pv.producto_id = p.id WHERE pv.id = ?
+    `).get(varianteId)
+    return info ? `${info.nombre} T${info.talla}` : `variante ${varianteId}`
+  }
+
+  // Revisa que alcancen las piezas nuevas contando con las que se devuelven en
+  // el mismo cambio (un paquete talla 14 y uno talla 16 pueden compartir la
+  // corbata). Devuelve el mensaje de error, o null si todo alcanza.
+  function faltantePiezas(piezasNuevas, piezasDevueltas) {
+    const devueltas = sumarPorVariante(piezasDevueltas)
+    for (const [varianteId, requerida] of sumarPorVariante(piezasNuevas)) {
+      const fila = db.prepare('SELECT cantidad FROM producto_variantes WHERE id = ?').get(varianteId)
+      if (!fila) return `Producto no encontrado (variante ID ${varianteId}).`
+      const disponible = fila.cantidad + (devueltas.get(varianteId) || 0)
+      if (disponible < requerida) {
+        return `Solo hay ${disponible} unidad${disponible === 1 ? '' : 'es'} de "${nombreVariante(varianteId)}".`
+      }
+    }
+    return null
+  }
+
+  function moverPiezas(piezas, { signo, tipo, usuarioId, nota }) {
+    const actualizar = db.prepare('UPDATE producto_variantes SET cantidad = cantidad + ? WHERE id = ?')
+    const registrar  = db.prepare(`INSERT INTO movimientos (variante_id, usuario_id, tipo, cantidad, nota) VALUES (?, ?, ?, ?, ?)`)
+    for (const { variante_id, cantidad } of piezas) {
+      actualizar.run(signo * cantidad, variante_id)
+      registrar.run(variante_id, usuarioId, tipo, cantidad, nota)
+    }
+  }
+
   // ── CAMBIAR PRODUCTO / TALLA DE UNA VENTA ─────────
   // Reemplaza un item de una venta ya registrada por otro (ej: talla S por talla M).
   // Devuelve al stock la variante vieja, descuenta la variante nueva, y ajusta el
   // total de la venta segun la diferencia de precio entre ambas variantes.
+  // Si alguna de las dos es un paquete, lo que se mueve son sus piezas.
   const cambiarItemVenta = db.transaction(({ ventaId, itemId, varianteNuevaId, usuarioId, motivo, metodoPago, montoTransferencia }) => {
     const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(ventaId)
     if (!venta) return { error: 'Venta no encontrada' }
@@ -1756,34 +1811,20 @@ app.whenReady().then(() => {
       return { error: 'Selecciona una talla o producto diferente al actual' }
     }
 
-    // Los bundles (paquetes) no estan soportados en el cambio por ahora,
-    // ya que involucran multiples componentes de stock.
-    const esBundleViejo = db.prepare('SELECT id FROM bundle_componentes WHERE bundle_variante_id = ? LIMIT 1').get(item.variante_id)
-    const esBundleNuevo = db.prepare('SELECT id FROM bundle_componentes WHERE bundle_variante_id = ? LIMIT 1').get(varianteNuevaId)
-    if (esBundleViejo || esBundleNuevo) {
-      return { error: 'Los cambios de productos tipo paquete no estan soportados todavia. Anula la venta y registra una nueva.' }
-    }
-
     const varianteVieja = db.prepare('SELECT v.*, p.nombre FROM producto_variantes v JOIN productos p ON v.producto_id = p.id WHERE v.id = ?').get(item.variante_id)
     const varianteNueva = db.prepare('SELECT v.*, p.nombre FROM producto_variantes v JOIN productos p ON v.producto_id = p.id WHERE v.id = ?').get(varianteNuevaId)
     if (!varianteNueva) return { error: 'El producto nuevo no existe' }
 
-    if (varianteNueva.cantidad < item.cantidad) {
-      return { error: `Solo hay ${varianteNueva.cantidad} unidad${varianteNueva.cantidad === 1 ? '' : 'es'} disponible${varianteNueva.cantidad === 1 ? '' : 's'} de "${varianteNueva.nombre} T${varianteNueva.talla}".` }
-    }
+    const piezasDevueltas = piezasDeVariante(item.variante_id, item.cantidad)
+    const piezasNuevas    = piezasDeVariante(varianteNuevaId, item.cantidad)
+    const faltante        = faltantePiezas(piezasNuevas, piezasDevueltas)
+    if (faltante) return { error: faltante }
 
     const numFactura = venta.numero_factura || ventaId
     const notaBase    = `Cambio venta #${numFactura}${motivo ? ' - ' + motivo : ''}`
 
-    // Devolver stock de la variante vieja al inventario
-    db.prepare('UPDATE producto_variantes SET cantidad = cantidad + ? WHERE id = ?').run(item.cantidad, item.variante_id)
-    db.prepare(`INSERT INTO movimientos (variante_id, usuario_id, tipo, cantidad, nota) VALUES (?, ?, 'entrada', ?, ?)`)
-      .run(item.variante_id, usuarioId, item.cantidad, notaBase + ' (devolucion)')
-
-    // Descontar stock de la variante nueva
-    db.prepare('UPDATE producto_variantes SET cantidad = cantidad - ? WHERE id = ?').run(item.cantidad, varianteNuevaId)
-    db.prepare(`INSERT INTO movimientos (variante_id, usuario_id, tipo, cantidad, nota) VALUES (?, ?, 'venta', ?, ?)`)
-      .run(varianteNuevaId, usuarioId, item.cantidad, notaBase + ' (nueva talla)')
+    moverPiezas(piezasDevueltas, { signo: +1, tipo: 'entrada', usuarioId, nota: notaBase + ' (devolucion)' })
+    moverPiezas(piezasNuevas,    { signo: -1, tipo: 'venta',   usuarioId, nota: notaBase + ' (nueva talla)' })
 
     // Actualizar el item de la venta con el nuevo producto y precio
     db.prepare('UPDATE venta_items SET variante_id = ?, precio_unitario = ? WHERE id = ?')
@@ -1856,8 +1897,7 @@ app.whenReady().then(() => {
   // ── ANULAR VENTA (solo administradores) ───────────
   // No borra el registro de la venta (queda marcada como anulada, para que
   // no se pierda el historial/contabilidad), pero devuelve el stock vendido
-  // al inventario. Los bundles no estan soportados todavia (igual que en
-  // 'cambiar-item-venta'), ya que involucran multiples componentes de stock.
+  // al inventario. De un paquete se devuelven sus piezas.
   const anularVenta = db.transaction(({ ventaId, usuarioId, motivo }) => {
     const usuario = db.prepare('SELECT rol FROM usuarios WHERE id = ?').get(usuarioId)
     if (!usuario || usuario.rol !== 'admin') {
@@ -1871,23 +1911,14 @@ app.whenReady().then(() => {
     const items = db.prepare('SELECT * FROM venta_items WHERE venta_id = ?').all(ventaId)
     if (items.length === 0) return { error: 'Esta venta no tiene productos asociados' }
 
-    const tieneBundle = items.some(i =>
-      db.prepare('SELECT id FROM bundle_componentes WHERE bundle_variante_id = ? LIMIT 1').get(i.variante_id)
-    )
-    if (tieneBundle) {
-      return { error: 'Esta venta incluye un producto tipo paquete. La anulacion de paquetes no esta soportada todavia.' }
-    }
-
     const numFactura = venta.numero_factura || ventaId
     const notaMov    = `Anulacion venta #${numFactura}` + (motivo ? ' - ' + motivo : '')
 
-    const restaurar = db.prepare('UPDATE producto_variantes SET cantidad = cantidad + ? WHERE id = ?')
-    const insertMov = db.prepare(`INSERT INTO movimientos (variante_id, usuario_id, tipo, cantidad, nota) VALUES (?, ?, 'entrada', ?, ?)`)
-
-    for (const item of items) {
-      restaurar.run(item.cantidad, item.variante_id)
-      insertMov.run(item.variante_id, usuarioId, item.cantidad, notaMov)
-    }
+    // Las prendas de confeccion (sin variante) no tienen stock que devolver.
+    const piezas = items
+      .filter(item => item.variante_id)
+      .flatMap(item => piezasDeVariante(item.variante_id, item.cantidad))
+    moverPiezas(piezas, { signo: +1, tipo: 'entrada', usuarioId, nota: notaMov })
 
     db.prepare('UPDATE ventas SET anulada = 1, motivo_anulacion = ? WHERE id = ?')
       .run(motivo || 'Sin motivo especificado', ventaId)
